@@ -10,7 +10,7 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 | `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
 | `wontfix`                  | `wontfix`            | Will not be actioned                     |
 
-These are Linear issue labels on the Tome VTT team. If one doesn't exist yet, create it with `create_issue_label` the first time it's needed.
+These are Linear issue labels on the Tome Connector team. If one doesn't exist yet, create it with `create_issue_label` the first time it's needed.
 
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 

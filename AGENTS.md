@@ -272,7 +272,7 @@ this.registerInterval(
 
 ### Issue tracker
 
-Issues live in Linear, team **Tome VTT** (`TVVT`), project **Tome Connector**, via the `linear-agent` MCP tools. See `docs/agents/issue-tracker.md`.
+Issues live in Linear, team **Tome Connector** (`TC`), project **TC**, via the `linear-agent` MCP tools. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
