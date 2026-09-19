@@ -101,7 +101,6 @@ export interface SpellBody {
 	dnd5e: Dnd5eSpell;
 }
 
-
 /** Adds the picture only when there is one; a missing image is an absent key, never `null`. */
 function withImage<T extends object>(body: T, image: string | undefined): T & { image?: string } {
 	return image === undefined || image === '' ? body : { ...body, image };

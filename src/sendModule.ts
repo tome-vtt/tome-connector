@@ -46,6 +46,7 @@ export type Destination = Omit<TomeTarget, 'path'>;
  */
 export type ModuleSendable =
 	| (SendableParse & { path: string })
+	// Not in `SendableParse`: the scan never finds a prop, only its block button sends one.
 	| { kind: 'prop'; path: string; block: Record<string, unknown> }
 	| { kind: 'image'; path: string; to: 'map' | 'prop' };
 
