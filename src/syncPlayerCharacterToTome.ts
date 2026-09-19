@@ -5,6 +5,7 @@ import { sendJsonToTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { stripMarkdown } from './tomeMarkdownSanitizer';
 import { parsePcSheet } from './tomePcSheetParser';
+import { unwrapWikilink } from './recognizers/map';
 import { PLAYER_CHARACTER_PROPERTIES, playerCharacterBody } from './playerCharacterBody';
 import { chooseCharacterDestination } from './chooseCharacterDestination';
 import { requestFor, type DestinationRequest } from './characterDestination';
@@ -118,12 +119,9 @@ function resolveWikilinkPath(
 	value: unknown,
 	sourcePath: string,
 ): unknown {
-	if (typeof value !== 'string') return value;
+	const linkpath = unwrapWikilink(value);
+	if (linkpath === null || linkpath === value) return value;
 
-	const match = value.match(/^\[\[([^\]|#]+)/);
-	if (!match?.[1]) return value;
-
-	const linkpath = match[1].trim();
 	const dest = plugin.app.metadataCache.getFirstLinkpathDest(
 		linkpath,
 		sourcePath,

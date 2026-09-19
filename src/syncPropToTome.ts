@@ -1,13 +1,10 @@
 import { Notice, TFile, parseYaml } from 'obsidian';
 import type { MarkdownPostProcessorContext } from 'obsidian';
 import type TomeConnectorPlugin from './main';
-import { resolveImagePaths } from './tomeImageEmbedding';
-import { sendJsonToTome } from './tomeApiClient';
-import { getApiKey } from './tomeConnectorSettings';
-import { stripMarkdown } from './tomeMarkdownSanitizer';
+// The body, the route and the headers are the send module's; this file keeps the DOM.
+import { sendWithNotice } from './obsidianSendPorts';
+import { unwrapWikilink } from './recognizers/map';
 import { writeTomeIdToYamlBlock } from './writeTomeIdToYamlBlock';
-import { existingTomeId } from './tomeIdWriteBack';
-import { TOME_ROUTES } from './routes';
 import { chooseCampaign } from './tomeCampaigns';
 
 const BUTTON_TEXT = 'Send to Tome';
@@ -97,39 +94,16 @@ export function registerPropCodeBlockButton(plugin: TomeConnectorPlugin): void {
 }
 
 /**
- * Resolves an image value (e.g. `simple-chest.webp` or a `[[wikilink]]`) to
- * the actual vault file it refers to by searching the vault the same way
- * Obsidian resolves links, using the note's own path as the resolution
- * context. Returns null if it can't be resolved.
+ * The vault file an image value (`simple-chest.webp` or a `[[wikilink]]`)
+ * refers to, found the way Obsidian resolves links from the note, for the
+ * preview. Null if it can't be resolved.
  */
 function resolveImageFile(
 	plugin: TomeConnectorPlugin,
 	value: string,
 	sourcePath: string,
 ): TFile | null {
-	// Strip wikilink brackets/alias/heading if present, e.g.
-	// `[[simple-chest.webp|Chest]]` -> `simple-chest.webp`.
-	const match = value.match(/^\[\[([^\]|#]+)/);
-	const linkpath = (match?.[1] ?? value).trim();
-
-	return plugin.app.metadataCache.getFirstLinkpathDest(linkpath, sourcePath);
-}
-
-/**
- * Resolves an image value the same way as `resolveImageFile`, but returns
- * the resolved vault path as a string (or the original value unchanged if
- * it can't be resolved) - used for the outgoing payload rather than
- * rendering.
- */
-function resolveImageLinkPath(
-	plugin: TomeConnectorPlugin,
-	value: unknown,
-	sourcePath: string,
-): unknown {
-	if (typeof value !== 'string' || value.trim() === '') return value;
-
-	const dest = resolveImageFile(plugin, value, sourcePath);
-	return dest ? dest.path : value;
+	return plugin.app.metadataCache.getFirstLinkpathDest(unwrapWikilink(value) ?? value, sourcePath);
 }
 
 async function handleSendClick(
@@ -145,36 +119,8 @@ async function handleSendClick(
 		const campaignId = await chooseCampaign(plugin);
 		if (campaignId === null) return;
 
-		const parsed = parseYaml(rawYaml) as Record<string, unknown>;
-
-		// Only an id Tome issued goes back; anything else would fail model binding.
-		const payload: Record<string, unknown> = { ...parsed };
-		delete payload.id;
-		delete payload.tome_id;
-		const existingId = existingTomeId(parsed);
-		if (existingId !== undefined) payload.id = existingId;
-		if (IMAGE_KEY in payload) {
-			payload[IMAGE_KEY] = resolveImageLinkPath(
-				plugin,
-				payload[IMAGE_KEY],
-				ctx.sourcePath,
-			);
-		}
-
-		const cleaned = stripMarkdown(payload);
-		const resolved = await resolveImagePaths(
-			plugin.app,
-			cleaned,
-			'token',
-			plugin.settings.downscaleImages,
-		);
-		const id = await sendJsonToTome(
-			plugin.settings.baseUrl,
-			TOME_ROUTES.addProp,
-			JSON.stringify(resolved),
-			getApiKey(plugin),
-			campaignId,
-		);
+		const source = parseYaml(rawYaml) as Record<string, unknown>;
+		const id = await sendWithNotice(plugin, { kind: 'prop', path: ctx.sourcePath, source }, campaignId);
 		if (id !== null) await writeTomeIdToYamlBlock(plugin, ctx, sectionEl, 'prop', id);
 	} catch (error) {
 		console.error('Tome Connector: failed to send prop', error);
