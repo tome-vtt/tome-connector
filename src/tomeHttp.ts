@@ -23,12 +23,13 @@ export function joinUrl(baseUrl: string, path: string): string {
 	return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
+/** A POST carries `contentType` and `body`; a GET carries neither. */
 export interface TomeRequest {
 	url: string;
-	method: 'POST';
-	contentType: string;
+	method: 'GET' | 'POST';
+	contentType?: string;
 	headers: Record<string, string>;
-	body: string | ArrayBuffer;
+	body?: string | ArrayBuffer;
 }
 
 export interface TomeResponse {
@@ -49,7 +50,7 @@ export interface TomeTarget {
 	campaignId?: string;
 }
 
-/** What one POST did, in enough detail for a caller to report or retry it. */
+/** What one request did, in enough detail for a caller to report or retry it. */
 export interface SendResult {
 	ok: boolean;
 	/** 0 when the request never reached the server. */
@@ -64,71 +65,100 @@ export interface SendResult {
 	retryAfterSeconds?: number;
 }
 
+/** A request whose answer the caller reads as JSON: the parsed body, or why there is none. */
+export type JsonResult<T> = { ok: true; value: T } | { ok: false; message: string };
+
+/**
+ * The sentence to show for a failed request: the server's own message, or its
+ * status when it gave none.
+ */
+export function describeFailure(result: SendResult): string {
+	return result.message ?? `The server responded with status ${result.status}.`;
+}
+
 export function createTomeHttp(transport: TomeTransport) {
 	return {
-		postJson: (target: TomeTarget, payload: string) =>
-			post(transport, target, payload, 'application/json'),
+		postJson: async (target: TomeTarget, payload: string) =>
+			(await send(transport, target, { body: payload, contentType: 'application/json' })).result,
 		/**
 		 * For the endpoints that take a file beside their fields. The caller builds the
 		 * body with `buildMultipartBody`, because `requestUrl` takes only
 		 * `string | ArrayBuffer` and `FormData` is not an option.
 		 */
-		postMultipart: (target: TomeTarget, body: ArrayBuffer, contentType: string) =>
-			post(transport, target, body, contentType),
+		postMultipart: async (target: TomeTarget, body: ArrayBuffer, contentType: string) =>
+			(await send(transport, target, { body, contentType })).result,
+		/** A GET whose body is JSON, e.g. the campaign list. The shape is the caller's to check. */
+		getJson: <T>(target: TomeTarget) => readJson<T>(send(transport, target)),
+		/** A JSON POST whose answer is itself JSON, e.g. the adventure import. */
+		postJsonAndRead: <T>(target: TomeTarget, payload: string) =>
+			readJson<T>(send(transport, target, { body: payload, contentType: 'application/json' })),
 	};
 }
 
-async function post(
+async function readJson<T>(sent: Promise<{ result: SendResult; text: string }>): Promise<JsonResult<T>> {
+	const { result, text } = await sent;
+	if (!result.ok) return { ok: false, message: describeFailure(result) };
+	try {
+		return { ok: true, value: JSON.parse(text) as T };
+	} catch {
+		return { ok: false, message: 'The server sent a response that was not JSON.' };
+	}
+}
+
+/** Sends one request; a POST when `post` is given, otherwise a GET. */
+async function send(
 	transport: TomeTransport,
 	target: TomeTarget,
-	body: string | ArrayBuffer,
-	contentType: string,
-): Promise<SendResult> {
+	post?: { body: string | ArrayBuffer; contentType: string },
+): Promise<{ result: SendResult; text: string }> {
 	if (!target.baseUrl.trim() || !target.apiKey) {
-		return { ok: false, status: 0, id: null, message: NOT_CONFIGURED, retryable: false };
+		return { result: { ok: false, status: 0, id: null, message: NOT_CONFIGURED, retryable: false }, text: '' };
 	}
 
-	const headers: Record<string, string> = {
-		'Content-Type': contentType,
-		[API_KEY_HEADER_NAME]: target.apiKey,
-	};
+	const headers: Record<string, string> = post ? { 'Content-Type': post.contentType } : {};
+	headers[API_KEY_HEADER_NAME] = target.apiKey;
 	if (target.campaignId) headers[CAMPAIGN_HEADER_NAME] = target.campaignId;
 
 	let response: TomeResponse;
 	try {
-		response = await transport({
-			url: joinUrl(target.baseUrl, target.path),
-			method: 'POST',
-			contentType,
-			headers,
-			body,
-		});
+		const url = joinUrl(target.baseUrl, target.path);
+		response = await transport(
+			post
+				? { url, method: 'POST', contentType: post.contentType, headers, body: post.body }
+				: { url, method: 'GET', headers },
+		);
 	} catch (error) {
-		console.error('Tome Connector: failed to send payload', error);
+		console.error('Tome Connector: request failed', error);
 		return {
-			ok: false,
-			status: 0,
-			id: null,
-			message: error instanceof Error ? error.message : String(error),
-			// The request never arrived, so the server has not refused anything.
-			retryable: true,
+			result: {
+				ok: false,
+				status: 0,
+				id: null,
+				message: error instanceof Error ? error.message : String(error),
+				// The request never arrived, so the server has not refused anything.
+				retryable: true,
+			},
+			text: '',
 		};
 	}
 
 	const { status, text } = response;
 	if (status >= 200 && status < 300) {
-		return { ok: true, status, id: extractResponseId(text), message: null, retryable: false };
+		return { result: { ok: true, status, id: extractResponseId(text), message: null, retryable: false }, text };
 	}
 
 	console.error(`Tome Connector: server responded with status ${status}`, text);
 	const retryAfterSeconds = parseRetryAfter(response.headers);
 	return {
-		ok: false,
-		status,
-		id: null,
-		message: extractErrorMessage(text),
-		retryable: isRetryable(status),
-		...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+		result: {
+			ok: false,
+			status,
+			id: null,
+			message: extractErrorMessage(text),
+			retryable: isRetryable(status),
+			...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+		},
+		text,
 	};
 }
 

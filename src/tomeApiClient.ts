@@ -1,7 +1,7 @@
 import { Notice, requestUrl } from 'obsidian';
-import { createTomeHttp, type SendResult, type TomeTransport } from './tomeHttp';
+import { createTomeHttp, type JsonResult, type SendResult, type TomeTransport } from './tomeHttp';
 
-export { API_KEY_HEADER_NAME, CAMPAIGN_HEADER_NAME, joinUrl, type SendResult } from './tomeHttp';
+export { API_KEY_HEADER_NAME, CAMPAIGN_HEADER_NAME, describeFailure, joinUrl, type SendResult } from './tomeHttp';
 
 /** The production adapter at the transport seam. `throw: false` so a 4xx comes back as a status. */
 const obsidianTransport: TomeTransport = async (request) => {
@@ -44,6 +44,22 @@ export function postMultipartToTome(
 	campaignId?: string,
 ): Promise<SendResult> {
 	return tomeHttp.postMultipart({ baseUrl, path, apiKey, campaignId }, body, contentType);
+}
+
+/** GETs a JSON body, quietly: the campaign list. */
+export function getJsonFromTome<T>(baseUrl: string, path: string, apiKey: string): Promise<JsonResult<T>> {
+	return tomeHttp.getJson<T>({ baseUrl, path, apiKey });
+}
+
+/** Posts JSON and reads the JSON answer, quietly: the adventure import's link-resolve and import passes. */
+export function postJsonAndReadFromTome<T>(
+	baseUrl: string,
+	path: string,
+	payload: string,
+	apiKey: string,
+	campaignId: string,
+): Promise<JsonResult<T>> {
+	return tomeHttp.postJsonAndRead<T>({ baseUrl, path, apiKey, campaignId }, payload);
 }
 
 /**

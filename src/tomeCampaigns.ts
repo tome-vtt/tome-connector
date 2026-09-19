@@ -1,8 +1,9 @@
-import { Modal, Notice, Setting, requestUrl } from 'obsidian';
+import { Modal, Notice, Setting } from 'obsidian';
 import type { App } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
-import { API_KEY_HEADER_NAME, joinUrl } from './tomeApiClient';
+import { TOME_ROUTES } from './routes';
+import { getJsonFromTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 
 export interface TomeCampaign {
@@ -35,42 +36,16 @@ function isCampaign(value: unknown): value is TomeCampaign {
 export async function loadCampaigns(
 	plugin: TomeConnectorPlugin,
 ): Promise<TomeCampaign[] | null> {
-	const baseUrl = plugin.settings.baseUrl.trim();
-	if (baseUrl === '') {
-		new Notice('Tome connector: set a base URL in the plugin settings first.');
+	const result = await getJsonFromTome<unknown>(plugin.settings.baseUrl, TOME_ROUTES.campaigns, getApiKey(plugin));
+	if (!result.ok) {
+		new Notice(`Tome connector: could not load campaigns. ${result.message}`);
 		return null;
 	}
-
-	const apiKey = getApiKey(plugin);
-	if (apiKey === '') {
-		new Notice('Tome connector: set an API key in the plugin settings first.');
+	if (!Array.isArray(result.value) || !result.value.every(isCampaign)) {
+		new Notice('Tome connector: could not load campaigns. The server returned an invalid campaign list.');
 		return null;
 	}
-
-	try {
-		const response = await requestUrl({
-			url: joinUrl(baseUrl, '/api/campaigns'),
-			method: 'GET',
-			headers: { [API_KEY_HEADER_NAME]: apiKey },
-			throw: false,
-		});
-		if (response.status < 200 || response.status >= 300) {
-			new Notice(`Tome connector: could not load campaigns (${response.status}).`);
-			return null;
-		}
-
-		const parsed: unknown = JSON.parse(response.text);
-		if (!Array.isArray(parsed) || !parsed.every(isCampaign)) {
-			throw new Error('The server returned an invalid campaign list.');
-		}
-		return parsed;
-	} catch (error) {
-		console.error('Tome Connector: failed to load campaigns', error);
-		new Notice(
-			`Tome connector: could not load campaigns. ${error instanceof Error ? error.message : String(error)}`,
-		);
-		return null;
-	}
+	return result.value;
 }
 
 /** Loads only the campaigns owned by the account behind the configured API key. */

@@ -11,6 +11,7 @@ import { TOME_ROUTES } from '../src/routes';
 describe('TOME_ROUTES', () => {
 	it('addresses the endpoints the server exposes', () => {
 		expect(TOME_ROUTES).toEqual({
+			campaigns: '/api/campaigns',
 			addNonPlayerCharacter: '/api/nonplayercharacters/addnonplayercharacter',
 			addEncounter: '/api/encounters/addencounter',
 			addMap: '/api/maps/addmap',
