@@ -21,8 +21,8 @@ import { TINY_PNG, everyBody, type BuiltBody } from './fixtures/wireBodies';
  * the first two blocks here are about the whole set of bodies, not one kind at a time.
  */
 
-const WITH_IMAGES = everyBody(TINY_PNG);
-const WITHOUT_IMAGES = everyBody();
+const WITH_IMAGES = await everyBody(TINY_PNG);
+const WITHOUT_IMAGES = await everyBody();
 const ALL: BuiltBody[] = [...WITH_IMAGES, ...WITHOUT_IMAGES];
 
 function byLabel(label: string, bodies: BuiltBody[] = WITHOUT_IMAGES): Record<string, unknown> {
