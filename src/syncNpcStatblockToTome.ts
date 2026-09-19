@@ -96,8 +96,8 @@ async function handleSendClick(
 		const campaignId = await chooseCampaign(plugin);
 		if (campaignId === null) return;
 
-		const source = parseYaml(rawYaml) as Record<string, unknown>;
-		const id = await sendWithNotice(plugin, { kind: 'creature', path: ctx.sourcePath, source }, campaignId);
+		const block = parseYaml(rawYaml) as Record<string, unknown>;
+		const id = await sendWithNotice(plugin, { kind: 'creature', path: ctx.sourcePath, block }, campaignId);
 
 		if (id !== null) {
 			// Only the id line changes, so the note keeps its compact `monster:`

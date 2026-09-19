@@ -54,7 +54,7 @@ describe('findSendables', () => {
 		);
 
 		expect(found).toHaveLength(1);
-		expect(found[0]).toMatchObject({ kind: 'creature', label: 'Goblin', startLine: 0 });
+		expect(found[0]).toMatchObject({ kind: 'creature', label: 'Goblin', block: goblinStats });
 	});
 
 	/**
@@ -68,7 +68,7 @@ describe('findSendables', () => {
 		);
 
 		expect(found).toHaveLength(1);
-		expect(found[0]?.startLine).toBe(0);
+		expect(found[0]).toMatchObject({ kind: 'creature', block: goblinStats });
 	});
 
 	it('takes the creature from frontmatter when there is no fence', () => {
@@ -79,8 +79,6 @@ describe('findSendables', () => {
 
 		expect(found).toHaveLength(1);
 		expect(found[0]).toMatchObject({ kind: 'creature', label: 'Goblin' });
-		// No fence, so nothing to write an id back into.
-		expect(found[0]?.startLine).toBeUndefined();
 	});
 
 	it('ignores frontmatter that declares a statblock but carries no creature', () => {
@@ -223,7 +221,7 @@ describe('findSendables', () => {
 		expect(found[0]).toMatchObject({
 			kind: 'spell',
 			label: 'Fireball',
-			source: { item: { name: 'Fireball', level: 3, school: 'evocation', range: 150 } }
+			spell: { name: 'Fireball', level: 3, school: 'evocation', range: 150 }
 		});
 	});
 });
@@ -231,9 +229,9 @@ describe('findSendables', () => {
 describe('summarise', () => {
 	it('counts by kind', () => {
 		const counts = summarise([
-			{ kind: 'creature', path: 'a', label: 'A', source: {} },
-			{ kind: 'creature', path: 'b', label: 'B', source: {} },
-			{ kind: 'map', path: 'c', label: 'C', source: {} }
+			{ kind: 'creature', path: 'a', label: 'A', block: {} },
+			{ kind: 'creature', path: 'b', label: 'B', block: {} },
+			{ kind: 'map', path: 'c', label: 'C', map: { title: 'C', image: 'c.png' } }
 		]);
 
 		expect(counts).toEqual({
