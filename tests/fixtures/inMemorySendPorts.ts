@@ -18,10 +18,17 @@ export interface InMemoryVault {
 	status?: number;
 }
 
-/** Mirrors the Obsidian adapter: the path as written, then as a link from the note - beside it, for these tests. */
+/**
+ * Mirrors the Obsidian adapter: the path as written, then as a link from the note the way
+ * `getFirstLinkpathDest` finds one - beside the note first, then the shortest path anywhere
+ * in the vault that ends in it.
+ */
 function resolveLink(files: Record<string, string>, linkpath: string, sourcePath: string): string | undefined {
 	const folder = sourcePath.slice(0, sourcePath.lastIndexOf('/') + 1);
-	return [linkpath, folder + linkpath].find((path) => path in files);
+	const elsewhere = Object.keys(files)
+		.filter((path) => path.endsWith(`/${linkpath}`))
+		.sort((a, b) => a.length - b.length);
+	return [linkpath, folder + linkpath, ...elsewhere].find((path) => path in files);
 }
 
 export function inMemorySendPorts({ files = {}, bestiary = null, status = 201 }: InMemoryVault = {}) {

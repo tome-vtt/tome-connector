@@ -81,17 +81,23 @@ a PDF reference*, and is not affected either way.
 
 The plugin adds send controls for:
 
-- Fantasy Statblocks `statblock` YAML blocks. A statblock's `image` may be a vault path or a
-  wikilink (`image: [[Goblin.png]]`), resolved from the note the block is in
+- Fantasy Statblocks `statblock` YAML blocks
 - Encounter `encounter` YAML blocks
-- Map View `zoommap` YAML blocks
+- Map View `zoommap` and Leaflet `leaflet` YAML blocks
 - Prop `prop` YAML blocks
+- An image file, from its menu in the file explorer, as a map or a prop
 - Player-character note properties
 - JSON blocks containing a top-level `tome` encounter object
 - Whole folders, compiled into a single PDF reference (see below)
 - Whole folders, imported as a Storybook adventure - see
   [`docs/authoring-adventures.md`](docs/authoring-adventures.md) for the format, whether the
   folder came from `ttrpg-convert-cli` or was written by hand
+
+An `image` in a statblock, map or prop block may be a vault path or a wikilink
+(`image: [[Goblin.png]]`), resolved from the note the block is in, wherever in the
+vault the file is. **An image that cannot be read stops that send** - for every kind,
+including a magic item, equipment or spell in a vault sync, which used to go without its
+art. Nothing is sent in its place, and a vault sync lists it as unresolvable.
 
 Example JSON encounter:
 

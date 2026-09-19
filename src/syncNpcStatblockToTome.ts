@@ -2,10 +2,7 @@ import { Notice, parseYaml } from 'obsidian';
 import type { MarkdownPostProcessorContext } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 // The body, the route and the headers are the send module's; this file keeps the DOM.
-import { obsidianSendPorts } from './obsidianSendPorts';
-import { sendToTome } from './sendModule';
-import { noticeResult } from './tomeApiClient';
-import { getApiKey } from './tomeConnectorSettings';
+import { sendWithNotice } from './obsidianSendPorts';
 import { chooseCampaign } from './tomeCampaigns';
 import { writeTomeIdToYamlBlock } from './writeTomeIdToYamlBlock';
 
@@ -100,12 +97,7 @@ async function handleSendClick(
 		if (campaignId === null) return;
 
 		const source = parseYaml(rawYaml) as Record<string, unknown>;
-		const result = await sendToTome(
-			obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),
-			{ kind: 'creature', path: ctx.sourcePath, source },
-			{ baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId },
-		);
-		const id = noticeResult(result);
+		const id = await sendWithNotice(plugin, { kind: 'creature', path: ctx.sourcePath, source }, campaignId);
 
 		if (id !== null) {
 			// Only the id line changes, so the note keeps its compact `monster:`

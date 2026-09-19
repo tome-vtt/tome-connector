@@ -1,19 +1,15 @@
 import { Notice, TFile } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { IMAGE_EXTENSION } from './adventure/adventureImages';
-import { sendJsonToTome } from './tomeApiClient';
-import { getApiKey } from './tomeConnectorSettings';
-import { TomeImageKind } from './tomeImageDownscale';
-import { readImageAsDataUri } from './tomeImageEmbedding';
-import { TOME_ROUTES } from './routes';
+// The body, the route and the headers are the send module's; this file keeps the menu.
+import { sendWithNotice } from './obsidianSendPorts';
 import { chooseCampaign } from './tomeCampaigns';
 
 /**
  * Adds "Import image as Prop to Tome" and "Import image as Map to Tome" to
  * an image file's context menu in the File Explorer - no note, no block,
- * just the picture itself. `file.basename` (Obsidian's own name-minus-
- * extension) is the title; there is nothing else on a bare image to draw
- * one from.
+ * just the picture itself. The send module titles it by its file name;
+ * there is nothing else on a bare image to draw one from.
  */
 export function registerImageContextMenu(plugin: TomeConnectorPlugin): void {
 	plugin.registerEvent(
@@ -24,13 +20,13 @@ export function registerImageContextMenu(plugin: TomeConnectorPlugin): void {
 				item
 					.setTitle('Import image as Prop to Tome')
 					.setIcon('image')
-					.onClick(() => void sendImage(plugin, file, TOME_ROUTES.addProp, 'token')),
+					.onClick(() => void sendImage(plugin, file, 'prop')),
 			);
 			menu.addItem((item) =>
 				item
 					.setTitle('Import image as Map to Tome')
 					.setIcon('map')
-					.onClick(() => void sendImage(plugin, file, TOME_ROUTES.addMap, 'map')),
+					.onClick(() => void sendImage(plugin, file, 'map')),
 			);
 		}),
 	);
@@ -39,29 +35,13 @@ export function registerImageContextMenu(plugin: TomeConnectorPlugin): void {
 async function sendImage(
 	plugin: TomeConnectorPlugin,
 	file: TFile,
-	route: string,
-	kind: TomeImageKind,
+	to: 'map' | 'prop',
 ): Promise<void> {
 	try {
 		const campaignId = await chooseCampaign(plugin, 'Import');
 		if (campaignId === null) return;
 
-		const payload = {
-			title: file.basename,
-			image: await readImageAsDataUri(
-				plugin.app,
-				file.path,
-				kind,
-				plugin.settings.downscaleImages,
-			),
-		};
-		await sendJsonToTome(
-			plugin.settings.baseUrl,
-			route,
-			JSON.stringify(payload),
-			getApiKey(plugin),
-			campaignId,
-		);
+		await sendWithNotice(plugin, { kind: 'image', path: file.path, to }, campaignId);
 	} catch (error) {
 		console.error('Tome Connector: failed to send image', error);
 		const message = error instanceof Error ? error.message : String(error);

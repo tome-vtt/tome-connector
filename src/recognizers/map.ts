@@ -26,7 +26,7 @@
 import { existingTomeId } from '../tomeIdWriteBack';
 
 export interface MapReference {
-	/** Vault-relative path or wikilink target, as written. The caller resolves it. */
+	/** Vault-relative path or wikilink target. The send module resolves it relative to the note. */
 	image: string;
 	/** Derived from the filename when the block does not name the map. */
 	title: string;
@@ -35,12 +35,22 @@ export interface MapReference {
 }
 
 /**
- * `[[Map.jpg]]` and `[[Maps/Map.jpg|The Keep]]` both yield the *target*, not the
- * alias: the alias is display text, and the target is what resolves to a file.
+ * The one reading of an image field as a link, for every kind that has one.
+ *
+ * `[[Map.jpg]]`, `![[Map.jpg]]` and `[[Maps/Map.jpg|The Keep]]` all yield the
+ * *target*, not the alias or a `#heading`: the alias is display text, and the
+ * target is what resolves to a file. A plain path comes back as written. Turning
+ * the target into a vault file, relative to the note, is the send module's image
+ * port.
+ *
+ * Unquoted, `image: [[Map.jpg]]` is a list holding a list to YAML - which is how
+ * Leaflet's and Fantasy Statblocks' own docs write it - so the first string in a
+ * list is read too. Null when there is no string to read.
  */
-export function unwrapWikilink(value: string): string {
-	const match = /^\s*!?\[\[([^\]|]+)(?:\|[^\]]*)?\]\]\s*$/.exec(value);
-	return (match?.[1] ?? value).trim();
+export function unwrapWikilink(value: unknown): string | null {
+	const first: unknown = Array.isArray(value) ? (value as unknown[]).flat(2)[0] : value;
+	if (typeof first !== 'string') return null;
+	return (/^\s*!?\[\[([^\]|#]+)/.exec(first)?.[1] ?? first).trim();
 }
 
 /**
@@ -95,12 +105,9 @@ export function mapReferenceFrom(parsed: unknown): MapReference | null {
 	}
 
 	const record = parsed as Record<string, unknown>;
-	const direct = typeof record.image === 'string' ? record.image.trim() : '';
-	const raw = direct !== '' ? direct : firstImageBasePath(record.imageBases);
-	if (!raw) return null;
-
-	const image = unwrapWikilink(raw);
-	if (image === '') return null;
+	const direct = unwrapWikilink(record.image);
+	const image = direct ? direct : unwrapWikilink(firstImageBasePath(record.imageBases));
+	if (!image) return null;
 
 	const reference: MapReference = { image, title: titleFromImagePath(image) };
 
