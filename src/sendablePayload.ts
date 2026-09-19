@@ -27,7 +27,7 @@ import { readImageAsDataUri } from './tomeImageEmbedding';
  * will not be installed a second later.
  */
 
-export interface PreparedRequest {
+interface PreparedRequest {
 	/** Route appended to the configured base URL. */
 	path: string;
 	/** Serialised body. */

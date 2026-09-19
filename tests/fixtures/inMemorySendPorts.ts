@@ -16,14 +16,10 @@ export interface InMemoryVault {
 	bestiary?: Record<string, Record<string, unknown>> | null;
 }
 
-/**
- * Resolves a link the way Obsidian's `getFirstLinkpathDest` does for the cases a note has:
- * beside the note first, then as a full vault path, then the first file with that name.
- */
+/** Resolves a link the way Obsidian does for the cases these tests have: beside the note, then as a full vault path. */
 function resolveLink(files: Record<string, string>, linkpath: string, sourcePath: string): string | undefined {
 	const folder = sourcePath.slice(0, sourcePath.lastIndexOf('/') + 1);
-	return [folder + linkpath, linkpath].find((path) => path in files) ??
-		Object.keys(files).find((path) => path.endsWith(`/${linkpath}`));
+	return [folder + linkpath, linkpath].find((path) => path in files);
 }
 
 export function inMemorySendPorts({ files = {}, bestiary = null }: InMemoryVault = {}) {
