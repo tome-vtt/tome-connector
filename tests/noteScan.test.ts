@@ -46,7 +46,6 @@ describe('declaresStatblock', () => {
 	});
 });
 
-
 describe('findSendables', () => {
 	it('finds a creature in a statblock fence', () => {
 		const found = findSendables(

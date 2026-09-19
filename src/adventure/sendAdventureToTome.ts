@@ -5,13 +5,13 @@ import { type BulkItem, type BulkReport, MAX_ATTEMPTS, runBulkSend, THROTTLE_MS 
 import { oneAtATime } from '../oneAtATime';
 import { findSendables, type Sendable } from '../recognizers/noteScan';
 import { buildRequest } from '../sendablePayload';
-import { vaultNotes } from '../vaultNotes';
 import { API_KEY_HEADER_NAME, CAMPAIGN_HEADER_NAME, joinUrl, postJsonToTome } from '../tomeApiClient';
 import { loadCampaignChoice, rememberCampaign } from '../tomeCampaigns';
 import { getApiKey } from '../tomeConnectorSettings';
 import { TomeImageKind } from '../tomeImageDownscale';
 import { readImageAsDataUri } from '../tomeImageEmbedding';
 import { TomeProgressNotice } from '../tomeProgressNotice';
+import { vaultNotes } from '../vaultNotes';
 import { TOME_ROUTES } from '../routes';
 import { AdventureReviewModal } from './adventureReviewModal';
 import { buildAdventurePlan } from './adventureVault';

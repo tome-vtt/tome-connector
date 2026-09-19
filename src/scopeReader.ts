@@ -4,10 +4,11 @@ import type { Note } from './recognizers/note';
  * Which notes a bulk run reads - a folder, the whole vault, or the sync tag - and
  * the reading of them.
  *
- * The vault sync, the content-source import and the adventure scan all read notes
- * through here, as {@link Note}s. Pure and `obsidian`-free: the vault arrives as a
- * {@link NoteSource}, which `vaultNotes.ts` adapts from Obsidian's own, so which
- * notes a scope holds is decided (and tested) on this side of the seam.
+ * The vault sync and the content-source import read a whole scope through
+ * {@link readScope}; the adventure scan reads the one note a link points at through
+ * the same {@link NoteSource}. Either way a note arrives as a {@link Note}. Pure and
+ * `obsidian`-free: `vaultNotes.ts` adapts Obsidian's vault to a `NoteSource`, so
+ * which notes a scope holds is decided (and tested) on this side of the seam.
  */
 
 export type SyncScope =

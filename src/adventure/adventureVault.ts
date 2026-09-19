@@ -9,6 +9,7 @@ import { parseEquipmentItem } from '../recognizers/compendium/equipmentItem';
 import { parseMagicItem } from '../recognizers/compendium/magicItem';
 import { findFencedBlock } from '../recognizers/markdownBlocks';
 import { findSendables } from '../recognizers/noteScan';
+import type { Note } from '../recognizers/note';
 import { normalizeName } from '../recognizers/statblockCreature';
 import { vaultNotes } from '../vaultNotes';
 
@@ -45,10 +46,11 @@ export async function readAdventureSource(app: App, folder: TFolder): Promise<Ad
 		throw new Error(`No markdown notes were found in "${folder.name}".`);
 	}
 
+	const vault = vaultNotes(app);
 	let title: string | null = null;
 	let entries: { title: string; file: string }[] = [];
 	for (const note of notes) {
-		const parsed = parseAdventureIndex(await app.vault.cachedRead(note));
+		const parsed = parseAdventureIndex((await vault.read(note.path)).content);
 		if (parsed) {
 			title = parsed.title;
 			entries = parsed.entries;
@@ -65,14 +67,7 @@ export async function readAdventureSource(app: App, folder: TFolder): Promise<Ad
 				console.warn(`Tome Connector: chapter "${entry.file}" named in the index was not found in the folder.`);
 				continue;
 			}
-			const content = await app.vault.cachedRead(file);
-			chapters.push({
-				title: entry.title,
-				content: rewriteWikiLinks(app, content, file.path),
-				promoteRooms: promoteRoomsFor(app, file),
-				id: chapterIdFor(app, file),
-				notePath: file.path,
-			});
+			chapters.push(chapterSource(app, await vault.read(file.path), entry.title));
 		}
 		return { folder: folder.path, title, summary: null, chapters };
 	}
@@ -80,17 +75,21 @@ export async function readAdventureSource(app: App, folder: TFolder): Promise<Ad
 	for (const filename of orderByFilenamePrefix(notes.map((note) => note.name))) {
 		const file = notes.find((note) => note.name === filename);
 		if (!file) continue;
-		const content = await app.vault.cachedRead(file);
-		chapters.push({
-			title: fallbackChapterTitle(filename, content),
-			content: rewriteWikiLinks(app, content, file.path),
-			promoteRooms: promoteRoomsFor(app, file),
-			id: chapterIdFor(app, file),
-			notePath: file.path,
-		});
+		const note = await vault.read(file.path);
+		chapters.push(chapterSource(app, note, fallbackChapterTitle(filename, note.content)));
 	}
 
 	return { folder: folder.path, title: folder.name, summary: null, chapters };
+}
+
+function chapterSource(app: App, note: Note, title: string): ChapterSource {
+	return {
+		title,
+		content: rewriteWikiLinks(app, note.content, note.path),
+		promoteRooms: promoteRoomsFor(note.frontmatter),
+		id: chapterIdFor(note.frontmatter),
+		notePath: note.path,
+	};
 }
 
 /**
@@ -99,8 +98,7 @@ export async function readAdventureSource(app: App, folder: TFolder): Promise<Ad
  * false`. Default true is what keeps every CLI-imported folder, which never
  * sets this, behaving exactly as it did before the switch existed.
  */
-function promoteRoomsFor(app: App, file: TFile): boolean {
-	const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
+function promoteRoomsFor(frontmatter: Note['frontmatter']): boolean {
 	return frontmatter?.['tome_room_promotion'] !== false;
 }
 
@@ -112,8 +110,7 @@ function promoteRoomsFor(app: App, file: TFile): boolean {
  * scene's live in different places on the note (frontmatter versus a heading
  * marker) and are worth telling apart at a glance.
  */
-function chapterIdFor(app: App, file: TFile): string | null {
-	const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
+function chapterIdFor(frontmatter: Note['frontmatter']): string | null {
 	const id: unknown = frontmatter?.['tome_chapter_id'];
 	return typeof id === 'string' && id.trim() !== '' ? id.trim() : null;
 }
@@ -149,8 +146,8 @@ function rewriteWikiLinks(app: App, content: string, sourcePath: string): string
 }
 
 /** The statblock fence's own `name`, normalised the same way a sent creature's is. */
-async function resolveBestiaryName(app: App, file: TFile): Promise<string | null> {
-	const block = findFencedBlock(await app.vault.cachedRead(file), 'statblock');
+function resolveBestiaryName(content: string): string | null {
+	const block = findFencedBlock(content, 'statblock');
 	if (!block) return null;
 
 	let record: unknown;
@@ -174,14 +171,11 @@ async function resolveBestiaryName(app: App, file: TFile): Promise<string | null
  * all (the plan-time link classifier already filtered for `items/*`, so this
  * is the true edge case, not the common one).
  */
-async function resolveItem(
-	app: App,
-	file: TFile,
+function resolveItem(
+	{ content, frontmatter }: Note,
 	key: string,
 	fallback: string,
-): Promise<{ name: string; destination: EntityDestination }> {
-	const { content, frontmatter } = await vaultNotes(app).read(file.path);
-
+): { name: string; destination: EntityDestination } {
 	const magic = parseMagicItem(content, frontmatter, key, fallback);
 	if (magic) return { name: magic.name, destination: { to: 'MagicItem' } };
 
@@ -197,17 +191,17 @@ async function resolveItem(
  * entity `skip` exactly as it started: a dead-feeling link stays dead rather
  * than guessed at.
  */
-async function resolveUnknownEntity(app: App, file: TFile, entity: PlannedEntity): Promise<PlannedEntity> {
-	const sendables = findSendables(await vaultNotes(app).read(file.path), parseYaml);
+function resolveUnknownEntity(note: Note, entity: PlannedEntity): PlannedEntity {
+	const sendables = findSendables(note, parseYaml);
 
 	if (sendables.some((sendable) => sendable.kind === 'creature')) {
-		const name = await resolveBestiaryName(app, file);
+		const name = resolveBestiaryName(note.content);
 		const destination: EntityDestination = { to: 'NonPlayerCharacter' };
 		return { ...entity, tomeName: name ?? entity.label, suggested: destination, chosen: destination };
 	}
 
 	if (sendables.some((sendable) => sendable.kind === 'magicItem' || sendable.kind === 'equipmentItem')) {
-		const { name, destination } = await resolveItem(app, file, entity.key, entity.label);
+		const { name, destination } = resolveItem(note, entity.key, entity.label);
 		return { ...entity, tomeName: name, suggested: destination, chosen: destination };
 	}
 
@@ -215,19 +209,19 @@ async function resolveUnknownEntity(app: App, file: TFile, entity: PlannedEntity
 }
 
 async function resolveEntity(app: App, entity: PlannedEntity): Promise<PlannedEntity> {
-	const file = app.vault.getAbstractFileByPath(entity.key);
-	if (!(file instanceof TFile)) return entity;
+	if (!(app.vault.getAbstractFileByPath(entity.key) instanceof TFile)) return entity;
+	const note = await vaultNotes(app).read(entity.key);
 
 	if (entity.suggested.to === 'NonPlayerCharacter') {
-		const name = await resolveBestiaryName(app, file);
+		const name = resolveBestiaryName(note.content);
 		return name ? { ...entity, tomeName: name } : entity;
 	}
 
 	if (entity.suggested.to === 'skip') {
-		return resolveUnknownEntity(app, file, entity);
+		return resolveUnknownEntity(note, entity);
 	}
 
-	const { name, destination } = await resolveItem(app, file, entity.key, entity.label);
+	const { name, destination } = resolveItem(note, entity.key, entity.label);
 	return { ...entity, tomeName: name, suggested: destination, chosen: destination };
 }
 

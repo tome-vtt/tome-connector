@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeScope, readScope, syncTagHint, type NoteSource } from '../src/scopeReader';
+import { readScope, syncTagHint, type NoteSource } from '../src/scopeReader';
 
 /**
  * A vault in memory. The Obsidian adapter (`vaultNotes.ts`) answers the same three
@@ -76,16 +76,6 @@ describe('readScope', () => {
 			[1, 2],
 			[2, 2],
 		]);
-	});
-});
-
-describe('describeScope', () => {
-	it.each([
-		[folder('Maps/Dungeon'), '"Dungeon"'],
-		[{ kind: 'vault' as const }, 'this vault'],
-		[{ kind: 'tag' as const, tag: '#tome' }, '#tome'],
-	])('%o reads as %s', (scope, expected) => {
-		expect(describeScope(scope)).toBe(expected);
 	});
 });
 
