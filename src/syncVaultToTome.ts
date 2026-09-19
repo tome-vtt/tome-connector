@@ -3,6 +3,7 @@ import type { App } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
 import { describeReport, runBulkSend, type BulkItem, type BulkReport } from './bulkSend';
+import { oneAtATime } from './oneAtATime';
 import { findSendables, summarise, type Sendable, type SendableKind } from './recognizers/noteScan';
 import { buildRequest } from './sendablePayload';
 import { joinUrl, postJsonToTome } from './tomeApiClient';
@@ -39,9 +40,6 @@ export const THROTTLE_MS = 200;
 
 /** A 429 is still handled rather than assumed away; this is how many tries it gets. */
 export const MAX_ATTEMPTS = 4;
-
-/** Only one run at a time, matching the guard the folder export already keeps. */
-let syncInProgress = false;
 
 export type SyncScope =
 	| { kind: 'folder'; folder: TFolder }
@@ -128,7 +126,8 @@ class ConfirmSyncModal extends Modal {
 		// Not `scope`: Modal already has one, for hotkeys.
 		private readonly syncScope: SyncScope,
 		private readonly choice: CampaignChoice,
-		private readonly onConfirm: (campaignId: string) => void,
+		/** The chosen campaign on Send, null on Cancel or Close. */
+		private readonly onDone: (campaignId: string | null) => void,
 	) {
 		super(app);
 		this.campaignId = choice.campaignId;
@@ -193,7 +192,7 @@ class ConfirmSyncModal extends Modal {
 
 	override onClose(): void {
 		this.contentEl.empty();
-		if (this.confirmed) this.onConfirm(this.campaignId);
+		this.onDone(this.confirmed ? this.campaignId : null);
 	}
 }
 
@@ -291,14 +290,8 @@ const sleep = (ms: number): Promise<void> =>
  * a scan only read, and every one of these endpoints upserts on name or title
  * anyway, so a second run updates rather than duplicates.
  */
-export async function runVaultSync(plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> {
-	if (syncInProgress) {
-		new Notice('Tome connector: a sync is already running.');
-		return;
-	}
-
-	syncInProgress = true;
-	try {
+export const runVaultSync = oneAtATime(
+	async (plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> => {
 		const choice = await loadCampaignChoice(plugin);
 		if (choice === null) return;
 
@@ -310,14 +303,17 @@ export async function runVaultSync(plugin: TomeConnectorPlugin, scope: SyncScope
 			notice.hide();
 		}
 
-		new ConfirmSyncModal(plugin.app, sendables, scope, choice, (campaignId) => {
-			void rememberCampaign(plugin, campaignId);
-			void send(plugin, sendables, campaignId);
-		}).open();
-	} finally {
-		syncInProgress = false;
-	}
-}
+		// Awaited, not fired from the callback: the guard has to hold through the send.
+		const campaignId = await new Promise<string | null>((resolve) => {
+			new ConfirmSyncModal(plugin.app, sendables, scope, choice, resolve).open();
+		});
+		if (campaignId === null) return;
+
+		void rememberCampaign(plugin, campaignId);
+		await send(plugin, sendables, campaignId);
+	},
+	() => new Notice('Tome connector: a sync is already running.'),
+);
 
 async function send(
 	plugin: TomeConnectorPlugin,

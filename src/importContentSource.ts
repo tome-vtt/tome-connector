@@ -17,6 +17,7 @@ import {
 	validateManifest,
 	type ImportManifest,
 } from './recognizers/compendium/importRequest';
+import { oneAtATime } from './oneAtATime';
 import { describeScope, filesInScope, type SyncScope } from './syncVaultToTome';
 import { createMultipartBoundary } from './tomeMultipartBody';
 import { joinUrl, postMultipartToTome } from './tomeApiClient';
@@ -37,8 +38,8 @@ import { TomeProgressNotice } from './tomeProgressNotice';
  * asks, posts and reports.
  */
 
-/** Only one at a time; assembling a 391-spell package twice at once helps nobody. */
-let importInProgress = false;
+/** Import on a yes, reassemble on a toggle, null on Cancel or Close. */
+type ImportAnswer = { manifest: ImportManifest } | { options: AssembleOptions } | null;
 
 /**
  * Reads every note in scope.
@@ -84,6 +85,8 @@ function suggestedKey(scope: SyncScope): string {
  */
 class ConfirmImportModal extends Modal {
 	private confirmed = false;
+	/** Set when a toggle closes the dialog to be reassembled under new options. */
+	private nextOptions: AssembleOptions | null = null;
 	private readonly manifest: ImportManifest;
 
 	constructor(
@@ -91,11 +94,9 @@ class ConfirmImportModal extends Modal {
 		private readonly report: PackageReport,
 		// Not `scope`: Modal already has one, for hotkeys.
 		private readonly importScope: SyncScope,
-		private readonly onConfirm: (manifest: ImportManifest) => void,
 		/** The options this report was built with, so the toggles show their state. */
 		private readonly options: AssembleOptions,
-		/** Re-assembles under new options and reopens on the fresh report. */
-		private readonly onOptions: (options: AssembleOptions) => void,
+		private readonly onDone: (answer: ImportAnswer) => void,
 	) {
 		super(app);
 
@@ -256,8 +257,8 @@ class ConfirmImportModal extends Modal {
 						// Reopened on a fresh report rather than patched in place: the
 						// counts, the licence notice and the prefilled fields all move
 						// together.
+						this.nextOptions = apply(on);
 						this.close();
-						this.onOptions(apply(on));
 					}),
 				);
 		};
@@ -342,7 +343,13 @@ class ConfirmImportModal extends Modal {
 
 	override onClose(): void {
 		this.contentEl.empty();
-		if (this.confirmed) this.onConfirm(this.manifest);
+		this.onDone(
+			this.confirmed
+				? { manifest: this.manifest }
+				: this.nextOptions !== null
+					? { options: this.nextOptions }
+					: null,
+		);
 	}
 }
 
@@ -352,17 +359,8 @@ class ConfirmImportModal extends Modal {
  * One request, so there is no throttle, no retry ladder and no progress modal -
  * the parts `syncVaultToTome` needs because it sends hundreds.
  */
-export async function runContentImport(
-	plugin: TomeConnectorPlugin,
-	scope: SyncScope,
-): Promise<void> {
-	if (importInProgress) {
-		new Notice('Tome connector: an import is already running.');
-		return;
-	}
-
-	importInProgress = true;
-	try {
+export const runContentImport = oneAtATime(
+	async (plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> => {
 		// Read once and re-assemble from the same notes if the SRD toggle is flipped:
 		// the parse is fast, and re-reading a 2,974-note vault to answer a checkbox is
 		// not.
@@ -374,25 +372,24 @@ export async function runContentImport(
 			notice.hide();
 		}
 
-		const show = (options: AssembleOptions): void => {
+		// Awaited, not fired from a callback: the guard has to hold through the upload.
+		let options: AssembleOptions = {};
+		for (;;) {
 			const report = assemblePackage(notes, suggestedKey(scope), options);
-			new ConfirmImportModal(
-				plugin.app,
-				report,
-				scope,
-				(manifest) => {
-					void upload(plugin, report, manifest);
-				},
-				options,
-				show,
-			).open();
-		};
-
-		show({});
-	} finally {
-		importInProgress = false;
-	}
-}
+			const answer = await new Promise<ImportAnswer>((resolve) => {
+				new ConfirmImportModal(plugin.app, report, scope, options, resolve).open();
+			});
+			if (answer === null) return;
+			if ('options' in answer) {
+				options = answer.options;
+				continue;
+			}
+			await upload(plugin, report, answer.manifest);
+			return;
+		}
+	},
+	() => new Notice('Tome connector: an import is already running.'),
+);
 
 async function upload(
 	plugin: TomeConnectorPlugin,

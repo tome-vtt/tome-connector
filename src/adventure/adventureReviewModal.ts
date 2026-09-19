@@ -155,7 +155,8 @@ export class AdventureReviewModal extends Modal {
 		app: App,
 		private readonly plan: AdventurePlan,
 		private readonly choice: CampaignChoice,
-		private readonly onConfirm: (plan: AdventurePlan, campaignId: string) => void,
+		/** The chosen campaign on Send (the plan is edited in place), null on Cancel or Close. */
+		private readonly onDone: (campaignId: string | null) => void,
 	) {
 		super(app);
 		this.campaignId = choice.campaignId;
@@ -309,6 +310,6 @@ export class AdventureReviewModal extends Modal {
 
 	override onClose(): void {
 		this.contentEl.empty();
-		if (this.confirmed) this.onConfirm(this.plan, this.campaignId);
+		this.onDone(this.confirmed ? this.campaignId : null);
 	}
 }

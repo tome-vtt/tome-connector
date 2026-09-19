@@ -2,6 +2,7 @@ import { App, Notice, TFile, TFolder, parseYaml, requestUrl } from 'obsidian';
 
 import type TomeConnectorPlugin from '../main';
 import { type BulkItem, type BulkReport, runBulkSend } from '../bulkSend';
+import { oneAtATime } from '../oneAtATime';
 import { findSendables, type Sendable } from '../recognizers/noteScan';
 import { buildRequest } from '../sendablePayload';
 import { MAX_ATTEMPTS, THROTTLE_MS } from '../syncVaultToTome';
@@ -473,21 +474,13 @@ export async function runAdventureImport(
 	reportImport(plan, response, failureCount);
 }
 
-/** Only one parse-and-review at a time, matching the guard `runVaultSync` keeps. */
-let importInProgress = false;
-
 /**
  * Parses `folder`, opens the review dialog, and runs the four passes if the
  * user presses Send. The entry point every command and menu item calls.
+ * One at a time, from the parse through the last pass.
  */
-export async function runAdventureFolderImport(plugin: TomeConnectorPlugin, folder: TFolder): Promise<void> {
-	if (importInProgress) {
-		new Notice('Tome connector: an adventure import is already running.');
-		return;
-	}
-
-	importInProgress = true;
-	try {
+export const runAdventureFolderImport = oneAtATime(
+	async (plugin: TomeConnectorPlugin, folder: TFolder): Promise<void> => {
 		const choice = await loadCampaignChoice(plugin);
 		if (choice === null) return;
 
@@ -502,11 +495,14 @@ export async function runAdventureFolderImport(plugin: TomeConnectorPlugin, fold
 			notice.hide();
 		}
 
-		new AdventureReviewModal(plugin.app, plan, choice, (reviewed, campaignId) => {
-			void rememberCampaign(plugin, campaignId);
-			void runAdventureImport(plugin, reviewed, campaignId);
-		}).open();
-	} finally {
-		importInProgress = false;
-	}
-}
+		// Awaited, not fired from the callback: the guard has to hold through the send.
+		const campaignId = await new Promise<string | null>((resolve) => {
+			new AdventureReviewModal(plugin.app, plan, choice, resolve).open();
+		});
+		if (campaignId === null) return;
+
+		void rememberCampaign(plugin, campaignId);
+		await runAdventureImport(plugin, plan, campaignId);
+	},
+	() => new Notice('Tome connector: an adventure import is already running.'),
+);
