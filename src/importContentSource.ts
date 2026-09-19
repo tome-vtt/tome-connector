@@ -9,8 +9,8 @@ import {
 	packageKeyFrom,
 	type AssembleOptions,
 	type PackageReport,
-	type ScannedNote,
 } from './recognizers/compendium/package';
+import type { Note } from './recognizers/note';
 import {
 	buildImportRequest,
 	IMPORT_PATH,
@@ -18,11 +18,12 @@ import {
 	type ImportManifest,
 } from './recognizers/compendium/importRequest';
 import { oneAtATime } from './oneAtATime';
-import { describeScope, filesInScope, type SyncScope } from './syncVaultToTome';
+import { describeScope, readScope, type SyncScope } from './scopeReader';
 import { createMultipartBoundary } from './tomeMultipartBody';
 import { postMultipartToTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { TomeProgressNotice } from './tomeProgressNotice';
+import { vaultNotes } from './vaultNotes';
 
 /**
  * Importing a `ttrpg-convert-cli` compendium as a content source.
@@ -40,33 +41,6 @@ import { TomeProgressNotice } from './tomeProgressNotice';
 
 /** Import on a yes, reassemble on a toggle, null on Cancel or Close. */
 type ImportAnswer = { manifest: ImportManifest } | { options: AssembleOptions } | null;
-
-/**
- * Reads every note in scope.
- *
- * `cachedRead` for the same reason the bulk sync uses it: the widest scope touches
- * every markdown file in the vault, and the cache is what stops that being a few
- * thousand disk reads.
- */
-async function readScope(
-	app: App,
-	scope: SyncScope,
-	onProgress?: (done: number, total: number) => void,
-): Promise<ScannedNote[]> {
-	const notes: ScannedNote[] = [];
-	const files = filesInScope(app, scope);
-
-	for (const [index, file] of files.entries()) {
-		notes.push({
-			path: file.path,
-			content: await app.vault.cachedRead(file),
-			frontmatter: app.metadataCache.getFileCache(file)?.frontmatter ?? null,
-		});
-		onProgress?.(index + 1, files.length);
-	}
-
-	return notes;
-}
 
 /** A sensible package key from the scope, so the field is rarely edited. */
 function suggestedKey(scope: SyncScope): string {
@@ -365,9 +339,11 @@ export const runContentImport = oneAtATime(
 		// the parse is fast, and re-reading a 2,974-note vault to answer a checkbox is
 		// not.
 		const notice = new TomeProgressNotice('Tome connector: reading the compendium…');
-		let notes: ScannedNote[];
+		let notes: Note[];
 		try {
-			notes = await readScope(plugin.app, scope, (done, total) => notice.setProgress(done, total));
+			notes = await readScope(vaultNotes(plugin.app), scope, (done, total) =>
+				notice.setProgress(done, total),
+			);
 		} finally {
 			notice.hide();
 		}

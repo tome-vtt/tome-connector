@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	declaresStatblock,
-	findSendables,
-	noteName,
-	summarise,
-	type NoteInput
-} from '../src/recognizers/noteScan';
+import type { Note } from '../src/recognizers/note';
+import { declaresStatblock, findSendables, summarise } from '../src/recognizers/noteScan';
 
 /**
  * A stub parser rather than a real one.
@@ -26,7 +21,7 @@ function stubParser(blocks: Record<string, unknown>): (source: string) => unknow
 	};
 }
 
-function note(content: string, frontmatter: Record<string, unknown> | null = null): NoteInput {
+function note(content: string, frontmatter: Record<string, unknown> | null = null): Note {
 	return { path: 'Bestiary/Goblin.md', content, frontmatter };
 }
 
@@ -48,16 +43,6 @@ describe('declaresStatblock', () => {
 
 	it('is false with no frontmatter at all', () => {
 		expect(declaresStatblock(null)).toBe(false);
-	});
-});
-
-describe('noteName', () => {
-	it.each([
-		['Bestiary/Goblin.md', 'Goblin'],
-		['Goblin.md', 'Goblin'],
-		['A/B/The Old Keep.md', 'The Old Keep']
-	])('%s -> %s', (path, expected) => {
-		expect(noteName(path)).toBe(expected);
 	});
 });
 
@@ -184,7 +169,7 @@ describe('findSendables', () => {
 		expect(found[0]?.label).toBe('Old Goblin');
 	});
 
-	const itemNote = (content: string, tags: string[]): NoteInput =>
+	const itemNote = (content: string, tags: string[]): Note =>
 		note(content, { cssclasses: ['json5e-item'], tags });
 
 	it('finds a magic item note', () => {

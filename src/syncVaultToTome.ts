@@ -1,15 +1,24 @@
-import { Modal, Notice, TFile, TFolder, getAllTags, parseYaml } from 'obsidian';
+import { Modal, Notice, parseYaml } from 'obsidian';
 import type { App } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
-import { describeReport, runBulkSend, type BulkItem, type BulkReport } from './bulkSend';
+import {
+	describeReport,
+	MAX_ATTEMPTS,
+	runBulkSend,
+	THROTTLE_MS,
+	type BulkItem,
+	type BulkReport,
+} from './bulkSend';
 import { oneAtATime } from './oneAtATime';
 import { findSendables, summarise, type Sendable, type SendableKind } from './recognizers/noteScan';
+import { describeScope, readScope, type SyncScope } from './scopeReader';
 import { buildRequest } from './sendablePayload';
 import { postJsonToTome } from './tomeApiClient';
 import { loadCampaignChoice, rememberCampaign, renderCampaignSelector, type CampaignChoice } from './tomeCampaigns';
 import { getApiKey } from './tomeConnectorSettings';
 import { TomeProgressNotice } from './tomeProgressNotice';
+import { vaultNotes } from './vaultNotes';
 
 /**
  * Scanning a folder or the whole vault and sending everything found.
@@ -17,88 +26,9 @@ import { TomeProgressNotice } from './tomeProgressNotice';
  * Until now the only way to move anything was clicking a button on one rendered
  * block, which does not scale to a converted compendium. The policy — pacing,
  * retries, what counts as a failure — lives in `bulkSend.ts` and is tested there;
- * this file walks the vault, asks, and reports.
+ * which notes a scope holds is `scopeReader.ts`; this file scans them, asks, and
+ * reports.
  */
-
-/**
- * Milliseconds between items.
- *
- * **The budget is shared with the browser, and that is what sets this number.**
- * The server's limiter allows 600 requests a minute *per user*, not per client,
- * and these endpoints are not under the tighter 30/minute upload policy. At the
- * old 120ms a run sat near 500/minute on its own, which left the person's own
- * Tome tab about a hundred - and a library panel loading spends that instantly.
- * Sending 1,478 magic items locked the UI out of its own server until the tab
- * was reloaded.
- *
- * 200ms puts a run around 260/minute once the request itself is counted, which
- * leaves more than half the budget for whoever is watching it happen. The cost
- * is about two extra minutes on a full magic-item import, which is the right
- * trade against a browser that cannot load a page.
- */
-export const THROTTLE_MS = 200;
-
-/** A 429 is still handled rather than assumed away; this is how many tries it gets. */
-export const MAX_ATTEMPTS = 4;
-
-export type SyncScope =
-	| { kind: 'folder'; folder: TFolder }
-	| { kind: 'vault' }
-	| { kind: 'tag'; tag: string };
-
-export function describeScope(scope: SyncScope): string {
-	switch (scope.kind) {
-		case 'folder':
-			return `"${scope.folder.name}"`;
-		case 'vault':
-			return 'this vault';
-		case 'tag':
-			return scope.tag;
-	}
-}
-
-export function filesInScope(app: App, scope: SyncScope): TFile[] {
-	const all = app.vault.getMarkdownFiles();
-
-	switch (scope.kind) {
-		case 'vault':
-			return all;
-		case 'folder': {
-			// `startsWith` on the folder path plus a separator, so `Maps` does not
-			// also collect `Maps Archive`.
-			const prefix = `${scope.folder.path}/`;
-			return all.filter((file) => file.path === scope.folder.path || file.path.startsWith(prefix));
-		}
-		case 'tag': {
-			const wanted = scope.tag.startsWith('#') ? scope.tag : `#${scope.tag}`;
-			return all.filter((file) => {
-				const cache = app.metadataCache.getFileCache(file);
-				return cache ? (getAllTags(cache) ?? []).includes(wanted) : false;
-			});
-		}
-	}
-}
-
-/**
- * Reads every note in scope and collects what could be sent.
- *
- * `cachedRead` rather than `read`: this touches every markdown file in the vault
- * on the widest scope, and the cache is what keeps that from being a few thousand
- * disk reads.
- */
-async function scan(app: App, scope: SyncScope, onProgress?: (done: number, total: number) => void): Promise<Sendable[]> {
-	const found: Sendable[] = [];
-	const files = filesInScope(app, scope);
-
-	for (const [index, file] of files.entries()) {
-		const content = await app.vault.cachedRead(file);
-		const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter ?? null;
-		found.push(...findSendables({ path: file.path, content, frontmatter }, parseYaml));
-		onProgress?.(index + 1, files.length);
-	}
-
-	return found;
-}
 
 const KIND_NOUNS: Record<SendableKind, [string, string]> = {
 	creature: ['creature', 'creatures'],
@@ -298,7 +228,10 @@ export const runVaultSync = oneAtATime(
 		const notice = new TomeProgressNotice('Tome connector: scanning…');
 		let sendables: Sendable[];
 		try {
-			sendables = await scan(plugin.app, scope, (done, total) => notice.setProgress(done, total));
+			const notes = await readScope(vaultNotes(plugin.app), scope, (done, total) =>
+				notice.setProgress(done, total),
+			);
+			sendables = notes.flatMap((note) => findSendables(note, parseYaml));
 		} finally {
 			notice.hide();
 		}
