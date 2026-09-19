@@ -58,7 +58,7 @@ export function entitiesPass(
 		sleep: deps.sleep,
 		throttleMs: THROTTLE_MS,
 		maxAttempts: MAX_ATTEMPTS,
-		onProgress: onProgress ? (done) => onProgress(done) : undefined,
+		onProgress,
 		send: async (item) => {
 			const result = await sendToTome(deps.ports, await sendableForEntity(deps, item.value), destination);
 			if (result.ok && result.id) item.value.resolvedId = result.id;
@@ -85,7 +85,7 @@ export function imagesPass(
 		sleep: deps.sleep,
 		throttleMs: THROTTLE_MS,
 		maxAttempts: MAX_ATTEMPTS,
-		onProgress: onProgress ? (done) => onProgress(done) : undefined,
+		onProgress,
 		send: async (item) => {
 			// The GM's choice in the review dialog decides the route and how large the
 			// image may stay; the caption (or file name) the dialog shows is its title.

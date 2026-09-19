@@ -55,26 +55,26 @@ function deps(notes: Note[] = []) {
 
 describe('the entities pass', () => {
 	it('sends a creature exactly as the note sends on its own, and keeps the id for the book', async () => {
-		const adventure = deps([GOBLIN]);
+		const harness = deps([GOBLIN]);
 		const goblin = entity(GOBLIN.path, 'NonPlayerCharacter');
 
-		const report = await entitiesPass(adventure.passDeps, plan([goblin], []), DESTINATION);
+		const report = await entitiesPass(harness.passDeps, plan([goblin], []), DESTINATION);
 
 		const alone = inMemorySendPorts({ files: FILES });
 		await sendToTome(alone.ports, findSendables(GOBLIN, parse)[0]!, DESTINATION);
-		expect(adventure.sent).toEqual(alone.sent);
-		expect(bodyOf(adventure.sent[0])).toMatchObject({ name: 'Goblin', image: TINY_PNG });
+		expect(harness.sent).toEqual(alone.sent);
+		expect(bodyOf(harness.sent[0])).toMatchObject({ name: 'Goblin', image: TINY_PNG });
 		expect(report.sent).toHaveLength(1);
 		expect(goblin.resolvedId).toBe('id-1');
 	});
 
 	it('refuses a note with nothing of the chosen kind, and sends nothing', async () => {
-		const adventure = deps([GOBLIN]);
+		const harness = deps([GOBLIN]);
 		const goblin = entity(GOBLIN.path, 'MagicItem');
 
-		const report = await entitiesPass(adventure.passDeps, plan([goblin], []), DESTINATION);
+		const report = await entitiesPass(harness.passDeps, plan([goblin], []), DESTINATION);
 
-		expect(adventure.sent).toHaveLength(0);
+		expect(harness.sent).toHaveLength(0);
 		expect(report.failed[0]?.message).toMatch(/No magic item was found/);
 		expect(goblin.resolvedId).toBeNull();
 	});
@@ -85,33 +85,34 @@ describe('the images pass', () => {
 		['map', 'Map', '/api/maps/addmap'],
 		['prop', 'Prop', '/api/props/addprop'],
 	] as const)('sends an image as a %s exactly as the image sends on its own', async (to, chosen, route) => {
-		const adventure = deps();
+		const harness = deps();
+		// No caption: the plan labels it after its file name, as the image menu titles it.
 		const keep = image('Old Keep', chosen);
 
-		await imagesPass(adventure.passDeps, plan([], [keep]), DESTINATION);
+		await imagesPass(harness.passDeps, plan([], [keep]), DESTINATION);
 
 		const alone = inMemorySendPorts({ files: FILES });
 		await sendToTome(alone.ports, { kind: 'image', path: keep.dmPath, to }, DESTINATION);
-		expect(adventure.sent).toEqual(alone.sent);
-		expect(adventure.sent[0]?.url).toBe(`https://tome.example.com${route}`);
+		expect(harness.sent).toEqual(alone.sent);
+		expect(harness.sent[0]?.url).toBe(`https://tome.example.com${route}`);
 		expect(keep.resolvedId).toBe('id-1');
 	});
 
 	it('titles an image after its caption, which is all the image on its own lacks', async () => {
-		const adventure = deps();
+		const harness = deps();
 
-		await imagesPass(adventure.passDeps, plan([], [image('The keep at dusk', 'Map')]), DESTINATION);
+		await imagesPass(harness.passDeps, plan([], [image('The keep at dusk', 'Map')]), DESTINATION);
 
-		expect(bodyOf(adventure.sent[0])).toEqual({ title: 'The keep at dusk', image: TINY_PNG });
+		expect(bodyOf(harness.sent[0])).toEqual({ title: 'The keep at dusk', image: TINY_PNG });
 	});
 
 	it('refuses an image that is not in the vault, and sends nothing', async () => {
-		const adventure = deps();
+		const harness = deps();
 		const missing = { ...image('Gone', 'Map'), dmPath: 'Adventure/maps/gone.png' };
 
-		const report = await imagesPass(adventure.passDeps, plan([], [missing]), DESTINATION);
+		const report = await imagesPass(harness.passDeps, plan([], [missing]), DESTINATION);
 
-		expect(adventure.sent).toHaveLength(0);
+		expect(harness.sent).toHaveLength(0);
 		expect(report.failed[0]?.message).toMatch(/could not be read/);
 		expect(missing.resolvedId).toBeNull();
 	});
