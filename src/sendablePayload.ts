@@ -7,8 +7,7 @@ import type { SendResult } from './tomeHttp';
 
 /**
  * Sends one scanned {@link Sendable}, quietly, and reports what the server said:
- * the send module (`sendModule.ts`) over the vault. Kept as the one name the
- * vault sync and the adventure import both call.
+ * the send module (`sendModule.ts`) over the vault, for the vault sync.
  *
  * The impure half of the scan: the module reads images off disk, which is why
  * the scan itself stops at intent and the preview can count 709 notes without
