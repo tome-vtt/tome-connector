@@ -4,8 +4,7 @@ import type { SpellNote } from '../src/libraryItemBody';
 import type { EquipmentItem } from '../src/recognizers/compendium/equipmentItem';
 import type { MagicItem } from '../src/recognizers/compendium/magicItem';
 import { sendCharacterToTome as sendCharacter, sendToTome as send, type ModuleSendable } from '../src/sendModule';
-import { TINY_PNG } from './fixtures/wireBodies';
-import { bodyOf, inMemorySendPorts } from './fixtures/inMemorySendPorts';
+import { TINY_PNG, bodyOf, inMemorySendPorts } from './fixtures/inMemorySendPorts';
 
 const DESTINATION = { baseUrl: 'https://tome.example.com/', apiKey: 'key', campaignId: 'campaign-1' };
 

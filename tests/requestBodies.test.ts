@@ -1,17 +1,39 @@
 import { describe, expect, it } from 'vitest';
 
+import { requestFor, type CharacterDestination } from '../src/characterDestination';
+import { findSendables, type Sendable, type SendableKind } from '../src/recognizers/noteScan';
 import { TOME_ROUTES } from '../src/routes';
+import { KIND_ROUTES, sendCharacterToTome, sendToTome, type SendPorts } from '../src/sendModule';
+import { CAMPAIGN_HEADER_NAME } from '../src/tomeHttp';
+import { TINY_PNG, bodyOf, inMemorySendPorts } from './fixtures/inMemorySendPorts';
 import {
 	BAG_NAMES,
+	EQUIPMENT_ITEM_INPUT,
 	IMPORT_NON_PLAYER_CHARACTER,
+	MAGIC_ITEM_INPUT,
 	PLAYER_CHARACTER_INPUT,
+	SPELL_INPUT,
 	retiredKeysIn,
 	undeclaredKeys,
+	type InputContract,
 } from './fixtures/serverContract';
-import { TINY_PNG, everyBody, type BuiltBody } from './fixtures/wireBodies';
+import {
+	BAG_OF_HOLDING_NOTE,
+	CLOAK_OF_PROTECTION_NOTE,
+	FIREBALL_NOTE,
+	GITHYANKI_KNIGHT_NOTE,
+	GOBLIN_WARRIOR_NOTE,
+	MULTICLASS_FRONTMATTER,
+	ROPE_NOTE,
+	SHIELD_NOTE,
+	ZABADUN_NOTE,
+	frontmatterOf,
+	noteInput,
+	yamlParser,
+} from './fixtures/wireNotes';
 
 /**
- * The request bodies the connector sends to the five rules-bearing routes, pinned against the
+ * The request bodies the connector sends to the rules-bearing routes, pinned against the
  * server's contract rather than against themselves.
  *
  * Since TomeVTT moved each kind's rules into one named bag, a body carrying any of the flat
@@ -19,11 +41,111 @@ import { TINY_PNG, everyBody, type BuiltBody } from './fixtures/wireBodies';
  * creature with a `Size` beside its `pf2e`, a spell with a `level` beside its `dnd5e`. The
  * failure was total and silent from this side: every note in a bulk send came back refused. So
  * the first two blocks here are about the whole set of bodies, not one kind at a time.
+ *
+ * Every body, route and header is the send module's: each note is sent through it against the
+ * in-memory adapter and read off the recorded request.
  */
+
+interface BuiltBody {
+	/** What the case is, for a test name. */
+	label: string;
+	/** The game system a campaign receiving it must play. */
+	system: 'dnd5e' | 'pf2e';
+	contract: InputContract;
+	/** The send module kind a note went as; a character has none, its destination picks the route. */
+	kind?: SendableKind;
+	route: string;
+	/** Whether the request went without the campaign header - the account shelf. */
+	accountScoped: boolean;
+	body: Record<string, unknown>;
+}
+
+const SERVER = { baseUrl: 'https://tome.example.com', apiKey: 'key' };
+
+/** The one request `send` makes against an in-memory vault holding `files`. */
+async function posted(
+	files: Record<string, string>,
+	send: (ports: SendPorts) => Promise<unknown>,
+): Promise<Pick<BuiltBody, 'route' | 'accountScoped' | 'body'>> {
+	const { ports, sent } = inMemorySendPorts({ files });
+	await send(ports);
+	const [request] = sent;
+	if (sent.length !== 1 || !request) throw new Error(`expected one request, sent ${sent.length}`);
+	return {
+		route: new URL(request.url).pathname,
+		accountScoped: !(CAMPAIGN_HEADER_NAME in request.headers),
+		body: bodyOf(request),
+	};
+}
+
+/**
+ * The note's art pointed at `token.png` beside it, or taken away. A creature links it the
+ * way an author would; a library item's parse carries it as a path.
+ */
+function withArt(sendable: Sendable, token: string | null): Sendable {
+	switch (sendable.kind) {
+		case 'creature':
+			return token === null ? sendable : { ...sendable, block: { ...sendable.block, image: '[[token.png]]' } };
+		case 'magicItem':
+			return { ...sendable, item: { ...sendable.item, imagePath: token } };
+		case 'equipmentItem':
+			return { ...sendable, item: { ...sendable.item, imagePath: token } };
+		case 'spell':
+			return { ...sendable, spell: { ...sendable.spell, imagePath: token } };
+		default:
+			return sendable;
+	}
+}
+
+/** Sends the one `kind` in a note to a campaign; with `image`, its art is that file. */
+async function note(path: string, content: string, kind: SendableKind, image: string | undefined) {
+	const found = findSendables(noteInput(path, content), yamlParser);
+	const [sendable] = found;
+	if (found.length !== 1 || sendable?.kind !== kind) throw new Error(`${path}: expected one ${kind}`);
+	const token = `${path.slice(0, path.lastIndexOf('/'))}/token.png`;
+	const files = image === undefined ? {} : { [token]: image };
+	const request = await posted(files, (ports) =>
+		sendToTome(ports, withArt(sendable, image === undefined ? null : token), { ...SERVER, campaignId: 'campaign' }),
+	);
+	return { kind, ...request };
+}
+
+/** Sends a character note to `destination`; with `image`, its picture is `[[token.png]]` beside it. */
+function character(frontmatter: Record<string, unknown>, content: string, image: string | undefined, destination: CharacterDestination) {
+	const files: Record<string, string> = image === undefined ? {} : { 'Characters/token.png': image };
+	const withImage = image === undefined ? frontmatter : { ...frontmatter, image: '[[token.png]]' };
+	return posted(files, (ports) =>
+		sendCharacterToTome(ports, { path: 'Characters/Zabadun.md', frontmatter: withImage, content }, SERVER, destination),
+	);
+}
+
+/** Every case, once per route it goes to; built with and without art, since an absent image must be an absent key. */
+async function everyBody(image?: string): Promise<BuiltBody[]> {
+	const campaign: CharacterDestination = { kind: 'campaign', campaignId: 'campaign' };
+	const zabadun = frontmatterOf(ZABADUN_NOTE);
+	const dnd5e = 'dnd5e' as const;
+	const pc = { system: dnd5e, contract: PLAYER_CHARACTER_INPUT };
+
+	return [
+		{ label: '5e creature', system: dnd5e, contract: IMPORT_NON_PLAYER_CHARACTER, ...(await note('Bestiary/Githyanki Knight.md', GITHYANKI_KNIGHT_NOTE, 'creature', image)) },
+		{ label: 'Pathfinder creature', system: 'pf2e', contract: IMPORT_NON_PLAYER_CHARACTER, ...(await note('Bestiary/Goblin Warrior.md', GOBLIN_WARRIOR_NOTE, 'creature', image)) },
+		{ label: 'magic item', system: dnd5e, contract: MAGIC_ITEM_INPUT, ...(await note('Items/bag-of-holding-xdmg.md', BAG_OF_HOLDING_NOTE, 'magicItem', image)) },
+		{ label: 'magic item with attunement', system: dnd5e, contract: MAGIC_ITEM_INPUT, ...(await note('Items/cloak-of-protection-xdmg.md', CLOAK_OF_PROTECTION_NOTE, 'magicItem', undefined)) },
+		{ label: 'equipment', system: dnd5e, contract: EQUIPMENT_ITEM_INPUT, ...(await note('Items/rope-xphb.md', ROPE_NOTE, 'equipmentItem', image)) },
+		{ label: 'spell', system: dnd5e, contract: SPELL_INPUT, ...(await note('Spells/fireball-xphb.md', FIREBALL_NOTE, 'spell', image)) },
+		{ label: 'reaction spell', system: dnd5e, contract: SPELL_INPUT, ...(await note('Spells/shield-xphb.md', SHIELD_NOTE, 'spell', undefined)) },
+		{ label: 'character to a campaign', ...pc, ...(await character(zabadun, ZABADUN_NOTE, image, campaign)) },
+		{ label: 'character to My Characters', ...pc, ...(await character(zabadun, ZABADUN_NOTE, image, { kind: 'vault' })) },
+		{ label: 'multiclass character to a campaign', ...pc, ...(await character(MULTICLASS_FRONTMATTER, '', undefined, campaign)) },
+	];
+}
 
 const WITH_IMAGES = await everyBody(TINY_PNG);
 const WITHOUT_IMAGES = await everyBody();
 const ALL: BuiltBody[] = [...WITH_IMAGES, ...WITHOUT_IMAGES];
+
+/** The send module's kinds whose bodies carry no rules record, so the server contract has nothing to pin. */
+const RULES_FREE_KINDS = new Set<string>(['encounter', 'map', 'prop'] satisfies (keyof typeof KIND_ROUTES)[]);
 
 function byLabel(label: string, bodies: BuiltBody[] = WITHOUT_IMAGES): Record<string, unknown> {
 	const found = bodies.find((built) => built.label === label);
@@ -55,16 +177,14 @@ describe('every body the connector builds', () => {
 		},
 	);
 
-	it('covers every rules-bearing route the plugin posts to', () => {
+	/** A kind added to the send module with a rules record and no case above fails here. */
+	it('covers every rules-bearing route the send module posts to', () => {
+		const kinds = Object.entries(KIND_ROUTES).filter(([kind]) => !RULES_FREE_KINDS.has(kind));
+		const characters = [requestFor({ kind: 'vault' }), requestFor({ kind: 'campaign', campaignId: 'campaign' })];
+
+		expect(new Set(ALL.flatMap((built) => built.kind ?? []))).toEqual(new Set(kinds.map(([kind]) => kind)));
 		expect(new Set(ALL.map((built) => built.route))).toEqual(
-			new Set([
-				TOME_ROUTES.addNonPlayerCharacter,
-				TOME_ROUTES.addPlayerCharacter,
-				TOME_ROUTES.importVaultCharacter,
-				TOME_ROUTES.addSpell,
-				TOME_ROUTES.addMagicItem,
-				TOME_ROUTES.addEquipmentItem,
-			]),
+			new Set([...kinds.map(([, route]) => route), ...characters.map((request) => request.route)]),
 		);
 	});
 });

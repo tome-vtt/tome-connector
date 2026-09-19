@@ -5,10 +5,10 @@
  * exporter for the character.
  *
  * `requestBodies.test.ts` pins every body built from them against the server's contract.
- * They are also what 1.1.0 was checked with against a running Tome server: `everyBody()`
- * in `wireBodies.ts` bundles with esbuild, and posting its output with an API key is the
- * whole of a live check - so "the bodies the tests pinned" and "the bodies the server
- * accepted" stay the same bodies.
+ * They are also what 1.1.0 was checked with against a running Tome server. A live check sends
+ * them through the send module with real ports, as `everyBody()` in the test does with the
+ * in-memory ones - so "the bodies the tests pinned" and "the bodies the server accepted" stay
+ * the same bodies.
  */
 
 import { parse as parseYaml } from 'yaml';

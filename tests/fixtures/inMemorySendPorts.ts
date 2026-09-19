@@ -9,6 +9,10 @@
 import type { SendPorts } from '../../src/sendModule';
 import { createTomeHttp, type TomeRequest } from '../../src/tomeHttp';
 
+/** A 1x1 transparent PNG - a real image the server's ingest can decode, and small. */
+export const TINY_PNG =
+	'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
 export interface InMemoryVault {
 	/** Vault path to the `data:` URI it holds. */
 	files?: Record<string, string>;

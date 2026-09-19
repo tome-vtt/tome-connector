@@ -57,8 +57,11 @@ export type ModuleSendable =
 	| { kind: 'prop'; path: string; block: Record<string, unknown> }
 	| { kind: 'image'; path: string; to: 'map' | 'prop'; title?: string };
 
-/** Which route each kind posts to; pinned by `tests/sendModule.test.ts`. */
-const ROUTES: Record<SendableKind | 'prop', TomeRoute> = {
+/**
+ * Which route each kind posts to; pinned by `tests/sendModule.test.ts`, and read by the
+ * server-contract test so a new rules-bearing kind cannot go unpinned there.
+ */
+export const KIND_ROUTES: Record<SendableKind | 'prop', TomeRoute> = {
 	creature: TOME_ROUTES.addNonPlayerCharacter,
 	encounter: TOME_ROUTES.addEncounter,
 	map: TOME_ROUTES.addMap,
@@ -88,7 +91,7 @@ export async function sendToTome(
 ): Promise<SendResult> {
 	const kind = sendable.kind === 'image' ? sendable.to : sendable.kind;
 	const body = await bodyFor(ports, sendable);
-	return ports.postJson({ ...destination, path: ROUTES[kind] }, JSON.stringify(body));
+	return ports.postJson({ ...destination, path: KIND_ROUTES[kind] }, JSON.stringify(body));
 }
 
 async function bodyFor(ports: SendPorts, sendable: ModuleSendable): Promise<unknown> {
