@@ -1,15 +1,10 @@
 import { App, normalizePath } from 'obsidian';
 import { getMimeType, toDataUri } from './tomeImageEncoding';
-import {
-	TomeImageKind,
-	downscaleImageBytes,
-	embedImages,
-} from './tomeImageDownscale';
+import { TomeImageKind, downscaleImageBytes } from './tomeImageDownscale';
 
 /**
- * Reads the vault file at `path` and returns it as a base64 `data:` URI.
- * Shared by the JSON/statblock image resolution below and by other code
- * block buttons (e.g. maps) that need to embed a single image's raw bytes.
+ * Reads the vault file at `path` and returns it as a base64 `data:` URI - the
+ * send module's image port in the plugin, and the adventure import's reader.
  *
  * `downscale` is the user's `downscaleImages` setting, passed as a plain boolean
  * rather than as the plugin: this module must not import `main.ts`, and
@@ -34,20 +29,4 @@ export async function readImageAsDataUri(
 	return downscale
 		? downscaleImageBytes(buffer, mimeType, kind)
 		: toDataUri(buffer, mimeType);
-}
-
-/**
- * Replaces every image path in a parsed payload with its bytes, read from the
- * vault through the adapter, so it works on desktop and mobile alike. See
- * `embedImages` for the walk and its failure rule.
- */
-export function resolveImagePaths(
-	app: App,
-	value: unknown,
-	kind: TomeImageKind,
-	downscale: boolean,
-): Promise<unknown> {
-	return embedImages(value, kind, (path, keyKind) =>
-		readImageAsDataUri(app, path, keyKind, downscale),
-	);
 }
