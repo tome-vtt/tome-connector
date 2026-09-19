@@ -1,12 +1,17 @@
-import { TFile, stringifyYaml } from 'obsidian';
+import { TFile } from 'obsidian';
 import type { MarkdownPostProcessorContext } from 'obsidian';
 import type TomeConnectorPlugin from './main';
+import { writeTomeIdIntoNote, type TomeBlockKind } from './tomeIdWriteBack';
 
+/**
+ * Finds the rendered block's lines in its note and writes Tome's id into it;
+ * the text edit itself is `writeTomeIdIntoNote`'s.
+ */
 export async function writeTomeIdToYamlBlock(
 	plugin: TomeConnectorPlugin,
 	ctx: MarkdownPostProcessorContext,
 	sectionEl: HTMLElement,
-	parsed: Record<string, unknown>,
+	kind: TomeBlockKind,
 	id: string,
 ): Promise<void> {
 	const sectionInfo = ctx.getSectionInfo(sectionEl);
@@ -15,14 +20,7 @@ export async function writeTomeIdToYamlBlock(
 	const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
 	if (!(file instanceof TFile)) return;
 
-	const updatedYaml = stringifyYaml({ ...parsed, id }).trimEnd();
-	await plugin.app.vault.process(file, (content) => {
-		const lines = content.split('\n');
-		lines.splice(
-			sectionInfo.lineStart + 1,
-			sectionInfo.lineEnd - sectionInfo.lineStart - 1,
-			updatedYaml,
-		);
-		return lines.join('\n');
-	});
+	await plugin.app.vault.process(file, (content) =>
+		writeTomeIdIntoNote(content, sectionInfo.lineStart, sectionInfo.lineEnd, kind, id),
+	);
 }

@@ -86,6 +86,11 @@ describe('mapReferenceFrom', () => {
 		expect(mapReferenceFrom({ id, image: 'Map.jpg' })?.id).toBe(id);
 	});
 
+	it("carries Tome's id from tome_id beside Leaflet's own id", () => {
+		const id = '3e8f6c30-0000-4000-8c00-000000000001';
+		expect(mapReferenceFrom({ id: 'my-map', tome_id: id, image: 'Map.jpg' })?.id).toBe(id);
+	});
+
 	it.each([[{}], [{ image: '   ' }], [{ imageBases: [] }], [null], [['a']]])(
 		'returns null for %o, which has no image to send',
 		(input) => {

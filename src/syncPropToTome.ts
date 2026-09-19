@@ -6,6 +6,7 @@ import { joinUrl, sendJsonToTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { stripMarkdown } from './tomeMarkdownSanitizer';
 import { writeTomeIdToYamlBlock } from './writeTomeIdToYamlBlock';
+import { existingTomeId } from './tomeIdWriteBack';
 import { TOME_ROUTES } from './routes';
 import { chooseCampaign } from './tomeCampaigns';
 
@@ -146,7 +147,12 @@ async function handleSendClick(
 
 		const parsed = parseYaml(rawYaml) as Record<string, unknown>;
 
+		// Only an id Tome issued goes back; anything else would fail model binding.
 		const payload: Record<string, unknown> = { ...parsed };
+		delete payload.id;
+		delete payload.tome_id;
+		const existingId = existingTomeId(parsed);
+		if (existingId !== undefined) payload.id = existingId;
 		if (IMAGE_KEY in payload) {
 			payload[IMAGE_KEY] = resolveImageLinkPath(
 				plugin,
@@ -169,7 +175,7 @@ async function handleSendClick(
 			campaignId,
 		);
 		if (id !== null) {
-			await writeTomeIdToYamlBlock(plugin, ctx, sectionEl, parsed, id);
+			await writeTomeIdToYamlBlock(plugin, ctx, sectionEl, 'prop', id);
 		}
 	} catch (error) {
 		console.error('Tome Connector: failed to send prop', error);

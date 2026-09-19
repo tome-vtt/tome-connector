@@ -99,13 +99,7 @@ async function handleSendClick(
 		);
 
 		if (id !== null) {
-			await writeTomeIdToYamlBlock(
-				plugin,
-				ctx,
-				sectionEl,
-				parsed as Record<string, unknown>,
-				id,
-			);
+			await writeTomeIdToYamlBlock(plugin, ctx, sectionEl, 'encounter', id);
 		}
 	} catch (error) {
 		console.error('Tome Connector: failed to send encounter', error);

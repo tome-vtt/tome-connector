@@ -1,4 +1,4 @@
-import { Notice, TFile, parseYaml, stringifyYaml } from 'obsidian';
+import { Notice, parseYaml } from 'obsidian';
 import type { MarkdownPostProcessorContext } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { resolveImagePaths } from './tomeImageEmbedding';
@@ -11,14 +11,11 @@ import { mapToNpcPayload } from './recognizers/statblockCreature';
 import { resolveCreatureData } from './fantasyStatblocksBestiary';
 import { TOME_ROUTES } from './routes';
 import { chooseCampaign } from './tomeCampaigns';
+import { writeTomeIdToYamlBlock } from './writeTomeIdToYamlBlock';
 
 const STATBLOCK_LANGUAGE_CLASS = 'language-statblock';
 const BUTTON_TEXT = 'Send to Tome';
 const SENDING_TEXT = 'Sending…';
-
-// Key used to store the id returned by the Tome endpoint, written back into
-// the statblock so subsequent sends can reference/update it.
-const ID_KEY = 'id';
 
 // The Fantasy Statblocks plugin also registers a processor for the
 // `statblock` language that fully replaces the `<pre><code>` element with
@@ -127,10 +124,9 @@ async function handleSendClick(
 		);
 
 		if (id !== null) {
-			// Write the id back onto the original (unresolved) reference so
-			// the note keeps its compact `monster:` reference rather than a
-			// full copy of the resolved bestiary data.
-			await writeIdBackToSource(plugin, ctx, preEl, parsed, id);
+			// Only the id line changes, so the note keeps its compact `monster:`
+			// reference rather than a full copy of the resolved bestiary data.
+			await writeTomeIdToYamlBlock(plugin, ctx, preEl, 'creature', id);
 		}
 	} catch (error) {
 		console.error('Tome Connector: failed to send statblock', error);
@@ -140,42 +136,4 @@ async function handleSendClick(
 		button.disabled = false;
 		button.setText(BUTTON_TEXT);
 	}
-}
-
-/**
- * Adds/updates the `id` field on the statblock object and writes the
- * updated YAML back into the code block's location in the source markdown
- * file.
- */
-async function writeIdBackToSource(
-	plugin: TomeConnectorPlugin,
-	ctx: MarkdownPostProcessorContext,
-	preEl: HTMLPreElement,
-	parsed: unknown,
-	id: string,
-): Promise<void> {
-	const sectionInfo = ctx.getSectionInfo(preEl);
-	if (!sectionInfo) return;
-
-	const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
-	if (!(file instanceof TFile)) return;
-
-	const root = parsed as Record<string, unknown>;
-	const updated = {
-		...root,
-		[ID_KEY]: id,
-	};
-	const updatedYaml = stringifyYaml(updated).trimEnd();
-
-	await plugin.app.vault.process(file, (content) => {
-		const lines = content.split('\n');
-		// lineStart/lineEnd bound the whole ```statblock ... ``` block;
-		// the fence lines themselves are left untouched.
-		lines.splice(
-			sectionInfo.lineStart + 1,
-			sectionInfo.lineEnd - sectionInfo.lineStart - 1,
-			updatedYaml,
-		);
-		return lines.join('\n');
-	});
 }

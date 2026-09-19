@@ -67,7 +67,8 @@ export function registerMapCodeBlockButton(plugin: TomeConnectorPlugin): void {
 				});
 
 				button.addEventListener('click', () => {
-					void handleSendClick(button, plugin, rawYaml, ctx, preEl);
+					const kind = codeEl.classList.contains('language-leaflet') ? 'leaflet' : 'zoommap';
+					void handleSendClick(button, plugin, rawYaml, ctx, preEl, kind);
 				});
 			});
 		},
@@ -81,6 +82,7 @@ async function handleSendClick(
 	rawYaml: string,
 	ctx: MarkdownPostProcessorContext,
 	sectionEl: HTMLElement,
+	kind: 'leaflet' | 'zoommap',
 ): Promise<void> {
 	button.disabled = true;
 	button.setText(SENDING_TEXT);
@@ -119,7 +121,7 @@ async function handleSendClick(
 			campaignId,
 		);
 		if (id !== null) {
-			await writeTomeIdToYamlBlock(plugin, ctx, sectionEl, parsed, id);
+			await writeTomeIdToYamlBlock(plugin, ctx, sectionEl, kind, id);
 		}
 	} catch (error) {
 		console.error('Tome Connector: failed to send map', error);

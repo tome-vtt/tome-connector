@@ -106,7 +106,9 @@ Example JSON encounter:
 ```
 
 On creation, Tome Connector writes the returned ID back into encounter, NPC,
-map, and prop source blocks. Player-character IDs are stored in the note's
+map, and prop source blocks, as `id` - except a Leaflet block, whose `id` is
+Leaflet's own map name, where it goes under `tome_id` instead. Only an ID Tome
+issued (a GUID) is sent back on a later send. Player-character IDs are stored in the note's
 frontmatter: `tome_id` for a character sent to a campaign, and `tome_vault_id`
 for one sent to **My Characters**. They are separate properties because a note
 can be sent to both, and those are two characters in Tome that do not sync to
