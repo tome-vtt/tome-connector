@@ -5,53 +5,14 @@ import { joinUrl, sendJsonToTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { stripMarkdown } from './tomeMarkdownSanitizer';
 import { parsePcSheet } from './tomePcSheetParser';
-import { CLASSES_PROPERTY } from './pcClassLine';
-import { playerCharacterBody } from './playerCharacterBody';
-import { TOME_ROUTES } from './routes';
+import { PLAYER_CHARACTER_PROPERTIES, playerCharacterBody } from './playerCharacterBody';
 import { chooseCharacterDestination } from './chooseCharacterDestination';
-import { frontmatterKeyFor, type CharacterDestination } from './characterDestination';
+import { requestFor, type DestinationRequest } from './characterDestination';
 
 // Frontmatter property that gates whether the button is shown at all. Its
 // presence is taken as confirmation that this note is a D&D Beyond character
 // sheet.
 const REQUIRED_PROPERTY = 'dndbeyond_id';
-
-// Only these frontmatter properties are ever read from the note's *frontmatter*
-// - anything else present there is ignored. `playerCharacterBody` maps each onto
-// the endpoint's `PlayerCharacterInputDto`: the name, gender, picture and D&D
-// Beyond id at the top level, and the rest into the sheet's `dnd5e` bag.
-//
-// The note *body* is read separately by `tomePcSheetParser`: proficiencies,
-// attacks, spells, features and inventory only ever exist there, as the tables
-// the D&D Beyond exporter renders.
-const ALLOWED_PROPERTIES = [
-	'name',
-	'race',
-	'class',
-	'level',
-	'background',
-	'alignment',
-	'gender',
-	'xp',
-	'hp_max',
-	'hp_current',
-	'hp_temp',
-	'ac',
-	'speed',
-	'proficiency_bonus',
-	'str',
-	'dex',
-	'con',
-	'int',
-	'wis',
-	'cha',
-	'dndbeyond_id',
-	'image',
-	// Optional, and not something the exporter writes: one entry per class with its own
-	// level, for a character with more than one. Without it the server reads the classes
-	// out of `class` itself - see `pcClassLine`.
-	CLASSES_PROPERTY,
-] as const;
 
 const BUTTON_ICON = 'upload-cloud';
 const BUTTON_TITLE = 'Import as PC to Tome';
@@ -179,26 +140,16 @@ async function sendCharacter(plugin: TomeConnectorPlugin, file: TFile): Promise<
 	const destination = await chooseCharacterDestination(plugin);
 	if (destination === null) return;
 
+	const request = requestFor(destination);
 	const id = await sendJsonToTome(
-		joinUrl(plugin.settings.baseUrl, routeFor(destination)),
+		joinUrl(plugin.settings.baseUrl, request.route),
 		await buildCharacterPayload(plugin, file),
 		getApiKey(plugin),
-		// Left undefined for the vault, which is what makes the request account-scoped:
-		// `requestHeaders` omits `X-Campaign-Id` when it is falsy, and the server's API-key
-		// handler adds the campaign claim only when the header is there. Passing the remembered
-		// campaign "harmlessly" would be worse than useless - a campaign the key owner no longer
-		// owns fails the whole request with a 401, on an endpoint that reads no campaign at all.
-		destination.kind === 'campaign' ? destination.campaignId : undefined,
+		request.campaignId,
 	);
 	if (id !== null) {
-		await writeBackId(plugin, file, destination, id);
+		await writeBackId(plugin, file, request.frontmatterKey, id);
 	}
-}
-
-function routeFor(destination: CharacterDestination): string {
-	return destination.kind === 'vault'
-		? TOME_ROUTES.importVaultCharacter
-		: TOME_ROUTES.addPlayerCharacter;
 }
 
 /**
@@ -212,7 +163,9 @@ async function buildCharacterPayload(plugin: TomeConnectorPlugin, file: TFile): 
 		plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
 
 	const filtered: Record<string, unknown> = {};
-	for (const key of ALLOWED_PROPERTIES) {
+	// Only what the body mapper reads - anything else in the frontmatter is ignored. The note
+	// *body* is read separately by `tomePcSheetParser`.
+	for (const key of PLAYER_CHARACTER_PROPERTIES) {
 		if (key in frontmatter) {
 			filtered[key] = frontmatter[key];
 		}
@@ -244,10 +197,9 @@ async function buildCharacterPayload(plugin: TomeConnectorPlugin, file: TFile): 
 async function writeBackId(
 	plugin: TomeConnectorPlugin,
 	file: TFile,
-	destination: CharacterDestination,
+	property: DestinationRequest['frontmatterKey'],
 	id: string,
 ): Promise<void> {
-	const property = frontmatterKeyFor(destination);
 	await plugin.app.fileManager.processFrontMatter(
 		file,
 		(frontmatter: Record<string, unknown>) => {
