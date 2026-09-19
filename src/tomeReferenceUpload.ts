@@ -72,7 +72,7 @@ export async function uploadReferencePdf(
 		getApiKey(plugin),
 		campaignId,
 	);
-	if (!result.ok) throw new Error(describeFailure(result));
+	if (!result.ok) throw new Error(`the reference upload failed. ${describeFailure(result)}`);
 	return result.id;
 }
 
