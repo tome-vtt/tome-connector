@@ -9,7 +9,7 @@
  * Two sources, both in the TomeVTT repository:
  *
  * - **What each body may carry** is `components.schemas` in the generated client schema,
- *   `tomevtt.client/src/app/api/generated/api-schema.ts`, as of TomeVTT `43f1867a`: the
+ *   `tomevtt.client/src/app/api/generated/api-schema.ts`, as of TomeVTT `a103721a`: the
  *   input DTO each action binds, the named bag records under `Models/Dnd5e` and
  *   `Models/Pf2e`, and the nested records inside them. Every name is the camelCase one the
  *   records pin with `[JsonPropertyName]`.
@@ -165,7 +165,8 @@ export interface InputContract {
 export const IMPORT_NON_PLAYER_CHARACTER: InputContract = {
 	dto: 'ImportNonPlayerCharacterDto',
 	shape: {
-		keys: ['id', 'image', 'name', 'alias', 'dnd5e', 'pf2e', 'isFavorite'],
+		// `fgg` (For Gold & Glory) is declared too; the connector has no such stat block to fill it with.
+		keys: ['id', 'image', 'name', 'alias', 'dnd5e', 'pf2e', 'fgg', 'isFavorite'],
 		nested: { dnd5e: DND5E_CREATURE, pf2e: PF2E_CREATURE },
 	},
 	retired: RETIRED_CREATURE,
@@ -174,8 +175,8 @@ export const IMPORT_NON_PLAYER_CHARACTER: InputContract = {
 export const PLAYER_CHARACTER_INPUT: InputContract = {
 	dto: 'PlayerCharacterInputDto',
 	shape: {
-		// `pf2e` is declared too; the connector sends only D&D Beyond sheets, so it never fills it.
-		keys: ['name', 'alias', 'gender', 'dndBeyondId', 'image', 'isFavorite', 'dnd5e', 'pf2e'],
+		// `pf2e` and `fgg` are declared too; the connector sends only D&D Beyond sheets, so it fills neither.
+		keys: ['name', 'alias', 'gender', 'dndBeyondId', 'image', 'isFavorite', 'dnd5e', 'pf2e', 'fgg'],
 		nested: { dnd5e: DND5E_CHARACTER },
 	},
 	retired: RETIRED_CHARACTER,
