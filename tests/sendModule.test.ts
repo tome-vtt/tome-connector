@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { sendCharacterToTome as sendCharacter, sendToTome as send } from '../src/sendModule';
+import type { SpellNote } from '../src/libraryItemBody';
+import type { EquipmentItem } from '../src/recognizers/compendium/equipmentItem';
+import type { MagicItem } from '../src/recognizers/compendium/magicItem';
+import { sendCharacterToTome as sendCharacter, sendToTome as send, type ModuleSendable } from '../src/sendModule';
 import { TINY_PNG } from './fixtures/wireBodies';
 import { bodyOf, inMemorySendPorts } from './fixtures/inMemorySendPorts';
 
@@ -15,8 +18,8 @@ const INLINE_GOBLIN = {
 	stats: [8, 14, 10, 10, 8, 8],
 };
 
-function creature(source: Record<string, unknown>, path = 'Bestiary/Goblin.md') {
-	return { kind: 'creature' as const, path, source };
+function creature(block: Record<string, unknown>, path = 'Bestiary/Goblin.md') {
+	return { kind: 'creature' as const, path, block };
 }
 
 describe('sending a creature', () => {
@@ -175,7 +178,7 @@ describe('sending a map', () => {
 	it('sends a Leaflet map whose image is a wikilink to a file in another folder', async () => {
 		const { ports, sent } = inMemorySendPorts({ files: { 'Assets/Maps/Old Keep.jpg': TINY_PNG } });
 
-		await send(ports, { kind: 'map', path: 'Adventures/Keep.md', source: { id: 'my-map', image: [['Old Keep.jpg']] } }, DESTINATION);
+		await send(ports, { kind: 'map', path: 'Adventures/Keep.md', map: { title: 'Old Keep', image: 'Old Keep.jpg' } }, DESTINATION);
 
 		expect(sent[0]?.url).toBe('https://tome.example.com/api/maps/addmap');
 		expect(bodyOf(sent[0])).toEqual({ title: 'Old Keep', image: TINY_PNG });
@@ -184,7 +187,7 @@ describe('sending a map', () => {
 	it('sends a zoommap by its vault path, with the id Tome issued', async () => {
 		const { ports, sent } = inMemorySendPorts({ files: { 'Assets/the-old-keep.jpg': TINY_PNG } });
 
-		await send(ports, { kind: 'map', path: 'Keep.md', source: { image: 'Assets/the-old-keep.jpg', id: TOME_ID } }, DESTINATION);
+		await send(ports, { kind: 'map', path: 'Keep.md', map: { title: 'The Old Keep', image: 'Assets/the-old-keep.jpg', id: TOME_ID } }, DESTINATION);
 
 		expect(bodyOf(sent[0])).toEqual({ title: 'The Old Keep', image: TINY_PNG, id: TOME_ID });
 	});
@@ -194,7 +197,7 @@ describe('sending an encounter', () => {
 	it('posts the encounter as the recognizer reads it', async () => {
 		const { ports, sent } = inMemorySendPorts();
 
-		await send(ports, { kind: 'encounter', path: 'Keep.md', source: { name: 'Ambush', creatures: [{ 2: 'Goblin' }] } }, DESTINATION);
+		await send(ports, { kind: 'encounter', path: 'Keep.md', encounter: { name: 'Ambush', encounterNpcs: [{ name: 'Goblin', quantity: 2 }] } }, DESTINATION);
 
 		expect(sent[0]?.url).toBe('https://tome.example.com/api/encounters/addencounter');
 		expect(bodyOf(sent[0])).toEqual({ name: 'Ambush', encounterNpcs: [{ name: 'Goblin', quantity: 2 }] });
@@ -207,7 +210,7 @@ describe('sending a prop', () => {
 
 		await send(
 			ports,
-			{ kind: 'prop', path: 'Keep.md', source: { title: 'Simple **Chest**', image: '[[chest.webp|A chest]]', tome_id: TOME_ID } },
+			{ kind: 'prop', path: 'Keep.md', block: { title: 'Simple **Chest**', image: '[[chest.webp|A chest]]', tome_id: TOME_ID } },
 			DESTINATION,
 		);
 
@@ -230,12 +233,54 @@ describe('sending a bare image', () => {
 	});
 });
 
+const MAGIC_ITEM: MagicItem = {
+	name: 'Bag of Holding',
+	sourceKey: 'bag-of-holding-xdmg',
+	rarity: 'uncommon',
+	category: 'wondrous item',
+	requiresAttunement: false,
+	attunementDetail: null,
+	desc: 'A bag.',
+	imagePath: null,
+};
+
+const ROPE: EquipmentItem = {
+	name: 'Rope',
+	sourceKey: 'rope-xphb',
+	category: 'adventuring gear',
+	cost: 100,
+	weight: 5,
+	desc: 'Rope.',
+	imagePath: 'Items/img/rope.webp',
+};
+
+const SPELL = { name: 'Fireball', sourceKey: 'fireball-xphb', desc: 'Boom.', imagePath: null } as SpellNote;
+
+describe('every kind goes to its own route', () => {
+	it.each([
+		['creature', { kind: 'creature', path: 'Goblin.md', block: INLINE_GOBLIN }, '/api/nonplayercharacters/addnonplayercharacter'],
+		['encounter', { kind: 'encounter', path: 'Keep.md', encounter: { name: 'Ambush', encounterNpcs: [] } }, '/api/encounters/addencounter'],
+		['map', { kind: 'map', path: 'Keep.md', map: { title: 'Keep', image: 'keep.png' } }, '/api/maps/addmap'],
+		['prop', { kind: 'prop', path: 'Keep.md', block: { title: 'Chest' } }, '/api/props/addprop'],
+		['magic item', { kind: 'magicItem', path: 'Bag.md', item: MAGIC_ITEM }, '/api/MagicItems/AddMagicItem'],
+		['equipment item', { kind: 'equipmentItem', path: 'Items/rope.md', item: ROPE }, '/api/EquipmentItems/AddEquipmentItem'],
+		['spell', { kind: 'spell', path: 'Fireball.md', spell: SPELL }, '/api/Spells/AddSpell'],
+		['image as a map', { kind: 'image', path: 'keep.png', to: 'map' }, '/api/maps/addmap'],
+		['image as a prop', { kind: 'image', path: 'keep.png', to: 'prop' }, '/api/props/addprop'],
+	] satisfies [string, ModuleSendable, string][])('a %s', async (_, sendable, route) => {
+		const { ports, sent } = inMemorySendPorts({ files: { 'keep.png': TINY_PNG, 'Items/img/rope.webp': TINY_PNG } });
+
+		await send(ports, sendable, DESTINATION);
+
+		expect(sent[0]?.url).toBe(`https://tome.example.com${route}`);
+	});
+});
+
 describe('sending a library item', () => {
 	it('sends the parsed item with its art read off disk', async () => {
 		const { ports, sent } = inMemorySendPorts({ files: { 'Items/img/rope.webp': TINY_PNG } });
-		const item = { name: 'Rope', sourceKey: 'rope-xphb', imagePath: 'Items/img/rope.webp' };
 
-		await send(ports, { kind: 'equipmentItem', path: 'Items/rope.md', source: { item } }, DESTINATION);
+		await send(ports, { kind: 'equipmentItem', path: 'Items/rope.md', item: ROPE }, DESTINATION);
 
 		expect(sent[0]?.url).toBe('https://tome.example.com/api/EquipmentItems/AddEquipmentItem');
 		expect(bodyOf(sent[0])).toMatchObject({ name: 'Rope', image: TINY_PNG });
@@ -244,12 +289,12 @@ describe('sending a library item', () => {
 
 describe('an image that is not in the vault', () => {
 	it.each([
-		['creature', { kind: 'creature', path: 'Goblin.md', source: { ...INLINE_GOBLIN, image: '[[missing.png]]' } }],
-		['map', { kind: 'map', path: 'Keep.md', source: { image: '[[missing.png]]' } }],
-		['prop', { kind: 'prop', path: 'Keep.md', source: { title: 'Chest', image: 'missing.png' } }],
+		['creature', { kind: 'creature', path: 'Goblin.md', block: { ...INLINE_GOBLIN, image: '[[missing.png]]' } }],
+		['map', { kind: 'map', path: 'Keep.md', map: { title: 'Missing', image: 'missing.png' } }],
+		['prop', { kind: 'prop', path: 'Keep.md', block: { title: 'Chest', image: 'missing.png' } }],
 		['bare image', { kind: 'image', path: 'missing.png', to: 'map' }],
-		['library item', { kind: 'magicItem', path: 'Bag.md', source: { item: { name: 'Bag', imagePath: 'img/missing.webp' } } }],
-	] as const)('refuses the %s, and sends nothing', async (_, sendable) => {
+		['library item', { kind: 'magicItem', path: 'Bag.md', item: { ...MAGIC_ITEM, imagePath: 'img/missing.webp' } }],
+	] satisfies [string, ModuleSendable][])('refuses the %s, and sends nothing', async (_, sendable) => {
 		const { ports, sent } = inMemorySendPorts();
 
 		await expect(send(ports, sendable, DESTINATION)).rejects.toThrow(/could not be read/);

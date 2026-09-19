@@ -79,7 +79,7 @@ function registerDecoratedBlocks(plugin: TomeConnectorPlugin): void {
 function registerOwnedBlock(plugin: TomeConnectorPlugin, kind: BlockKind): void {
 	plugin.registerMarkdownCodeBlockProcessor(kind.language, (source, el, ctx) => {
 		const parsed = parse(source);
-		if (!kind.recognizes(parsed)) return;
+		if (!kind.sendable(parsed)) return;
 
 		const preview = renderPreview(plugin, parsed as Record<string, unknown>, el, ctx.sourcePath);
 		const cls = 'tome-connector-send-button tome-connector-prop-send-button';
@@ -127,8 +127,9 @@ async function send(button: HTMLButtonElement, block: RenderedBlock): Promise<vo
 		const campaignId = await chooseCampaign(plugin);
 		if (campaignId === null) return;
 
-		const source = parseYaml(block.source) as Record<string, unknown>;
-		const id = await sendWithNotice(plugin, { kind: kind.sends, path: ctx.sourcePath, source }, campaignId);
+		const sendable = kind.sendable(parseYaml(block.source));
+		if (!sendable) throw new Error(`This ${kind.language} block is no longer one Tome can take.`);
+		const id = await sendWithNotice(plugin, { ...sendable, path: ctx.sourcePath }, campaignId);
 		if (id !== null) await writeIdBack(block, id);
 	} catch (error) {
 		console.error(`Tome Connector: failed to send ${kind.language} block`, error);

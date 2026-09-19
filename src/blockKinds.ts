@@ -9,15 +9,19 @@
 
 import { mapToEncounterPayload } from './recognizers/encounter';
 import { mapReferenceFrom } from './recognizers/map';
+import type { SendableParse } from './recognizers/noteScan';
 import type { TomeBlockKind } from './tomeIdWriteBack';
+
+/** What a block sends as: the send module's typed variant, less the note it is in. */
+export type BlockSendable =
+	| Extract<SendableParse, { kind: 'creature' | 'encounter' | 'map' }>
+	| { kind: 'prop'; block: Record<string, unknown> };
 
 export interface BlockKind {
 	/** The fence's language, as in ` ```statblock `. */
 	language: string;
-	/** Whether this parsed block is one worth a button. */
-	recognizes(parsed: unknown): boolean;
-	/** The send module's kind for it. */
-	sends: 'creature' | 'encounter' | 'map' | 'prop';
+	/** The parsed block as the send module's variant, or null when it is not one worth a button. */
+	sendable(parsed: unknown): BlockSendable | null;
 	/** The id write-back module's kind for it, which picks the key the id goes under. */
 	writeBack: TomeBlockKind;
 	/**
@@ -33,31 +37,42 @@ function isMapping(parsed: unknown): parsed is Record<string, unknown> {
 }
 
 // No image, nothing to send: a Leaflet block that only sets up coordinates, or a zoommap block still being written.
-const namesAnImage = (parsed: unknown) => mapReferenceFrom(parsed) !== null;
+function mapSendable(parsed: unknown): BlockSendable | null {
+	const map = mapReferenceFrom(parsed);
+	return map && { kind: 'map', map };
+}
 
 export const BLOCK_KINDS: readonly BlockKind[] = [
 	// Whether a `monster:` reference resolves is the send's to report, not a reason to hide the button.
-	{ language: 'statblock', recognizes: isMapping, sends: 'creature', writeBack: 'creature' },
+	{
+		language: 'statblock',
+		sendable: (parsed) => (isMapping(parsed) ? { kind: 'creature', block: parsed } : null),
+		writeBack: 'creature',
+	},
 	{
 		language: 'encounter',
-		recognizes: (parsed) => mapToEncounterPayload(parsed) !== null,
-		sends: 'encounter',
+		sendable: (parsed) => {
+			const encounter = mapToEncounterPayload(parsed);
+			return encounter && { kind: 'encounter', encounter };
+		},
 		writeBack: 'encounter',
 	},
 	// Leaflet's `id` is the user's own map name, so its row writes Tome's id to `tome_id`.
-	{ language: 'leaflet', recognizes: namesAnImage, sends: 'map', writeBack: 'leaflet' },
-	{ language: 'zoommap', recognizes: namesAnImage, sends: 'map', writeBack: 'zoommap' },
+	{ language: 'leaflet', sendable: mapSendable, writeBack: 'leaflet' },
+	{ language: 'zoommap', sendable: mapSendable, writeBack: 'zoommap' },
 	{
 		language: 'prop',
-		recognizes: (parsed) => isMapping(parsed) && typeof parsed.title === 'string' && parsed.title.trim() !== '',
-		sends: 'prop',
+		sendable: (parsed) =>
+			isMapping(parsed) && typeof parsed.title === 'string' && parsed.title.trim() !== ''
+				? { kind: 'prop', block: parsed }
+				: null,
 		writeBack: 'prop',
 		titleAndImagePreview: true,
 	},
 ];
 
-/** The row for this fence, if its parsed YAML is one the row recognizes. */
+/** The row for this fence, if its parsed YAML is one the row sends. */
 export function recognizeBlock(language: string, parsed: unknown): BlockKind | null {
 	const kind = BLOCK_KINDS.find((row) => row.language === language);
-	return kind?.recognizes(parsed) ? kind : null;
+	return kind?.sendable(parsed) ? kind : null;
 }

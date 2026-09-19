@@ -6,38 +6,46 @@ import { recognizeBlock } from '../src/blockKinds';
  * The table every "Send to Tome" block button is driven by: a code-block language
  * and its parsed YAML in, what to send it as and where its id goes back out.
  */
+function routed(language: string, parsed: unknown) {
+	const row = recognizeBlock(language, parsed);
+	return row && { sendable: row.sendable(parsed), writeBack: row.writeBack, preview: row.titleAndImagePreview };
+}
+
 describe('recognizeBlock', () => {
-	it('sends a statblock as a creature and writes back to `id`', () => {
-		expect(recognizeBlock('statblock', { monster: 'Goblin' })).toMatchObject({
-			sends: 'creature',
+	it('sends a statblock as a creature, block as written, and writes back to `id`', () => {
+		expect(routed('statblock', { monster: 'Goblin' })).toEqual({
+			sendable: { kind: 'creature', block: { monster: 'Goblin' } },
 			writeBack: 'creature',
+			preview: undefined,
 		});
 	});
 
 	it('sends a Leaflet map as a map, keeping Leaflet’s own `id` out of it', () => {
-		expect(recognizeBlock('leaflet', { id: 'keep', image: '[[Keep.jpg]]' })).toMatchObject({
-			sends: 'map',
+		expect(routed('leaflet', { id: 'keep', image: '[[Keep.jpg]]' })).toMatchObject({
+			sendable: { kind: 'map', map: { image: 'Keep.jpg' } },
 			writeBack: 'leaflet',
 		});
 	});
 
 	it('sends a zoommap block as a map', () => {
-		expect(recognizeBlock('zoommap', { image: 'Assets/Keep.jpg' })).toMatchObject({
-			sends: 'map',
+		expect(routed('zoommap', { image: 'Assets/Keep.jpg' })).toMatchObject({
+			sendable: { kind: 'map', map: { image: 'Assets/Keep.jpg' } },
 			writeBack: 'zoommap',
 		});
 	});
 
-	it('sends an encounter', () => {
-		const block = { name: 'Ambush', creatures: ['2: Goblin'] };
-		expect(recognizeBlock('encounter', block)).toMatchObject({ sends: 'encounter', writeBack: 'encounter' });
+	it('sends an encounter as its payload', () => {
+		expect(routed('encounter', { name: 'Ambush', creatures: ['2: Goblin'] })).toMatchObject({
+			sendable: { kind: 'encounter', encounter: { name: 'Ambush' } },
+			writeBack: 'encounter',
+		});
 	});
 
-	it('sends a prop, the one block Tome renders itself', () => {
-		expect(recognizeBlock('prop', { title: 'Simple Chest' })).toMatchObject({
-			sends: 'prop',
+	it('sends a prop, the one block Tome draws itself', () => {
+		expect(routed('prop', { title: 'Simple Chest' })).toEqual({
+			sendable: { kind: 'prop', block: { title: 'Simple Chest' } },
 			writeBack: 'prop',
-			titleAndImagePreview: true,
+			preview: true,
 		});
 	});
 
