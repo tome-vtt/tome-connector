@@ -52,6 +52,8 @@ interface BuiltBody {
 	/** The game system a campaign receiving it must play. */
 	system: 'dnd5e' | 'pf2e';
 	contract: InputContract;
+	/** The send module kind a note went as; a character has none, its destination picks the route. */
+	kind?: SendableKind;
 	route: string;
 	/** Whether the request went without the campaign header - the account shelf. */
 	accountScoped: boolean;
@@ -96,15 +98,16 @@ function withArt(sendable: Sendable, token: string | null): Sendable {
 }
 
 /** Sends the one `kind` in a note to a campaign; with `image`, its art is that file. */
-function note(path: string, content: string, kind: SendableKind, image: string | undefined) {
+async function note(path: string, content: string, kind: SendableKind, image: string | undefined) {
 	const found = findSendables(noteInput(path, content), yamlParser);
 	const [sendable] = found;
 	if (found.length !== 1 || sendable?.kind !== kind) throw new Error(`${path}: expected one ${kind}`);
 	const token = `${path.slice(0, path.lastIndexOf('/'))}/token.png`;
 	const files = image === undefined ? {} : { [token]: image };
-	return posted(files, (ports) =>
+	const request = await posted(files, (ports) =>
 		sendToTome(ports, withArt(sendable, image === undefined ? null : token), { ...SERVER, campaignId: 'campaign' }),
 	);
+	return { kind, ...request };
 }
 
 /** Sends a character note to `destination`; with `image`, its picture is `[[token.png]]` beside it. */
@@ -120,13 +123,12 @@ function character(frontmatter: Record<string, unknown>, content: string, image:
 async function everyBody(image?: string): Promise<BuiltBody[]> {
 	const campaign: CharacterDestination = { kind: 'campaign', campaignId: 'campaign' };
 	const zabadun = frontmatterOf(ZABADUN_NOTE);
-	const npc = { contract: IMPORT_NON_PLAYER_CHARACTER };
 	const dnd5e = 'dnd5e' as const;
 	const pc = { system: dnd5e, contract: PLAYER_CHARACTER_INPUT };
 
 	return [
-		{ label: '5e creature', system: dnd5e, ...npc, ...(await note('Bestiary/Githyanki Knight.md', GITHYANKI_KNIGHT_NOTE, 'creature', image)) },
-		{ label: 'Pathfinder creature', system: 'pf2e', ...npc, ...(await note('Bestiary/Goblin Warrior.md', GOBLIN_WARRIOR_NOTE, 'creature', image)) },
+		{ label: '5e creature', system: dnd5e, contract: IMPORT_NON_PLAYER_CHARACTER, ...(await note('Bestiary/Githyanki Knight.md', GITHYANKI_KNIGHT_NOTE, 'creature', image)) },
+		{ label: 'Pathfinder creature', system: 'pf2e', contract: IMPORT_NON_PLAYER_CHARACTER, ...(await note('Bestiary/Goblin Warrior.md', GOBLIN_WARRIOR_NOTE, 'creature', image)) },
 		{ label: 'magic item', system: dnd5e, contract: MAGIC_ITEM_INPUT, ...(await note('Items/bag-of-holding-xdmg.md', BAG_OF_HOLDING_NOTE, 'magicItem', image)) },
 		{ label: 'magic item with attunement', system: dnd5e, contract: MAGIC_ITEM_INPUT, ...(await note('Items/cloak-of-protection-xdmg.md', CLOAK_OF_PROTECTION_NOTE, 'magicItem', undefined)) },
 		{ label: 'equipment', system: dnd5e, contract: EQUIPMENT_ITEM_INPUT, ...(await note('Items/rope-xphb.md', ROPE_NOTE, 'equipmentItem', image)) },
@@ -143,7 +145,7 @@ const WITHOUT_IMAGES = await everyBody();
 const ALL: BuiltBody[] = [...WITH_IMAGES, ...WITHOUT_IMAGES];
 
 /** The send module's kinds whose bodies carry no rules record, so the server contract has nothing to pin. */
-const RULES_FREE_KINDS: readonly string[] = ['encounter', 'map', 'prop'];
+const RULES_FREE_KINDS = new Set<string>(['encounter', 'map', 'prop'] satisfies (keyof typeof KIND_ROUTES)[]);
 
 function byLabel(label: string, bodies: BuiltBody[] = WITHOUT_IMAGES): Record<string, unknown> {
 	const found = bodies.find((built) => built.label === label);
@@ -177,9 +179,10 @@ describe('every body the connector builds', () => {
 
 	/** A kind added to the send module with a rules record and no case above fails here. */
 	it('covers every rules-bearing route the send module posts to', () => {
-		const kinds = Object.entries(KIND_ROUTES).filter(([kind]) => !RULES_FREE_KINDS.includes(kind));
+		const kinds = Object.entries(KIND_ROUTES).filter(([kind]) => !RULES_FREE_KINDS.has(kind));
 		const characters = [requestFor({ kind: 'vault' }), requestFor({ kind: 'campaign', campaignId: 'campaign' })];
 
+		expect(new Set(ALL.flatMap((built) => built.kind ?? []))).toEqual(new Set(kinds.map(([kind]) => kind)));
 		expect(new Set(ALL.map((built) => built.route))).toEqual(
 			new Set([...kinds.map(([, route]) => route), ...characters.map((request) => request.route)]),
 		);
