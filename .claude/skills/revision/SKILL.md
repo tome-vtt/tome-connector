@@ -1,7 +1,7 @@
 ---
 name: revision
 description: >
-  Claims N issues in the Tome VTT team's Needs-Revision column on Linear, moves
+  Claims N issues in the Tome Connector project's Needs-Revision column on Linear, moves
   each to In-Process, and fixes the review findings in parallel — one subagent
   and one isolated git worktree per issue — merging each into the current
   branch, removing its worktree, commenting a summary and moving it back to
@@ -20,7 +20,7 @@ This is `ready` with three differences. **Read
 `.claude/skills/ready/SKILL.md` and follow it**, substituting:
 
 1. **Queue.** Step 2 lists and claims from `state: "Needs-Revision"` instead of
-   Ready (still `label: "ready-for-agent"` only — a `ready-for-human` revision is the user's), and a claimed issue that cannot be finished goes back to
+   Ready (same `project: "Tome Connector"` filter) (still `label: "ready-for-agent"` only — a `ready-for-human` revision is the user's), and a claimed issue that cannot be finished goes back to
    **Needs-Revision**, not Ready. Tell each subagent so. The pre-screen (step 2.5) judges
    the **latest review's blocking findings**: if every one needs a person, hand it back
    `ready-for-human` without dispatching.

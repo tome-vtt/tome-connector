@@ -1,7 +1,7 @@
 ---
 name: ready
 description: >
-  Claims N issues in the Tome VTT team's Ready column on Linear, moves each to
+  Claims N issues in the Tome Connector project's Ready column on Linear, moves each to
   In-Process, and builds them in parallel — one subagent and one isolated git
   worktree per issue — merging each into the current branch, removing its
   worktree, commenting a summary and moving it to Needs-Review. Use when the
@@ -46,7 +46,7 @@ every merge goes into. Detached HEAD, or no `origin/$target` to pull from and pu
 Nothing is read, planned or checked out until all N are claimed — another agent may
 be reading the same queue.
 
-1. `list_issues` with `team: "Tome VTT"`, `state: "Ready"`, `assignee: "null"`,
+1. `list_issues` with `team: "Tome VTT"`, `project: "Tome Connector"`, `state: "Ready"`, `assignee: "null"`,
    `label: "ready-for-agent"`, then drop any whose `delegate` is set — it is claimed. If
    that finds nothing unexpectedly, confirm the name with `list_issue_statuses`. **Only
    `ready-for-agent` is claimed**: a `ready-for-human` issue is waiting on the user, and one
@@ -69,7 +69,7 @@ be reading the same queue.
    part is agent work, dispatch as usual and let the subagent hand back the rest. When in
    doubt, dispatch.
 
-Empty queue: say so and stop. Do not widen to another status, team, or GitHub.
+Empty queue: say so and stop. Do not widen to another status, project, team, or GitHub.
 **Never dispatch for an issue you did not claim.**
 
 ## 3. Per-issue assignments

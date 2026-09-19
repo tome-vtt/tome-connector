@@ -11,6 +11,8 @@ export default defineConfig(
 		// Build-time Node scripts, like the two above: not part of the plugin
 		// bundle and not covered by tsconfig's project service.
 		'scripts',
+		// Agent hooks and skills: Node scripts with their own self-tests.
+		'.claude',
 		'versions.json',
 		'main.js',
 		'package.json',

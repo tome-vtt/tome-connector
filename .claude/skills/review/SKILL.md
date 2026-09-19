@@ -1,7 +1,7 @@
 ---
 name: review
 description: >
-  Claims N issues in the Tome VTT team's Needs-Review column on Linear, moves
+  Claims N issues in the Tome Connector project's Needs-Review column on Linear, moves
   each to In-Process, and reviews the merged work in parallel — one subagent per
   issue — then comments the review and moves each to Finished if it is clean or
   Needs-Revision with documented findings. Use when the user invokes
@@ -27,7 +27,7 @@ holds.
 
 ## 1. Claim the whole batch first
 
-1. `list_issues` with `team: "Tome VTT"`, `state: "Needs-Review"`,
+1. `list_issues` with `team: "Tome VTT"`, `project: "Tome Connector"`, `state: "Needs-Review"`,
    `assignee: "null"`, `label: "ready-for-agent"`, then drop any whose `delegate` is set —
    it is claimed. `ready-for-human` and unlabelled issues are not claimed; name them in the
    report.
@@ -70,12 +70,9 @@ identifier, title, description, every comment, the repo path
 >
 > **Read the skills first**, with the Skill tool:
 > `mattpocock-skills:code-review` (Standards and Spec — the spec is the issue body
-> and its comments) and `ponytail-review` (over-engineering). Apply both to the
-> diff. Also check it against the project context's invariants for the areas
-> touched, the
-> repository rules (UI works on phones and tablets; a UI change had a demo in
-> `docs/design/`; Tome How To updated for user-facing changes), and that tests
-> cover the change.
+> and its comments) and `ponytail:ponytail-review` (over-engineering). Apply both to the
+> diff. Also check it against `AGENTS.md` and the repository rules in
+> `.claude/skills/ready/build-brief.md` step 2, and that tests cover the change.
 >
 > You may run checks against the merge commit if a finding depends on it, but only
 > read-only (`git show`, `git grep`) — do not build or run suites in the main tree.
@@ -83,7 +80,7 @@ identifier, title, description, every comment, the repo path
 > **Verify every finding** against the code before reporting it; drop what you
 > cannot confirm. Classify each as **blocking** (wrong behaviour, a broken
 > invariant, a spec requirement missed, missing tests for new behaviour, needless
-> complexity ponytail-review would cut) or **non-blocking** (a suggestion the
+> complexity `ponytail:ponytail-review` would cut) or **non-blocking** (a suggestion the
 > author may take or leave).
 >
 > **Update Linear.** Post a comment that starts with the line

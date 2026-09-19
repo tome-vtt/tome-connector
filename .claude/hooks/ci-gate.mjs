@@ -1,23 +1,22 @@
 #!/usr/bin/env node
 /**
- * Stop hook: run the fast half of .github/workflows/ci.yml against the current changes
- * before a turn is allowed to end.
+ * Stop hook: run what .github/workflows/lint.yml runs against the current changes before a
+ * turn is allowed to end.
  *
- * Scope is `lint + typecheck + unit tests`, per project, and only for projects the change
- * actually touches. The slow CI jobs are deliberately not here: `e2e`, `image`, `api-schema`
- * and the two `npm audit` steps all need Docker, a database or a booted server, and a Stop
- * hook that takes twenty-five minutes is a Stop hook people turn off.
+ * Scope is `build + unit tests + lint`, and only when the change touches something CI reads
+ * (not docs, not .claude/). Ported from TomeVTT, where it gates several projects; here
+ * PROJECTS has one entry.
  *
  * Three things about this are load-bearing:
  *
  *  - It takes the shared `tests` lock through .claude/scripts/lock.ps1 around every
  *    test-shaped check, because several agents share one working tree and two concurrent
- *    vitest runs produce failures that look like regressions and are not. Lint and typecheck
+ *    vitest runs produce failures that look like regressions and are not. Build and lint
  *    run unlocked - they contend with nothing. It passes `-OwnerPid` as *this* process, which
  *    lives for the whole gate, so the lock is live exactly as long as the gate is.
  *
  *  - It caches a per-project fingerprint of the last passing run. Without it, a turn that
- *    only edited a doc still re-runs the whole client suite because the *branch* diff is
+ *    only edited a doc still re-runs the whole suite because the *branch* diff is
  *    unchanged and still names client files.
  *
  *  - It blocks once per *distinct* failure rather than MAX_BLOCKS times per turn. The tree is
@@ -152,56 +151,21 @@ function changedFiles() {
 // shell, returning EINVAL and a null status, which reads as a failed check with no output at
 // all. That is how this was found - the gate blocked a turn with a blank excerpt. It is one
 // string rather than shell:true plus an args array because that combination is DEP0190 and
-// puts a deprecation warning in the middle of every report. `dotnet` is a real executable and
-// stays shell-free.
-const dotnetFlags = ['-c', 'Release', '-p:BuildSpaWithMsBuild=false'];
-const testsCsproj = 'TomeVTT.Server.Tests/TomeVTT.Server.Tests.csproj';
-
+// puts a deprecation warning in the middle of every report.
+//
+// One project: the plugin. The checks are lint.yml's steps in its order. Docs and agent files
+// change nothing CI runs, so they do not select it.
 const PROJECTS = [
   {
-    key: 'client',
-    label: 'Client',
-    cwd: 'tomevtt.client',
-    owns: (f) => f.startsWith('tomevtt.client/'),
-    nodeModules: 'tomevtt.client/node_modules',
-    checks: [
-      { name: 'npm run lint', cmd: 'npm run lint', shell: true },
-      { name: 'npm run typecheck', cmd: 'npm run typecheck', shell: true },
-      { name: 'npm test', cmd: 'npm test -- --watch=false', shell: true, lock: true },
-    ],
-  },
-  {
-    key: 'server',
-    label: 'Server',
+    key: 'plugin',
+    label: 'Plugin',
     cwd: '.',
-    owns: (f) =>
-      f.startsWith('TomeVTT.Server/') ||
-      f.startsWith('TomeVTT.Server.Tests/') ||
-      /^[^/]+\.slnx$/.test(f) ||
-      /^Directory\.[^/]+\.props$/.test(f) ||
-      f === 'global.json' ||
-      f === 'NuGet.config',
-    needsDocker: true, // Testcontainers starts postgres:17-alpine and Azurite
+    owns: (f) => !f.startsWith('docs/') && !f.startsWith('.claude/') && !/\.md$/i.test(f),
+    nodeModules: 'node_modules',
     checks: [
-      { name: 'dotnet build', cmd: 'dotnet', args: ['build', testsCsproj, ...dotnetFlags] },
-      {
-        name: 'dotnet test',
-        cmd: 'dotnet',
-        args: ['test', testsCsproj, '--no-build', ...dotnetFlags],
-        lock: true,
-      },
-    ],
-  },
-  {
-    key: 'desktop',
-    label: 'Desktop shell',
-    cwd: 'tomevtt.desktop',
-    owns: (f) => f.startsWith('tomevtt.desktop/'),
-    nodeModules: 'tomevtt.desktop/node_modules',
-    checks: [
-      { name: 'npm run lint', cmd: 'npm run lint', shell: true },
-      { name: 'npm run typecheck', cmd: 'npm run typecheck', shell: true },
+      { name: 'npm run build', cmd: 'npm run build', shell: true },
       { name: 'npm test', cmd: 'npm test', shell: true, lock: true },
+      { name: 'npm run lint', cmd: 'npm run lint', shell: true },
     ],
   },
 ];
@@ -309,11 +273,6 @@ for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK']) {
 
 // ---------------------------------------------------------------- run
 
-function dockerUp() {
-  const r = spawnSync('docker', ['info'], { encoding: 'utf8', stdio: 'ignore', shell: false });
-  return r.status === 0;
-}
-
 function tail(text) {
   const lines = (text ?? '').replace(/\r\n/g, '\n').split('\n');
   let out = lines.slice(-EXCERPT_LINES).join('\n');
@@ -331,14 +290,6 @@ try {
       notes.push(`${project.label}: skipped - ${project.nodeModules} is missing (run npm ci)`);
       continue;
     }
-    if (project.needsDocker && !dockerUp()) {
-      notes.push(
-        `${project.label}: skipped - Docker is not running, and the server suite needs ` +
-          'Testcontainers (postgres:17-alpine + Azurite)',
-      );
-      continue;
-    }
-
     const print = fingerprint(project);
     if (state.passed[project.key] === print) {
       notes.push(`${project.label}: unchanged since it last passed`);
@@ -378,7 +329,7 @@ try {
         seconds,
         output: tail(`${spawnError}\n${r.stdout ?? ''}\n${r.stderr ?? ''}`) || '(no output)',
       });
-      // CI steps are sequential within a job: a failed lint never reaches typecheck. Stop
+      // CI steps are sequential within a job: a failed build never reaches the tests. Stop
       // this project here, but keep going through the others, which CI runs in parallel.
       break;
     }

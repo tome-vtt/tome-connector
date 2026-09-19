@@ -22,7 +22,7 @@ edit in the way), branch from local `$target` anyway — step 5 pulls properly.
 
 Every command from here runs with `-C $wt` or inside it. **Never touch the main
 working tree** except inside the merge lock (step 5). **Never copy `node_modules`**:
-run `npm ci` in `$wt/tomevtt.client` if you need client tooling.
+run `npm ci` in `$wt`.
 
 ## 2. Read the skills before writing code
 
@@ -38,7 +38,7 @@ bare name does not resolve), in this order when several apply:
 | about where an interface or seam belongs | `codebase-design` |
 | anything built or fixed (always) | `tdd` |
 
-Then **always** `ponytail` — the simplest change that satisfies the issue, nothing
+Then **always** `ponytail` (`ponytail:ponytail` if the bare name does not resolve) — the simplest change that satisfies the issue, nothing
 speculative.
 
 `tdd` wants seams confirmed with the user and you cannot ask: name the seams you
@@ -47,13 +47,14 @@ unstated, hand the issue back (step 6) instead of guessing.
 
 Repository rules that land here:
 
-- **A UI change gets an interactive demo** in `docs/design/<feature>/`. Build the
-  demo and the component, and say in your report the demo is there to accept or reject.
-- **Every interface works on phones and tablets.**
-- Follow the invariants for your area from the project context loaded at session
-  start, and read `docs/findings.md` before anything structural — several obvious
-  refactors are declined there.
-- **Tome How To** stays current (`tomevtt.client/src/app/features/how-to/AUTHORING.md`).
+- Follow `AGENTS.md`: Obsidian's plugin guidelines, `main.ts` lifecycle-only, no new
+  network calls without a user-facing reason, stable command IDs.
+- The plugin runs on mobile (`isDesktopOnly` is false unless the manifest says otherwise):
+  no Node or Electron APIs, and settings UI that works on a phone.
+- A change to what is sent to the Tome server keeps the contract tests in `tests/` passing
+  and `README.md` / `docs/authoring-adventures.md` current.
+- Never commit `main.js`; never bump `manifest.json` / `versions.json` unless the issue
+  is a release.
 
 ## 3. Build
 
@@ -67,19 +68,18 @@ taking the lock and strands it). Set your marker in **every** shell that calls i
 
 ```powershell
 $env:TOME_AGENT_MARKER = $marker
-.claude/scripts/lock.ps1 run tests -Command "npm --prefix $wt/tomevtt.client run lint"
-.claude/scripts/lock.ps1 run tests -Command "npm --prefix $wt/tomevtt.client run typecheck"
-.claude/scripts/lock.ps1 run tests -Command "npm --prefix $wt/tomevtt.client test -- --watch=false"
-.claude/scripts/lock.ps1 run tests -Command "dotnet test $wt/TomeVTT.Server.Tests/TomeVTT.Server.Tests.csproj -p:BuildSpaWithMsBuild=false"
+npm --prefix $wt run build
+.claude/scripts/lock.ps1 run tests -Command "npm --prefix $wt test"
+npm --prefix $wt run lint
 ```
 
-Run the projects you touched (`ci.yml`'s `client`, `server`, `connector`, `desktop`
-jobs). Server tests need Docker. Expect to wait for the lock — that is correct.
+These are `lint.yml`'s steps, all three every time. Only the test run needs the lock;
+expect to wait for it — that is correct.
 
 **A failing check means change the code.** Loosening a rule, raising a baseline or
 adding an exemption is the user's decision, not yours.
 
-Then self-review: read `mattpocock-skills:code-review` and `ponytail-review` and
+Then self-review: read `mattpocock-skills:code-review` and `ponytail:ponytail-review` and
 apply them to `git -C $wt diff $target...HEAD`. Fix what they find.
 
 ## 5. Merge under the `merge` lock
@@ -111,7 +111,7 @@ git -C $repo worktree prune
 GitHub always has your merge and the `Merge:` sha on Linear is one anybody can fetch.
 Pull with `--no-rebase`, never `--rebase`: a rebase rewrites the `--no-ff` merge commits
 and the sha you record would stop existing. Pushes go out under the machine's GitHub
-login (`.claude/README.md`); never force-push.
+login; never force-push.
 
 On a conflict (in the pull or the merge), read `mattpocock-skills:resolving-merge-conflicts`
 and resolve it while still holding the lock; stage only your own files, never

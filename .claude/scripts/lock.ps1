@@ -3,14 +3,13 @@
     Cross-session mutex for the resources this machine only has one of.
 
 .DESCRIPTION
-    Several agent sessions work TomeVTT at once, sharing one working tree. Two resources
+    Several agent sessions work this repository at once, sharing one working tree. Two resources
     contend badly:
 
       tests  - two concurrent vitest runs produce failures that look like regressions and are
-               not (add-map-dialog.spec.ts, 2026-08-14, cost three full suite runs). Every
-               `dotnet test` also spins its own Postgres testcontainer.
-      ports  - only one process can hold 7151 / 5163 / 58021, so only one session at a time
-               can run the dev server or drive the browser.
+               not (learned in TomeVTT, where this script comes from).
+      ports  - unused in this repository (TomeVTT's dev-server ports); kept so the script
+               stays identical in behaviour to its origin.
       merge  - there is one `development` branch and one main working tree, and a merge moves
                both. N subagents finishing worktrees at once would otherwise interleave
                `switch` / `merge` / `worktree remove` against a shared index, which fails on
@@ -46,7 +45,7 @@
 
 .EXAMPLE
     # The recommended shape. The lock is always released, including on a failing command.
-    .claude/scripts/lock.ps1 run tests -Command 'npm --prefix tomevtt.client test -- --watch=false'
+    .claude/scripts/lock.ps1 run tests -Command 'npm test'
 
 .EXAMPLE
     .claude/scripts/lock.ps1 status
@@ -132,7 +131,7 @@ function Get-LockDirectory {
         # --git-common-dir is the repository's .git, wherever this is called from. A per-checkout
         # lock directory would be worse than none: every session would take its own copy.
         $common = (& git rev-parse --git-common-dir 2>$null)
-        if ($LASTEXITCODE -ne 0 -or -not $common) { throw 'lock.ps1 must run inside the TomeVTT git repository.' }
+        if ($LASTEXITCODE -ne 0 -or -not $common) { throw 'lock.ps1 must run inside a git repository.' }
         $dir = Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath $common)) '.claude/locks'
     }
     if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
