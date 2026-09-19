@@ -1,8 +1,6 @@
-import { requestUrl } from 'obsidian';
 import type TomeConnectorPlugin from './main';
-import { API_KEY_HEADER_NAME, CAMPAIGN_HEADER_NAME, joinUrl } from './tomeApiClient';
+import { describeFailure, postMultipartToTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
-import { extractResponseId } from './tomeHttp';
 import { TOME_ROUTES } from './routes';
 import {
 	buildMultipartBody,
@@ -66,40 +64,16 @@ export async function uploadReferencePdf(
 		boundary,
 	);
 
-	const response = await requestUrl({
-		url: joinUrl(plugin.settings.baseUrl, TOME_ROUTES.uploadReference),
-		method: 'POST',
-		contentType: multipart.contentType,
-		headers: {
-			'Content-Type': multipart.contentType,
-			[API_KEY_HEADER_NAME]: getRequiredApiKey(plugin),
-			[CAMPAIGN_HEADER_NAME]: campaignId,
-		},
-		body: multipart.body,
-		throw: false,
-	});
-
-	if (response.status < 200 || response.status >= 300) {
-		console.error(
-			`Tome Connector: reference upload failed with status ${response.status}`,
-			response.text,
-		);
-		throw new Error(
-			`the server responded with status ${response.status}. Check the console for the response body.`,
-		);
-	}
-
-	return extractResponseId(response.text);
-}
-
-function getRequiredApiKey(plugin: TomeConnectorPlugin): string {
-	// The caller checks this before rendering anything; repeated here so the
-	// request can never go out unauthenticated if that guard is bypassed.
-	const apiKey = getApiKey(plugin);
-	if (!apiKey) {
-		throw new Error('no API key is configured in the plugin settings.');
-	}
-	return apiKey;
+	const result = await postMultipartToTome(
+		plugin.settings.baseUrl,
+		TOME_ROUTES.uploadReference,
+		multipart.body,
+		multipart.contentType,
+		getApiKey(plugin),
+		campaignId,
+	);
+	if (!result.ok) throw new Error(describeFailure(result));
+	return result.id;
 }
 
 /** Human-readable byte count for progress and error messages. */

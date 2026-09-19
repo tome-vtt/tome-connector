@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { runBulkSend } from '../src/bulkSend';
+import { TOME_ROUTES } from '../src/routes';
 import {
 	NOT_CONFIGURED,
 	createTomeHttp,
+	describeFailure,
 	type TomeRequest,
 	type TomeResponse,
 	type TomeTransport,
@@ -190,6 +192,95 @@ describe('postMultipart', () => {
 			message: 'offline',
 			retryable: true,
 		});
+	});
+});
+
+describe('getJson', () => {
+	const campaignsTarget = { baseUrl: target.baseUrl, apiKey: 'key-1', path: TOME_ROUTES.campaigns };
+
+	it('loads the campaign list with the api key and no body', async () => {
+		const campaigns = [{ id: 'c1', name: 'Curse of Strahd' }];
+		const transport = fakeTransport({ status: 200, text: JSON.stringify(campaigns) });
+		const result = await createTomeHttp(transport).getJson(campaignsTarget);
+
+		expect(transport.sent).toEqual([
+			{ url: 'https://tome.example.com/api/campaigns', method: 'GET', headers: { 'X-Api-Key': 'key-1' } },
+		]);
+		expect(result).toEqual({ ok: true, value: campaigns });
+	});
+
+	it("shows the server's message when the campaigns cannot be loaded", async () => {
+		const text = JSON.stringify({ title: 'Unauthorized', detail: 'That API key has been revoked.', status: 401 });
+		const result = await createTomeHttp(fakeTransport({ status: 401, text })).getJson(campaignsTarget);
+		expect(result).toEqual({ ok: false, message: 'That API key has been revoked.' });
+	});
+
+	it('sends nothing when unconfigured', async () => {
+		const transport = fakeTransport({ status: 200, text: '[]' });
+		const result = await createTomeHttp(transport).getJson({ ...campaignsTarget, baseUrl: '' });
+		expect(transport.sent).toEqual([]);
+		expect(result).toEqual({ ok: false, message: NOT_CONFIGURED });
+	});
+
+	it('refuses a 2xx whose body is not JSON', async () => {
+		const result = await createTomeHttp(fakeTransport({ status: 200, text: '<html>' })).getJson(campaignsTarget);
+		expect(result).toEqual({ ok: false, message: 'The server sent a response that was not JSON.' });
+	});
+});
+
+describe('postJsonAndRead', () => {
+	it('returns the parsed body of an adventure import', async () => {
+		const transport = fakeTransport({ status: 200, text: '{"id":"book-1","blocksWritten":3}' });
+		const result = await createTomeHttp(transport).postJsonAndRead<{ id: string; blocksWritten: number }>(
+			{ ...target, path: TOME_ROUTES.importAdventure },
+			'{"title":"Book"}',
+		);
+
+		expect(transport.sent).toEqual([
+			{
+				url: 'https://tome.example.com/api/Storybook/ImportAdventure',
+				method: 'POST',
+				contentType: 'application/json',
+				headers: { 'Content-Type': 'application/json', 'X-Api-Key': 'key-1', 'X-Campaign-Id': 'camp-1' },
+				body: '{"title":"Book"}',
+			},
+		]);
+		expect(result).toEqual({ ok: true, value: { id: 'book-1', blocksWritten: 3 } });
+	});
+
+	it("shows the server's message when the adventure import is refused", async () => {
+		const text = JSON.stringify({ detail: 'Chapter "Arrival" appears twice.' });
+		const result = await createTomeHttp(fakeTransport({ status: 400, text })).postJsonAndRead(
+			{ ...target, path: TOME_ROUTES.importAdventure },
+			'{}',
+		);
+		expect(result).toEqual({ ok: false, message: 'Chapter "Arrival" appears twice.' });
+	});
+
+	it('falls back to the status when the server gives no message', async () => {
+		const result = await createTomeHttp(fakeTransport({ status: 502, text: '' })).postJsonAndRead(
+			{ ...target, path: TOME_ROUTES.resolveLinks },
+			'{}',
+		);
+		expect(result).toEqual({ ok: false, message: 'The server responded with status 502.' });
+	});
+});
+
+describe('describeFailure', () => {
+	it("gives a refused reference upload the server's message", async () => {
+		const text = JSON.stringify({ detail: 'You have reached the reference limit for your plan.' });
+		const result = await createTomeHttp(fakeTransport({ status: 402, text })).postMultipart(
+			{ ...target, path: TOME_ROUTES.uploadReference },
+			new ArrayBuffer(0),
+			'multipart/form-data; boundary=xyz',
+		);
+		expect(describeFailure(result)).toBe('You have reached the reference limit for your plan.');
+	});
+
+	it('names the status when the server said nothing', () => {
+		expect(describeFailure({ ok: false, status: 500, id: null, message: null, retryable: true })).toBe(
+			'The server responded with status 500.',
+		);
 	});
 });
 

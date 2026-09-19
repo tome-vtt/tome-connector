@@ -1,11 +1,11 @@
-import { App, Notice, TFolder, parseYaml, requestUrl } from 'obsidian';
+import { App, Notice, TFolder, parseYaml } from 'obsidian';
 
 import type TomeConnectorPlugin from '../main';
 import { type BulkItem, type BulkReport, MAX_ATTEMPTS, runBulkSend, THROTTLE_MS } from '../bulkSend';
 import { oneAtATime } from '../oneAtATime';
 import { findSendables, type Sendable } from '../recognizers/noteScan';
 import { buildRequest } from '../sendablePayload';
-import { API_KEY_HEADER_NAME, CAMPAIGN_HEADER_NAME, joinUrl, postJsonToTome } from '../tomeApiClient';
+import { postJsonAndReadFromTome, postJsonToTome } from '../tomeApiClient';
 import { loadCampaignChoice, rememberCampaign } from '../tomeCampaigns';
 import { getApiKey } from '../tomeConnectorSettings';
 import { TomeImageKind } from '../tomeImageDownscale';
@@ -52,23 +52,9 @@ async function postJson<TResponse>(
 	apiKey: string,
 	campaignId: string,
 ): Promise<TResponse> {
-	const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-	if (apiKey) headers[API_KEY_HEADER_NAME] = apiKey;
-	headers[CAMPAIGN_HEADER_NAME] = campaignId;
-
-	const response = await requestUrl({
-		url: joinUrl(baseUrl, path),
-		method: 'POST',
-		contentType: 'application/json',
-		headers,
-		body: JSON.stringify(body),
-		throw: false,
-	});
-
-	if (response.status < 200 || response.status >= 300) {
-		throw new Error(`Server responded with status ${response.status}.`);
-	}
-	return JSON.parse(response.text) as TResponse;
+	const result = await postJsonAndReadFromTome<TResponse>(baseUrl, path, JSON.stringify(body), apiKey, campaignId);
+	if (!result.ok) throw new Error(result.message);
+	return result.value;
 }
 
 /** `LibraryLookupService.MaxLookupsPerRequest`. */

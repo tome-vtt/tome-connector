@@ -1,5 +1,5 @@
 /**
- * The server endpoints this plugin posts to.
+ * The server endpoints this plugin calls.
  *
  * One module because the paths were previously spread over eight files - a private
  * `ROUTES` map inside `sendablePayload.ts` that nothing else could reach, plus a
@@ -21,6 +21,8 @@
  * normalised, so this file can be compared against the controllers by eye.
  */
 export const TOME_ROUTES = {
+	/** `CampaignsController`, the one GET: the campaigns owned by the account behind the API key. */
+	campaigns: '/api/campaigns',
 	/** `NonPlayerCharactersController.AddNonPlayerCharacter` */
 	addNonPlayerCharacter: '/api/nonplayercharacters/addnonplayercharacter',
 	/** `EncountersController.AddEncounter` */
