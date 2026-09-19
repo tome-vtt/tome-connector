@@ -1,11 +1,10 @@
 import { Notice, parseYaml } from 'obsidian';
 import type { MarkdownPostProcessorContext } from 'obsidian';
 import type TomeConnectorPlugin from './main';
-import { sendJsonToTome } from './tomeApiClient';
-import { getApiKey } from './tomeConnectorSettings';
+// The body, the route and the headers are the send module's; this file keeps the DOM.
+import { sendWithNotice } from './obsidianSendPorts';
 import { mapToEncounterPayload } from './recognizers/encounter';
 import { writeTomeIdToYamlBlock } from './writeTomeIdToYamlBlock';
-import { TOME_ROUTES } from './routes';
 import { chooseCampaign } from './tomeCampaigns';
 
 const ENCOUNTER_LANGUAGE_CLASS = 'language-encounter';
@@ -85,19 +84,8 @@ async function handleSendClick(
 
 		// Re-parsed rather than captured at registration, so an edit since the
 		// block was rendered is picked up rather than silently sending stale YAML.
-		const parsed: unknown = parseYaml(rawYaml);
-		const payload = mapToEncounterPayload(parsed);
-		if (payload === null) {
-			throw new Error('This encounter block no longer has a name to send.');
-		}
-
-		const id = await sendJsonToTome(
-			plugin.settings.baseUrl,
-			TOME_ROUTES.addEncounter,
-			JSON.stringify(payload),
-			getApiKey(plugin),
-			campaignId,
-		);
+		const source = parseYaml(rawYaml) as Record<string, unknown>;
+		const id = await sendWithNotice(plugin, { kind: 'encounter', path: ctx.sourcePath, source }, campaignId);
 
 		if (id !== null) {
 			await writeTomeIdToYamlBlock(plugin, ctx, sectionEl, 'encounter', id);
