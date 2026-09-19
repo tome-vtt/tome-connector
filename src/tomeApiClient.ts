@@ -10,7 +10,7 @@ const obsidianTransport: TomeTransport = async (request) => {
 };
 
 /** The Tome HTTP module over `requestUrl`: the post port the send module is given in the plugin. */
-export const tome = createTomeHttp(obsidianTransport);
+export const tomeHttp = createTomeHttp(obsidianTransport);
 
 /**
  * Sends a JSON payload and reports what happened, without saying anything to the
@@ -27,7 +27,7 @@ export function postJsonToTome(
 	apiKey: string,
 	campaignId?: string,
 ): Promise<SendResult> {
-	return tome.postJson({ baseUrl, path, apiKey, campaignId }, payload);
+	return tomeHttp.postJson({ baseUrl, path, apiKey, campaignId }, payload);
 }
 
 /**
@@ -43,7 +43,7 @@ export function postMultipartToTome(
 	apiKey: string,
 	campaignId?: string,
 ): Promise<SendResult> {
-	return tome.postMultipart({ baseUrl, path, apiKey, campaignId }, body, contentType);
+	return tomeHttp.postMultipart({ baseUrl, path, apiKey, campaignId }, body, contentType);
 }
 
 /**

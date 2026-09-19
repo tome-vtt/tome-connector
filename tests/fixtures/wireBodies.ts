@@ -13,7 +13,7 @@ import { libraryItemBody, type LibraryItemKind } from '../../src/libraryItemBody
 import { playerCharacterBody } from '../../src/playerCharacterBody';
 import { findSendables, type Sendable } from '../../src/recognizers/noteScan';
 import { TOME_ROUTES, type TomeRoute } from '../../src/routes';
-import { send } from '../../src/sendModule';
+import { sendToTome } from '../../src/sendModule';
 import { parsePcSheet } from '../../src/tomePcSheetParser';
 import { bodyOf, inMemorySendPorts } from './inMemorySendPorts';
 import {
@@ -77,7 +77,7 @@ async function creature(path: string, content: string, image: string | undefined
 	const { ports, sent } = inMemorySendPorts({ files: image === undefined ? {} : { [token]: image } });
 	const source = image === undefined ? sendable.source : { ...sendable.source, image: '[[token.png]]' };
 
-	await send(ports, { ...sendable, source }, { baseUrl: 'https://tome.example.com', apiKey: 'key', campaignId: 'campaign' });
+	await sendToTome(ports, { kind: 'creature', path, source }, { baseUrl: 'https://tome.example.com', apiKey: 'key', campaignId: 'campaign' });
 	return bodyOf(sent[0]);
 }
 

@@ -16,10 +16,10 @@ export interface InMemoryVault {
 	bestiary?: Record<string, Record<string, unknown>> | null;
 }
 
-/** Resolves a link the way Obsidian does for the cases these tests have: beside the note, then as a full vault path. */
+/** Mirrors the Obsidian adapter: the path as written, then as a link from the note - beside it, for these tests. */
 function resolveLink(files: Record<string, string>, linkpath: string, sourcePath: string): string | undefined {
 	const folder = sourcePath.slice(0, sourcePath.lastIndexOf('/') + 1);
-	return [folder + linkpath, linkpath].find((path) => path in files);
+	return [linkpath, folder + linkpath].find((path) => path in files);
 }
 
 export function inMemorySendPorts({ files = {}, bestiary = null }: InMemoryVault = {}) {

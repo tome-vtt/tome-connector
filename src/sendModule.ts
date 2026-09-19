@@ -4,7 +4,7 @@
  *
  * It never imports `obsidian`. What it needs from outside sits behind
  * {@link SendPorts}, with two adapters: the vault, Fantasy Statblocks and
- * `requestUrl` in the plugin (`obsidianSendPorts` in `sendablePayload.ts`), and
+ * `requestUrl` in the plugin (`obsidianSendPorts.ts`), and
  * plain objects in the tests (`tests/fixtures/inMemorySendPorts.ts`) - which is
  * what lets the server-contract test pin the body the plugin really sends.
  *
@@ -35,6 +35,9 @@ export interface SendPorts {
 /** Who a send is from and where it goes; the module adds the route. */
 export type Destination = Omit<TomeTarget, 'path'>;
 
+/** What the module sends today. Widens as the other kinds move here. */
+export type ModuleSendable = Pick<Sendable, 'path' | 'source'> & { kind: 'creature' };
+
 /**
  * Sends one sendable and reports what the server said.
  *
@@ -43,14 +46,11 @@ export type Destination = Omit<TomeTarget, 'path'>;
  * unresolvable rather than retrying it; a refusal from the server comes back as
  * a result instead.
  */
-export async function send(
+export async function sendToTome(
 	ports: SendPorts,
-	sendable: Pick<Sendable, 'kind' | 'path' | 'source'>,
+	sendable: ModuleSendable,
 	destination: Destination,
 ): Promise<SendResult> {
-	if (sendable.kind !== 'creature') {
-		throw new Error(`The send module does not send a ${sendable.kind} yet.`);
-	}
 	const body = await creatureBody(ports, sendable.source, sendable.path);
 	return ports.postJson(
 		{ ...destination, path: TOME_ROUTES.addNonPlayerCharacter },

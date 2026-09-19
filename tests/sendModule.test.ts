@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { send } from '../src/sendModule';
+import { sendToTome as send } from '../src/sendModule';
 import { TINY_PNG } from './fixtures/wireBodies';
 import { bodyOf, inMemorySendPorts } from './fixtures/inMemorySendPorts';
 
@@ -59,6 +59,35 @@ describe('sending a creature', () => {
 		const { ports, sent } = inMemorySendPorts({ files: { 'Bestiary/goblin.png': TINY_PNG } });
 
 		await send(ports, creature({ ...INLINE_GOBLIN, image }), DESTINATION);
+
+		expect(bodyOf(sent[0]).image).toBe(TINY_PNG);
+	});
+
+	it('sends a Pathfinder stat block as its pf2e bag, its wikilinked token read beside the note', async () => {
+		const { ports, sent } = inMemorySendPorts({ files: { 'Bestiary/goblin.png': TINY_PNG } });
+		const goblin = {
+			layout: 'Pathfinder 2e Creature Layout',
+			name: 'Goblin Warrior',
+			level: 'Creature -1',
+			size: 'small',
+			ac: 16,
+			hp: 6,
+			image: '[[goblin.png]]',
+		};
+
+		await send(ports, creature(goblin), DESTINATION);
+
+		const body = bodyOf(sent[0]);
+		expect(Object.keys(body).sort()).toEqual(['image', 'name', 'pf2e']);
+		expect(body.image).toBe(TINY_PNG);
+		expect(body.pf2e).toMatchObject({ name: 'Goblin Warrior', level: -1, size: 'Small', ac: 16, hp: 6 });
+	});
+
+	it('reads a path as written before resolving it as a link, so a vault-root path wins', async () => {
+		const other = 'data:image/png;base64,AAAA';
+		const { ports, sent } = inMemorySendPorts({ files: { 'goblin.png': TINY_PNG, 'Bestiary/goblin.png': other } });
+
+		await send(ports, creature({ ...INLINE_GOBLIN, image: 'goblin.png' }), DESTINATION);
 
 		expect(bodyOf(sent[0]).image).toBe(TINY_PNG);
 	});
