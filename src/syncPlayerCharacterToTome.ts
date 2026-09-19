@@ -1,13 +1,10 @@
 import { MarkdownView, Notice, TFile, setIcon } from 'obsidian';
 import type TomeConnectorPlugin from './main';
-import { resolveImagePaths } from './tomeImageEmbedding';
-import { sendJsonToTome } from './tomeApiClient';
+import { obsidianSendPorts } from './obsidianSendPorts';
+import { sendCharacterToTome } from './sendModule';
+import { noticeResult } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
-import { stripMarkdown } from './tomeMarkdownSanitizer';
-import { parsePcSheet } from './tomePcSheetParser';
-import { PLAYER_CHARACTER_PROPERTIES, playerCharacterBody } from './playerCharacterBody';
 import { chooseCharacterDestination } from './chooseCharacterDestination';
-import { requestFor, type DestinationRequest } from './characterDestination';
 
 // Frontmatter property that gates whether the button is shown at all. Its
 // presence is taken as confirmation that this note is a D&D Beyond character
@@ -108,105 +105,26 @@ function refreshView(plugin: TomeConnectorPlugin, view: MarkdownView): void {
 }
 
 /**
- * If `value` is a wikilink (e.g. `[[Zabadun.png]]`), resolves it to the
- * linked file's actual vault path using the note's own path as the link
- * resolution context. Returns `value` unchanged if it isn't a wikilink or
- * the link can't be resolved.
- */
-function resolveWikilinkPath(
-	plugin: TomeConnectorPlugin,
-	value: unknown,
-	sourcePath: string,
-): unknown {
-	if (typeof value !== 'string') return value;
-
-	const match = value.match(/^\[\[([^\]|#]+)/);
-	if (!match?.[1]) return value;
-
-	const linkpath = match[1].trim();
-	const dest = plugin.app.metadataCache.getFirstLinkpathDest(
-		linkpath,
-		sourcePath,
-	);
-	return dest ? dest.path : value;
-}
-
-/**
- * Reads a D&D Beyond note's frontmatter and body, maps them onto the Tome
- * `PlayerCharacterInputDto` shape, and posts it - the one send path shared by the
+ * Sends a D&D Beyond note through the send module - the one send path shared by the
  * title-bar button and the context menu item.
  */
 async function sendCharacter(plugin: TomeConnectorPlugin, file: TFile): Promise<void> {
 	const destination = await chooseCharacterDestination(plugin);
 	if (destination === null) return;
 
-	const request = requestFor(destination);
-	const id = await sendJsonToTome(
-		plugin.settings.baseUrl,
-		request.route,
-		await buildCharacterPayload(plugin, file),
-		getApiKey(plugin),
-		request.campaignId,
-	);
-	if (id !== null) {
-		await writeBackId(plugin, file, request.frontmatterKey, id);
-	}
-}
-
-/**
- * Reads the note's frontmatter and body and maps them onto `PlayerCharacterInputDto`.
- *
- * The same payload whichever destination it is bound for - both endpoints take the same DTO,
- * and the vault's create derives its game system rather than reading one off the sheet.
- */
-async function buildCharacterPayload(plugin: TomeConnectorPlugin, file: TFile): Promise<string> {
-	const frontmatter =
-		plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? {};
-
-	const filtered: Record<string, unknown> = {};
-	// Only what the body mapper reads - anything else in the frontmatter is ignored. The note
-	// *body* is read separately by `tomePcSheetParser`.
-	for (const key of PLAYER_CHARACTER_PROPERTIES) {
-		if (key in frontmatter) {
-			filtered[key] = frontmatter[key];
-		}
-	}
-	if ('image' in filtered) {
-		filtered.image = resolveWikilinkPath(plugin, filtered.image, file.path);
-	}
-
-	const cleaned = stripMarkdown(filtered);
-	const resolved = (await resolveImagePaths(
-		plugin.app,
-		cleaned,
-		'token',
-		plugin.settings.downscaleImages,
-	)) as Record<
-		string,
-		unknown
-	>;
-	// `cachedRead` rather than `read`: the body is only being parsed, and
-	// the cache is already warm for the note the user is looking at.
-	const sheet = parsePcSheet(await plugin.app.vault.cachedRead(file));
-	return JSON.stringify(playerCharacterBody(resolved, sheet));
-}
-
-/**
- * Records the id under the property that names where it went, leaving the other alone - a note
- * sent to both destinations keeps both ids.
- */
-async function writeBackId(
-	plugin: TomeConnectorPlugin,
-	file: TFile,
-	property: DestinationRequest['frontmatterKey'],
-	id: string,
-): Promise<void> {
-	await plugin.app.fileManager.processFrontMatter(
-		file,
-		(frontmatter: Record<string, unknown>) => {
-			frontmatter[property] = id;
+	const result = await sendCharacterToTome(
+		obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),
+		{
+			path: file.path,
+			frontmatter: plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? {},
+			// `cachedRead` rather than `read`: the body is only being parsed, and
+			// the cache is already warm for the note the user is looking at.
+			content: await plugin.app.vault.cachedRead(file),
 		},
+		{ baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin) },
+		destination,
 	);
+	noticeResult(result);
 }
 
 async function handleMenuClick(plugin: TomeConnectorPlugin, file: TFile): Promise<void> {

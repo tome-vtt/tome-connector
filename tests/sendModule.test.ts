@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { sendToTome as send } from '../src/sendModule';
+import { sendCharacterToTome as sendCharacter, sendToTome as send } from '../src/sendModule';
 import { TINY_PNG } from './fixtures/wireBodies';
 import { bodyOf, inMemorySendPorts } from './fixtures/inMemorySendPorts';
 
@@ -107,5 +107,55 @@ describe('sending a creature', () => {
 			send(ports, creature({ ...INLINE_GOBLIN, image: '[[missing.png]]' }), DESTINATION),
 		).rejects.toThrow(/could not be read/);
 		expect(sent).toHaveLength(0);
+	});
+});
+
+describe('sending a character', () => {
+	const SENDER = { baseUrl: 'https://tome.example.com/', apiKey: 'key' };
+	const note = {
+		path: 'Characters/Zabadun.md',
+		frontmatter: { name: 'Zabadun', dndbeyond_id: 123, image: '[[zabadun.png]]' },
+		content: '---\nname: Zabadun\n---\n# Zabadun\n',
+	};
+
+	it('sends to My Characters with no campaign header, and records the id as tome_vault_id', async () => {
+		const { ports, sent, frontmatter } = inMemorySendPorts({ files: { 'Characters/zabadun.png': TINY_PNG } });
+
+		const result = await sendCharacter(ports, note, SENDER, { kind: 'vault' });
+
+		expect(result).toMatchObject({ ok: true, id: 'id-1' });
+		expect(sent[0]?.url).toBe('https://tome.example.com/api/vault/characters/import');
+		expect(sent[0]?.headers).not.toHaveProperty('X-Campaign-Id');
+		expect(bodyOf(sent[0])).toMatchObject({ name: 'Zabadun', dndBeyondId: 123, image: TINY_PNG });
+		expect(frontmatter).toEqual({ 'Characters/Zabadun.md': { tome_vault_id: 'id-1' } });
+	});
+
+	it('sends to a campaign with its header, and records the id as tome_id', async () => {
+		const { ports, sent, frontmatter } = inMemorySendPorts({ files: { 'Characters/zabadun.png': TINY_PNG } });
+
+		await sendCharacter(ports, note, SENDER, { kind: 'campaign', campaignId: 'campaign-1' });
+
+		expect(sent[0]?.url).toBe('https://tome.example.com/api/playercharacters/addplayercharacter');
+		expect(sent[0]?.headers).toMatchObject({ 'X-Api-Key': 'key', 'X-Campaign-Id': 'campaign-1' });
+		expect(frontmatter).toEqual({ 'Characters/Zabadun.md': { tome_id: 'id-1' } });
+	});
+
+	it('records nothing when the server refuses the send', async () => {
+		const { ports, frontmatter } = inMemorySendPorts({ status: 400 });
+
+		const result = await sendCharacter(ports, { ...note, frontmatter: { name: 'Zabadun' } }, SENDER, { kind: 'vault' });
+
+		expect(result.ok).toBe(false);
+		expect(frontmatter).toEqual({});
+	});
+
+	it('sends only the properties the body reads, so an unread one cannot fail the send', async () => {
+		const { ports, sent } = inMemorySendPorts();
+		const stray = { name: 'Zabadun', portrait: { image: '[[missing.png]]' } };
+
+		await sendCharacter(ports, { ...note, frontmatter: stray }, SENDER, { kind: 'vault' });
+
+		expect(sent).toHaveLength(1);
+		expect(bodyOf(sent[0])).not.toHaveProperty('portrait');
 	});
 });

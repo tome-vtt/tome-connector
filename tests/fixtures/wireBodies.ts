@@ -4,17 +4,17 @@
  *
  * `findSendables` decides what a note is. A creature is then sent by the real send module
  * against its in-memory adapter - no bestiary, the image a wikilink beside the note - and its
- * body is read off the recorded request. The kinds not yet on the send module still walk the
- * pure halves of their obsidian-bound paths: `libraryItemBody` for the compendium,
- * `parsePcSheet` and `playerCharacterBody` for a character, the image handed in as a `data:` URI.
+ * body is read off the recorded request. A character goes the same way, once per destination,
+ * its route and account scoping read off the request too. The compendium, not yet on the send
+ * module, still walks `libraryItemBody`, the image handed in as a `data:` URI.
  */
 
+import type { CharacterDestination } from '../../src/characterDestination';
 import { libraryItemBody, type LibraryItemKind } from '../../src/libraryItemBody';
-import { playerCharacterBody } from '../../src/playerCharacterBody';
 import { findSendables, type Sendable } from '../../src/recognizers/noteScan';
 import { TOME_ROUTES, type TomeRoute } from '../../src/routes';
-import { sendToTome } from '../../src/sendModule';
-import { parsePcSheet } from '../../src/tomePcSheetParser';
+import { sendCharacterToTome, sendToTome } from '../../src/sendModule';
+import { CAMPAIGN_HEADER_NAME } from '../../src/tomeHttp';
 import { bodyOf, inMemorySendPorts } from './inMemorySendPorts';
 import {
 	EQUIPMENT_ITEM_INPUT,
@@ -92,9 +92,26 @@ function libraryItem(
 	return wire(libraryItemBody(kind, sendable.source['item'] as Record<string, unknown>, image));
 }
 
-function character(frontmatter: Record<string, unknown>, content: string, image: string | undefined): Record<string, unknown> {
-	const withImage = image === undefined ? frontmatter : { ...frontmatter, image };
-	return wire(playerCharacterBody(withImage, parsePcSheet(content)));
+/**
+ * What the send module posts for a character note to `destination`; with `image`, the note's
+ * picture is `[[token.png]]` beside it. The route and the account scoping are read off the
+ * recorded request, so they are the module's, not this fixture's.
+ */
+async function character(
+	frontmatter: Record<string, unknown>,
+	content: string,
+	image: string | undefined,
+	destination: CharacterDestination,
+): Promise<Pick<BuiltBody, 'route' | 'accountScoped' | 'body'>> {
+	const path = 'Characters/Zabadun.md';
+	const { ports, sent } = inMemorySendPorts({ files: image === undefined ? {} : { 'Characters/token.png': image } });
+	const withImage = image === undefined ? frontmatter : { ...frontmatter, image: '[[token.png]]' };
+
+	await sendCharacterToTome(ports, { path, frontmatter: withImage, content }, { baseUrl: 'https://tome.example.com', apiKey: 'key' }, destination);
+	const request = sent[0];
+	const route = Object.values(TOME_ROUTES).find((candidate) => request?.url.endsWith(candidate));
+	if (!request || !route) throw new Error(`${path}: sent nowhere the plugin knows`);
+	return { route, accountScoped: !(CAMPAIGN_HEADER_NAME in request.headers), body: bodyOf(request) };
 }
 
 /**
@@ -102,10 +119,9 @@ function character(frontmatter: Record<string, unknown>, content: string, image:
  * have one; the tests build both ways, since an absent image must be an absent key.
  */
 export async function everyBody(image?: string): Promise<BuiltBody[]> {
-	const zabadun = character(frontmatterOf(ZABADUN_NOTE), ZABADUN_NOTE, image);
-	const multiclass = character(MULTICLASS_FRONTMATTER, '', undefined);
-	const campaignCharacter = { route: TOME_ROUTES.addPlayerCharacter, accountScoped: false };
-	const vaultCharacter = { route: TOME_ROUTES.importVaultCharacter, accountScoped: true };
+	const campaign: CharacterDestination = { kind: 'campaign', campaignId: 'campaign' };
+	const zabadun = frontmatterOf(ZABADUN_NOTE);
+	const pc = { system: 'dnd5e', contract: PLAYER_CHARACTER_INPUT } as const;
 	const npc = { route: TOME_ROUTES.addNonPlayerCharacter, accountScoped: false, contract: IMPORT_NON_PLAYER_CHARACTER };
 
 	return [
@@ -116,8 +132,8 @@ export async function everyBody(image?: string): Promise<BuiltBody[]> {
 		{ label: 'equipment', system: 'dnd5e', route: TOME_ROUTES.addEquipmentItem, accountScoped: false, contract: EQUIPMENT_ITEM_INPUT, body: libraryItem('Items/rope-xphb.md', ROPE_NOTE, 'equipmentItem', image) },
 		{ label: 'spell', system: 'dnd5e', route: TOME_ROUTES.addSpell, accountScoped: false, contract: SPELL_INPUT, body: libraryItem('Spells/fireball-xphb.md', FIREBALL_NOTE, 'spell', image) },
 		{ label: 'reaction spell', system: 'dnd5e', route: TOME_ROUTES.addSpell, accountScoped: false, contract: SPELL_INPUT, body: libraryItem('Spells/shield-xphb.md', SHIELD_NOTE, 'spell', undefined) },
-		{ label: 'character to a campaign', system: 'dnd5e', ...campaignCharacter, contract: PLAYER_CHARACTER_INPUT, body: zabadun },
-		{ label: 'character to My Characters', system: 'dnd5e', ...vaultCharacter, contract: PLAYER_CHARACTER_INPUT, body: zabadun },
-		{ label: 'multiclass character to a campaign', system: 'dnd5e', ...campaignCharacter, contract: PLAYER_CHARACTER_INPUT, body: multiclass },
+		{ label: 'character to a campaign', ...pc, ...(await character(zabadun, ZABADUN_NOTE, image, campaign)) },
+		{ label: 'character to My Characters', ...pc, ...(await character(zabadun, ZABADUN_NOTE, image, { kind: 'vault' })) },
+		{ label: 'multiclass character to a campaign', ...pc, ...(await character(MULTICLASS_FRONTMATTER, '', undefined, campaign)) },
 	];
 }

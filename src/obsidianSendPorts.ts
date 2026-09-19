@@ -1,4 +1,4 @@
-import type { App } from 'obsidian';
+import { TFile, type App } from 'obsidian';
 
 import { getStatblockBestiaryApi } from './fantasyStatblocksBestiary';
 import type { SendPorts } from './sendModule';
@@ -27,5 +27,12 @@ export function obsidianSendPorts(app: App, downscale: boolean): SendPorts {
 		},
 		bestiary: getStatblockBestiaryApi,
 		postJson: tomeHttp.postJson,
+		setFrontmatter: async (path, key, value) => {
+			const file = app.vault.getAbstractFileByPath(path);
+			if (!(file instanceof TFile)) throw new Error(`${path} is no longer in the vault.`);
+			await app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
+				frontmatter[key] = value;
+			});
+		},
 	};
 }
