@@ -7,11 +7,12 @@ import type { SendResult } from './tomeHttp';
 
 /**
  * Sends one scanned {@link Sendable}, quietly, and reports what the server said:
- * the send module (`sendModule.ts`) over the vault.
+ * the send module (`sendModule.ts`) over the vault. Kept as the one name the
+ * vault sync and the adventure import both call.
  *
- * The impure half of the scan. Building these bodies needs the vault - reading
- * an image off disk - which is exactly why the scan itself stops at intent and
- * the preview can count 709 notes without touching a single image.
+ * The impure half of the scan: the module reads images off disk, which is why
+ * the scan itself stops at intent and the preview can count 709 notes without
+ * touching a single image.
  *
  * **Throwing is how an item is reported as unresolvable.** `runBulkSend` treats a
  * thrown error as permanent for that item and does not retry it: a missing image

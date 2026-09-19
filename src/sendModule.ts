@@ -85,7 +85,8 @@ export async function sendToTome(
 async function bodyFor(ports: SendPorts, sendable: ModuleSendable): Promise<unknown> {
 	const { path } = sendable;
 	if (sendable.kind === 'image') {
-		// The file name is the only thing on a bare image that reads like a title.
+		// The file name is the only thing on a bare image that reads like a title. Kept
+		// as written (Obsidian's `basename`), not title-cased the way a map block's is.
 		const title = (path.split('/').pop() ?? path).replace(/\.[^.]+$/, '');
 		const kind = sendable.to === 'map' ? 'map' : 'token';
 		return { title, image: await readImage(ports, path, path, kind) };
@@ -108,7 +109,11 @@ async function bodyFor(ports: SendPorts, sendable: ModuleSendable): Promise<unkn
 	}
 }
 
-/** Reads one image through the port, or throws the one missing-image error. */
+/**
+ * Reads one named image through the port, and says which when it cannot. A
+ * creature or prop, whose images the `embedImages` walk finds, throws that walk's
+ * error instead - the same outcome: nothing sent.
+ */
 async function readImage(
 	ports: SendPorts,
 	reference: string,

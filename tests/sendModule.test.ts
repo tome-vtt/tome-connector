@@ -135,10 +135,10 @@ describe('sending an encounter', () => {
 	it('posts the encounter as the recognizer reads it', async () => {
 		const { ports, sent } = inMemorySendPorts();
 
-		await send(ports, { kind: 'encounter', path: 'Keep.md', source: { name: 'Ambush', creatures: ['2: Goblin'] } }, DESTINATION);
+		await send(ports, { kind: 'encounter', path: 'Keep.md', source: { name: 'Ambush', creatures: [{ 2: 'Goblin' }] } }, DESTINATION);
 
 		expect(sent[0]?.url).toBe('https://tome.example.com/api/encounters/addencounter');
-		expect(bodyOf(sent[0])).toMatchObject({ name: 'Ambush' });
+		expect(bodyOf(sent[0])).toEqual({ name: 'Ambush', encounterNpcs: [{ name: 'Goblin', quantity: 2 }] });
 	});
 });
 
