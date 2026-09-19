@@ -3,7 +3,7 @@
  * note's fenced block, and reads it again on the next send so a re-send updates
  * the row rather than duplicating it.
  *
- * Pure and `obsidian`-free; `writeTomeIdToYamlBlock` locates the block and calls
+ * Pure and `obsidian`-free; the block button frame (`blockSendButton.ts`) locates the block and calls
  * this.
  */
 

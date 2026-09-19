@@ -33,7 +33,7 @@ function hasPdfSignature(bytes: Uint8Array): boolean {
  * The returned id is informational. `ReferenceService.CreateReferenceAsync`
  * upserts on (user, campaign, title), so re-sending a folder replaces its
  * reference - there is nothing to write back into the vault, which is why
- * this module has no counterpart to `writeTomeIdToYamlBlock`.
+ * this module has no counterpart to the block buttons' id write-back.
  */
 export async function uploadReferencePdf(
 	plugin: TomeConnectorPlugin,
