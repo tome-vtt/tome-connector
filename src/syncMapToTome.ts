@@ -2,7 +2,7 @@ import { Notice, parseYaml } from 'obsidian';
 import type { MarkdownPostProcessorContext } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { readImageAsDataUri } from './tomeImageEmbedding';
-import { joinUrl, sendJsonToTome } from './tomeApiClient';
+import { sendJsonToTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { mapReferenceFrom } from './recognizers/map';
 import { writeTomeIdToYamlBlock } from './writeTomeIdToYamlBlock';
@@ -115,7 +115,8 @@ async function handleSendClick(
 		}
 
 		const id = await sendJsonToTome(
-			joinUrl(plugin.settings.baseUrl, TOME_ROUTES.addMap),
+			plugin.settings.baseUrl,
+			TOME_ROUTES.addMap,
 			JSON.stringify(payload),
 			getApiKey(plugin),
 			campaignId,

@@ -164,7 +164,8 @@ async function entitiesPass(
 				plugin.settings.downscaleImages,
 			);
 			const result = await postJsonToTome(
-				joinUrl(plugin.settings.baseUrl, request.path),
+				plugin.settings.baseUrl,
+				request.path,
 				request.body,
 				apiKey,
 				campaignId,
@@ -212,7 +213,8 @@ async function imagesPass(
 				),
 			});
 			const result = await postJsonToTome(
-				joinUrl(plugin.settings.baseUrl, route),
+				plugin.settings.baseUrl,
+				route,
 				body,
 				apiKey,
 				campaignId,

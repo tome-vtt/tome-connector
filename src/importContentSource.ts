@@ -19,7 +19,7 @@ import {
 } from './recognizers/compendium/importRequest';
 import { describeScope, filesInScope, type SyncScope } from './syncVaultToTome';
 import { createMultipartBoundary } from './tomeMultipartBody';
-import { joinUrl, postMultipartToTome } from './tomeApiClient';
+import { postMultipartToTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { TomeProgressNotice } from './tomeProgressNotice';
 
@@ -412,7 +412,8 @@ async function upload(
 		);
 
 		const result = await postMultipartToTome(
-			joinUrl(plugin.settings.baseUrl, IMPORT_PATH),
+			plugin.settings.baseUrl,
+			IMPORT_PATH,
 			body.body,
 			body.contentType,
 			getApiKey(plugin),

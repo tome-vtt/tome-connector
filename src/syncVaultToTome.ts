@@ -5,7 +5,7 @@ import type TomeConnectorPlugin from './main';
 import { describeReport, runBulkSend, type BulkItem, type BulkReport } from './bulkSend';
 import { findSendables, summarise, type Sendable, type SendableKind } from './recognizers/noteScan';
 import { buildRequest } from './sendablePayload';
-import { joinUrl, postJsonToTome } from './tomeApiClient';
+import { postJsonToTome } from './tomeApiClient';
 import { loadCampaignChoice, rememberCampaign, renderCampaignSelector, type CampaignChoice } from './tomeCampaigns';
 import { getApiKey } from './tomeConnectorSettings';
 import { TomeProgressNotice } from './tomeProgressNotice';
@@ -350,18 +350,13 @@ async function send(
 					item.value,
 					plugin.settings.downscaleImages,
 				);
-				const result = await postJsonToTome(
-					joinUrl(plugin.settings.baseUrl, request.path),
+				return postJsonToTome(
+					plugin.settings.baseUrl,
+					request.path,
 					request.body,
 					apiKey,
 					campaignId,
 				);
-				return {
-					ok: result.ok,
-					id: result.id,
-					message: result.message,
-					retryable: result.retryable,
-				};
 			},
 		});
 

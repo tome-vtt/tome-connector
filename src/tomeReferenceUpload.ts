@@ -2,7 +2,7 @@ import { requestUrl } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { API_KEY_HEADER_NAME, CAMPAIGN_HEADER_NAME, joinUrl } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
-import { extractResponseId } from './extractTomeResponseId';
+import { extractResponseId } from './tomeHttp';
 import { TOME_ROUTES } from './routes';
 import {
 	buildMultipartBody,
