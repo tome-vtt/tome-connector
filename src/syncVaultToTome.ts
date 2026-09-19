@@ -5,8 +5,7 @@ import type TomeConnectorPlugin from './main';
 import { describeReport, runBulkSend, type BulkItem, type BulkReport } from './bulkSend';
 import { oneAtATime } from './oneAtATime';
 import { findSendables, summarise, type Sendable, type SendableKind } from './recognizers/noteScan';
-import { buildRequest } from './sendablePayload';
-import { postJsonToTome } from './tomeApiClient';
+import { sendSendable } from './sendablePayload';
 import { loadCampaignChoice, rememberCampaign, renderCampaignSelector, type CampaignChoice } from './tomeCampaigns';
 import { getApiKey } from './tomeConnectorSettings';
 import { TomeProgressNotice } from './tomeProgressNotice';
@@ -341,17 +340,11 @@ async function send(
 			send: async (item) => {
 				// Throwing here is how `runBulkSend` learns an item is unresolvable
 				// rather than merely refused, so it does not retry it.
-				const request = await buildRequest(
+				return sendSendable(
 					plugin.app,
 					item.value,
+					{ baseUrl: plugin.settings.baseUrl, apiKey, campaignId },
 					plugin.settings.downscaleImages,
-				);
-				return postJsonToTome(
-					plugin.settings.baseUrl,
-					request.path,
-					request.body,
-					apiKey,
-					campaignId,
 				);
 			},
 		});

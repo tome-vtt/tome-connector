@@ -1,17 +1,20 @@
 import type { App } from 'obsidian';
 
-import { resolveCreatureData } from './fantasyStatblocksBestiary';
+import { getStatblockBestiaryApi } from './fantasyStatblocksBestiary';
 import { mapToEncounterPayload } from './recognizers/encounter';
 import { mapReferenceFrom } from './recognizers/map';
 import type { Sendable } from './recognizers/noteScan';
 import { libraryItemBody, type LibraryItemKind } from './libraryItemBody';
-import { mapToNpcPayload } from './recognizers/statblockCreature';
 import { TOME_ROUTES } from './routes';
-import { readImageAsDataUri, resolveImagePaths } from './tomeImageEmbedding';
-import { stripMarkdown } from './tomeMarkdownSanitizer';
+import { send, type Destination, type SendPorts } from './sendModule';
+import { postJsonToTome, tome } from './tomeApiClient';
+import type { SendResult } from './tomeHttp';
+import { readImageAsDataUri } from './tomeImageEmbedding';
 
 /**
- * Turns a scanned {@link Sendable} into a request.
+ * Turns a scanned {@link Sendable} into a request and sends it. Creatures are
+ * handed to the send module (`sendModule.ts`); the other kinds are still built
+ * here until they move there too.
  *
  * The impure half of the scan. Everything here needs the vault or the Fantasy
  * Statblocks bestiary — reading a token off disk, resolving a `monster:`
@@ -31,17 +34,50 @@ export interface PreparedRequest {
 	body: string;
 }
 
-export async function buildRequest(
+/**
+ * The Obsidian adapter for the send module's ports. An image reference is
+ * resolved as a link from the note it is in, and read as written when it does
+ * not resolve, so a full vault path still works.
+ */
+export function obsidianSendPorts(app: App, downscale: boolean): SendPorts {
+	return {
+		readImage: (reference, sourcePath, kind) => {
+			const file = app.metadataCache.getFirstLinkpathDest(reference, sourcePath);
+			return readImageAsDataUri(app, file?.path ?? reference, kind, downscale);
+		},
+		bestiary: getStatblockBestiaryApi,
+		postJson: tome.postJson,
+	};
+}
+
+/** Sends one scanned sendable, quietly: creatures through the send module, the rest built here. */
+export async function sendSendable(
+	app: App,
+	sendable: Sendable,
+	destination: Destination,
+	downscale: boolean,
+): Promise<SendResult> {
+	if (sendable.kind === 'creature') {
+		return send(obsidianSendPorts(app, downscale), sendable, destination);
+	}
+	const request = await buildRequest(app, sendable, downscale);
+	return postJsonToTome(
+		destination.baseUrl,
+		request.path,
+		request.body,
+		destination.apiKey,
+		destination.campaignId,
+	);
+}
+
+async function buildRequest(
 	app: App,
 	sendable: Sendable,
 	downscale: boolean,
 ): Promise<PreparedRequest> {
 	switch (sendable.kind) {
 		case 'creature':
-			return {
-				path: TOME_ROUTES.addNonPlayerCharacter,
-				body: await creatureBody(app, sendable, downscale),
-			};
+			throw new Error('A creature is sent by the send module, not built here.');
 		case 'encounter':
 			return { path: TOME_ROUTES.addEncounter, body: encounterBody(sendable) };
 		case 'map':
@@ -100,27 +136,6 @@ async function itemBody(
 	}
 
 	return JSON.stringify(libraryItemBody(kind, fields, image));
-}
-
-/**
- * Same three steps the per-block button takes, in the same order: resolve
- * against the bestiary, flatten the markdown links the CLI embeds in every
- * value, then swap image paths for bytes.
- */
-async function creatureBody(
-	app: App,
-	sendable: Sendable,
-	downscale: boolean,
-): Promise<string> {
-	const resolved = resolveCreatureData(sendable.source);
-	const cleaned = stripMarkdown(resolved);
-	const withImages = (await resolveImagePaths(
-		app,
-		cleaned,
-		'token',
-		downscale,
-	)) as Record<string, unknown>;
-	return JSON.stringify(mapToNpcPayload(withImages));
 }
 
 function encounterBody(sendable: Sendable): string {

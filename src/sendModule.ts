@@ -13,7 +13,7 @@
 
 import { resolveCreatureData, type StatblockBestiaryApi } from './fantasyStatblocksBestiary';
 import type { Sendable } from './recognizers/noteScan';
-import { mapToNpcPayload } from './recognizers/statblockCreature';
+import { mapToNpcPayload, type NpcPayload } from './recognizers/statblockCreature';
 import { TOME_ROUTES } from './routes';
 import { embedImages, type TomeImageKind } from './tomeImageDownscale';
 import type { SendResult, TomeTarget } from './tomeHttp';
@@ -67,7 +67,7 @@ async function creatureBody(
 	ports: SendPorts,
 	source: Record<string, unknown>,
 	sourcePath: string,
-): Promise<Record<string, unknown>> {
+): Promise<NpcPayload> {
 	const resolved = resolveCreatureData(source, ports.bestiary());
 	if ('image' in resolved) resolved.image = linkTarget(resolved.image);
 	const cleaned = stripMarkdown(resolved);
@@ -83,7 +83,7 @@ async function creatureBody(
  * quoted it is a wikilink string, maybe with an alias. A plain path is kept.
  */
 function linkTarget(image: unknown): unknown {
-	const value = Array.isArray(image) ? image.flat(2)[0] : image;
+	const value: unknown = Array.isArray(image) ? (image as unknown[]).flat(2)[0] : image;
 	if (typeof value !== 'string') return value;
 	return /^!?\[\[([^\]|#]+)/.exec(value.trim())?.[1]?.trim() ?? value;
 }

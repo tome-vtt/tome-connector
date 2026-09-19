@@ -1,15 +1,11 @@
 import { Notice, parseYaml } from 'obsidian';
 import type { MarkdownPostProcessorContext } from 'obsidian';
 import type TomeConnectorPlugin from './main';
-import { resolveImagePaths } from './tomeImageEmbedding';
-import { sendJsonToTome } from './tomeApiClient';
+// The body, the route and the headers are the send module's; this file keeps the DOM.
+import { obsidianSendPorts } from './sendablePayload';
+import { send } from './sendModule';
+import { noticeResult } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
-import { stripMarkdown } from './tomeMarkdownSanitizer';
-// The mapping and the Fantasy Statblocks normalisers live in a pure module so
-// they can be tested; this file keeps the DOM and the HTTP call.
-import { mapToNpcPayload } from './recognizers/statblockCreature';
-import { resolveCreatureData } from './fantasyStatblocksBestiary';
-import { TOME_ROUTES } from './routes';
 import { chooseCampaign } from './tomeCampaigns';
 import { writeTomeIdToYamlBlock } from './writeTomeIdToYamlBlock';
 
@@ -103,26 +99,13 @@ async function handleSendClick(
 		const campaignId = await chooseCampaign(plugin);
 		if (campaignId === null) return;
 
-		const parsed: unknown = parseYaml(rawYaml);
-		const withMonsterResolved = resolveCreatureData(parsed);
-		const cleaned = stripMarkdown(withMonsterResolved);
-		const resolved = (await resolveImagePaths(
-			plugin.app,
-			cleaned,
-			'token',
-			plugin.settings.downscaleImages,
-		)) as Record<
-			string,
-			unknown
-		>;
-		const payload = mapToNpcPayload(resolved);
-		const id = await sendJsonToTome(
-			plugin.settings.baseUrl,
-			TOME_ROUTES.addNonPlayerCharacter,
-			JSON.stringify(payload),
-			getApiKey(plugin),
-			campaignId,
+		const source = parseYaml(rawYaml) as Record<string, unknown>;
+		const result = await send(
+			obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),
+			{ kind: 'creature', path: ctx.sourcePath, source },
+			{ baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId },
 		);
+		const id = noticeResult(result);
 
 		if (id !== null) {
 			// Only the id line changes, so the note keeps its compact `monster:`

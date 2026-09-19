@@ -4,7 +4,7 @@ import type TomeConnectorPlugin from '../main';
 import { type BulkItem, type BulkReport, runBulkSend } from '../bulkSend';
 import { oneAtATime } from '../oneAtATime';
 import { findSendables, type Sendable } from '../recognizers/noteScan';
-import { buildRequest } from '../sendablePayload';
+import { sendSendable } from '../sendablePayload';
 import { MAX_ATTEMPTS, THROTTLE_MS } from '../syncVaultToTome';
 import { API_KEY_HEADER_NAME, CAMPAIGN_HEADER_NAME, joinUrl, postJsonToTome } from '../tomeApiClient';
 import { loadCampaignChoice, rememberCampaign } from '../tomeCampaigns';
@@ -159,17 +159,11 @@ async function entitiesPass(
 		onProgress: onProgress ? (done) => onProgress(done) : undefined,
 		send: async (item) => {
 			const sendable = await sendableForEntity(plugin.app, item.value);
-			const request = await buildRequest(
+			const result = await sendSendable(
 				plugin.app,
 				sendable,
+				{ baseUrl: plugin.settings.baseUrl, apiKey, campaignId },
 				plugin.settings.downscaleImages,
-			);
-			const result = await postJsonToTome(
-				plugin.settings.baseUrl,
-				request.path,
-				request.body,
-				apiKey,
-				campaignId,
 			);
 			if (result.ok && result.id) item.value.resolvedId = result.id;
 			return { ok: result.ok, id: result.id, message: result.message, retryable: result.retryable };

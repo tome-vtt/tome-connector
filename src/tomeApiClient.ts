@@ -9,7 +9,8 @@ const obsidianTransport: TomeTransport = async (request) => {
 	return { status: response.status, text: response.text };
 };
 
-const tome = createTomeHttp(obsidianTransport);
+/** The Tome HTTP module over `requestUrl`: the post port the send module is given in the plugin. */
+export const tome = createTomeHttp(obsidianTransport);
 
 /**
  * Sends a JSON payload and reports what happened, without saying anything to the
@@ -59,8 +60,14 @@ export async function sendJsonToTome(
 	apiKey: string,
 	campaignId?: string,
 ): Promise<string | null> {
-	const result = await postJsonToTome(baseUrl, path, payload, apiKey, campaignId);
+	return noticeResult(await postJsonToTome(baseUrl, path, payload, apiKey, campaignId));
+}
 
+/**
+ * Tells the user how one send went, and returns the id on success or null.
+ * For the per-block buttons, where one Notice per send is exactly right.
+ */
+export function noticeResult(result: SendResult): string | null {
 	if (result.ok) {
 		new Notice('Sent to Tome successfully.');
 		return result.id;
