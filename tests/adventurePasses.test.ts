@@ -6,8 +6,7 @@ import type { AdventurePlan, PlannedEntity, PlannedImage } from '../src/adventur
 import type { Note } from '../src/recognizers/note';
 import { findSendables } from '../src/recognizers/noteScan';
 import { sendToTome } from '../src/sendModule';
-import { TINY_PNG } from './fixtures/wireBodies';
-import { bodyOf, inMemorySendPorts } from './fixtures/inMemorySendPorts';
+import { TINY_PNG, bodyOf, inMemorySendPorts } from './fixtures/inMemorySendPorts';
 
 /**
  * An adventure's entities and images go through the send module, so each one is
