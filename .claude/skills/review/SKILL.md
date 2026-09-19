@@ -1,10 +1,10 @@
 ---
 name: review
 description: >
-  Claims N issues in the Tome Connector team's Needs Review column on Linear, moves
-  each to In Progress, and reviews the merged work in parallel — one subagent per
+  Claims N issues in the Tome Connector team's Needs-Review column on Linear, moves
+  each to In-Progress, and reviews the merged work in parallel — one subagent per
   issue — then comments the review and moves each to Finished if it is clean or
-  Needs Revision with documented findings. Use when the user invokes
+  Needs-Revision with documented findings. Use when the user invokes
   Review-<n>, /review <n>, or asks to work the
   review queue.
 disable-model-invocation: true
@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 Claim N issues awaiting review, review each in parallel, then pass or bounce them.
 
-Linear flow: **Needs Review → In Progress → Finished** (clean) **or Needs Revision**
+Linear flow: **Needs-Review → In-Progress → Finished** (clean) **or Needs-Revision**
 (findings). Builds come from `ready`; fixes from
 `revision`.
 
@@ -27,23 +27,23 @@ holds.
 
 ## 1. Claim the whole batch first
 
-1. `list_issues` with `team: "Tome Connector"`, `project: "TC"`, `state: "Needs Review"`,
+1. `list_issues` with `team: "Tome Connector"`, `project: "TC"`, `state: "Needs-Review"`,
    `assignee: "null"`, `label: "ready-for-agent"`, then drop any whose `delegate` is set —
    it is claimed. `ready-for-human` and unlabelled issues are not claimed; name them in the
    report.
 2. Take the top N by priority, or the issues the user named (verify each is still
-   Needs Review, labelled `ready-for-agent`, with no assignee or delegate).
+   Needs-Review, labelled `ready-for-agent`, with no assignee or delegate).
 3. Claim each in **one** `save_issue` write — the **claim** from `docs/agents/issue-tracker.md` and
-   `state: "In Progress"` — one at a time, checking each answer; drop any lost race
+   `state: "In-Progress"` — one at a time, checking each answer; drop any lost race
    and take the next.
 4. For each, `get_issue` and `list_comments`. Find the `Merge: <sha> into <branch>`
    lines. **No `Merge:` line** means there is nothing identifiable to review: put
-   it back in Needs Review unassigned with a comment asking which commit to review,
+   it back in Needs-Review unassigned with a comment asking which commit to review,
    and do not dispatch for it.
 5. **Pre-screen before dispatching**, by the rule in `.claude/skills/ready/SKILL.md`
    step 2.5: if the review itself cannot be done without a person (the issue demands a
    human sign-off, or checking needs a login or a CAPTCHA an agent cannot pass), hand it
-   back to Needs Review `ready-for-human` with what the user has to check, and do not
+   back to Needs-Review `ready-for-human` with what the user has to check, and do not
    dispatch. A review that merely *finds* user-only work is still dispatched; the brief
    below labels that.
 
@@ -91,12 +91,12 @@ identifier, title, description, every comment, the repo path
 >
 > - no blocking findings → `state: "Finished"` and
 >   `removeLabels: ["ready-for-agent", "ready-for-human"]`;
-> - blocking findings an agent can fix → `state: "Needs Revision"`, labels untouched;
+> - blocking findings an agent can fix → `state: "Needs-Revision"`, labels untouched;
 > - any blocking finding only the user can resolve (a product decision, a credential, an
->   outside account) → `state: "Needs Revision"` with `removeLabels: ["ready-for-agent"]`
+>   outside account) → `state: "Needs-Revision"` with `removeLabels: ["ready-for-agent"]`
 >   and `addLabels: ["ready-for-human"]`, and mark those findings **(yours)** in the comment.
 >
-> If you cannot finish the review, put it back in `Needs Review` unassigned with a
+> If you cannot finish the review, put it back in `Needs-Review` unassigned with a
 > comment saying why.
 >
 > **Report**: identifier, verdict, the status you left it in, and the blocking
@@ -104,8 +104,8 @@ identifier, title, description, every comment, the repo path
 
 ## 3. Verify and report
 
-Confirm on Linear that each issue left In Progress and is unassigned, with a
-`Review:` comment. Report briefly: one line per issue (Finished / Needs Revision
+Confirm on Linear that each issue left In-Progress and is unassigned, with a
+`Review:` comment. Report briefly: one line per issue (Finished / Needs-Revision
 with the count of blocking findings and whether it waits on the user / handed back), the
 skipped `ready-for-human` and unlabelled issues, and a short section explaining
 the outcome for a non-technical reader.

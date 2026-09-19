@@ -13,7 +13,7 @@ The team is this repo's own; every issue also belongs to the **TC** project. Fil
 - **Apply / remove labels**: `save_issue` with the issue id and the full new label set. Create a missing label with `create_issue_label` first.
 - **Close**: `save_comment` with the reason, then `save_issue` with a `state` of `Finished` (resolved), `Canceled` (wontfix) or `Duplicate`.
 
-The team's statuses: `Backlog`, `Ready`, `In Progress`, `Needs Review`, `Needs Revision`, `Finished`, `Human-Review-Needed`, `Canceled`, `Duplicate`. The `ready`, `review` and `revision` skills in `.claude/skills/` move issues through them.
+The team's statuses: `Backlog`, `Ready`, `In-Progress`, `Needs-Review`, `Needs-Revision`, `Finished`, `Human-Review-Needed`, `Canceled`, `Duplicate`. The `ready`, `review` and `revision` skills in `.claude/skills/` move issues through them.
 
 Reference issues as `TC-123`. A GitHub PR that resolves one puts `Fixes TC-123` in its body.
 

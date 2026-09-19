@@ -122,7 +122,7 @@ comment and your report, and leave the push to the orchestrator.
 
 ## 6. Update Linear
 
-Finished — one `save_issue` write: `state: "Needs Review"`, assignee and delegate cleared. Then a
+Finished — one `save_issue` write: `state: "Needs-Review"`, assignee and delegate cleared. Then a
 comment starting with this line exactly, so the reviewer can find the change:
 
 ```

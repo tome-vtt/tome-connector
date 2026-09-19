@@ -2,9 +2,9 @@
 name: ready
 description: >
   Claims N issues in the Tome Connector team's Ready column on Linear, moves each to
-  In Progress, and builds them in parallel — one subagent and one isolated git
+  In-Progress, and builds them in parallel — one subagent and one isolated git
   worktree per issue — merging each into the current branch, removing its
-  worktree, commenting a summary and moving it to Needs Review. Use when the
+  worktree, commenting a summary and moving it to Needs-Review. Use when the
   user invokes Ready-<n>, /ready <n>, or asks to
   work the Ready queue, where n is the number of subagents.
 disable-model-invocation: true
@@ -13,7 +13,7 @@ disable-model-invocation: true
 Claim N Ready issues, build them in parallel worktrees, merge each into the current
 branch, hand each to review.
 
-Linear flow: **Ready → In Progress → Needs Review**. Reviews are
+Linear flow: **Ready → In-Progress → Needs-Review**. Reviews are
 `review`; fixes after review are `revision`.
 
 ## How many subagents
@@ -55,7 +55,7 @@ be reading the same queue.
 2. Take the top N by priority. If the user named issues, use those, but verify each
    is still Ready, labelled `ready-for-agent`, with no assignee or delegate, and say so if not.
 3. Claim each in **one** `save_issue` write — the **claim** from `docs/agents/issue-tracker.md` **and**
-   `state: "In Progress"` together — one issue at a time, checking each answer. If
+   `state: "In-Progress"` together — one issue at a time, checking each answer. If
    someone else got there first, drop it and take the next.
 4. For each claimed issue, `get_issue` and `list_comments`. The subagent gets both;
    it must not re-fetch to learn what it is building.
@@ -105,7 +105,7 @@ git -C $repo worktree list                  # no worktree left behind
 .claude/scripts/lock.ps1 status             # no lock stranded
 ```
 
-Confirm each issue on Linear is in Needs Review (or back in Ready) and unassigned. A
+Confirm each issue on Linear is in Needs-Review (or back in Ready) and unassigned. A
 stale lock left by a killed subagent shows as STALE; break it with
 `.claude/scripts/lock.ps1 break <name>` only then. A worktree left behind by a dead
 subagent: put its issue back in Ready, then remove the worktree.
