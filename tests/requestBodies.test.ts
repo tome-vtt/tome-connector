@@ -266,6 +266,12 @@ describe('the character body', () => {
 		expect(byLabel('character to My Characters')).toEqual(byLabel('character to a campaign'));
 	});
 
+	it('sends to My Characters account-scoped, and to a campaign with the campaign', () => {
+		const scoped = (label: string) => WITHOUT_IMAGES.find((built) => built.label === label);
+		expect(scoped('character to My Characters')).toMatchObject({ route: TOME_ROUTES.importVaultCharacter, accountScoped: true });
+		expect(scoped('character to a campaign')).toMatchObject({ route: TOME_ROUTES.addPlayerCharacter, accountScoped: false });
+	});
+
 	it('leaves Tome-owned fields off, so a re-send keeps them', () => {
 		const body = byLabel('character to a campaign');
 		expect(body).not.toHaveProperty('alias');

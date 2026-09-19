@@ -14,6 +14,8 @@ export interface InMemoryVault {
 	files?: Record<string, string>;
 	/** Creatures by bestiary name, or null for "Fantasy Statblocks is not installed". */
 	bestiary?: Record<string, Record<string, unknown>> | null;
+	/** What the server answers every request with; 201 and an id unless a test says otherwise. */
+	status?: number;
 }
 
 /**
@@ -29,11 +31,13 @@ function resolveLink(files: Record<string, string>, linkpath: string, sourcePath
 	return [linkpath, folder + linkpath, ...elsewhere].find((path) => path in files);
 }
 
-export function inMemorySendPorts({ files = {}, bestiary = null }: InMemoryVault = {}) {
+export function inMemorySendPorts({ files = {}, bestiary = null, status = 201 }: InMemoryVault = {}) {
 	const sent: TomeRequest[] = [];
+	/** Frontmatter written back, by note path. */
+	const frontmatter: Record<string, Record<string, string>> = {};
 	const http = createTomeHttp(async (request) => {
 		sent.push(request);
-		return { status: 201, text: JSON.stringify({ id: `id-${sent.length}` }) };
+		return { status, text: JSON.stringify({ id: `id-${sent.length}` }) };
 	});
 
 	const ports: SendPorts = {
@@ -45,9 +49,12 @@ export function inMemorySendPorts({ files = {}, bestiary = null }: InMemoryVault
 		bestiary: () =>
 			bestiary && { getCreatureFromBestiary: (name: string) => bestiary[name] ?? null },
 		postJson: http.postJson,
+		setFrontmatter: async (path, key, value) => {
+			frontmatter[path] = { ...frontmatter[path], [key]: value };
+		},
 	};
 
-	return { ports, sent };
+	return { ports, sent, frontmatter };
 }
 
 /** The body of a recorded request, as the server would parse it. */

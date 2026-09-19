@@ -26,7 +26,7 @@ function hasPdfSignature(bytes: Uint8Array): boolean {
 /**
  * Uploads a compiled PDF into the campaign's Reference library.
  *
- * Unlike `sendJsonToTome`, this throws on failure rather than showing its own
+ * Unlike a button's send, which reports through `noticeResult`, this throws on failure rather than showing its own
  * Notice: it is the last step of a long, multi-stage operation whose caller
  * already owns a progress notice, so error reporting belongs there.
  *

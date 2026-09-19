@@ -9,11 +9,14 @@
  * what lets the server-contract test pin the body the plugin really sends.
  *
  * Every kind a block button, the bulk sync or the image menu sends goes through
- * here. Player characters and the adventure import's images do not yet.
+ * {@link sendToTome}; a player character through {@link sendCharacterToTome}, whose
+ * destination decides its route and campaign. The adventure import's images do not yet.
  */
 
+import { requestFor, type CharacterDestination } from './characterDestination';
 import { resolveCreatureData, type StatblockBestiaryApi } from './fantasyStatblocksBestiary';
 import { libraryItemBody, type LibraryItemKind } from './libraryItemBody';
+import { PLAYER_CHARACTER_PROPERTIES, playerCharacterBody, type PlayerCharacterBody } from './playerCharacterBody';
 import { mapToEncounterPayload, type EncounterPayload } from './recognizers/encounter';
 import { mapReferenceFrom, unwrapWikilink } from './recognizers/map';
 import type { Sendable, SendableKind } from './recognizers/noteScan';
@@ -23,6 +26,7 @@ import { embedImages, type TomeImageKind } from './tomeImageDownscale';
 import type { SendResult, TomeTarget } from './tomeHttp';
 import { existingTomeId } from './tomeIdWriteBack';
 import { stripMarkdown } from './tomeMarkdownSanitizer';
+import { parsePcSheet } from './tomePcSheetParser';
 
 export interface SendPorts {
 	/**
@@ -35,6 +39,8 @@ export interface SendPorts {
 	bestiary(): StatblockBestiaryApi | null;
 	/** One JSON POST through the Tome HTTP module. */
 	postJson(target: TomeTarget, payload: string): Promise<SendResult>;
+	/** Sets one frontmatter property on the note at `path`, leaving the rest alone. */
+	setFrontmatter(path: string, key: string, value: string): Promise<void>;
 }
 
 /** Who a send is from and where it goes; the module adds the route. */
@@ -205,4 +211,56 @@ async function itemBody(
 			? await readImage(ports, imagePath, sourcePath, 'token')
 			: undefined;
 	return libraryItemBody(kind, fields, image);
+}
+
+/** A D&D Beyond character note: Obsidian's parsed frontmatter, and the whole text the sheet is parsed from. */
+export interface CharacterNote {
+	path: string;
+	frontmatter: Record<string, unknown>;
+	content: string;
+}
+
+/**
+ * Sends a player character to a campaign or to the account's My Characters shelf, and on
+ * success records the id under the property the destination names - `requestFor` decides the
+ * route, whether the request carries a campaign, and that property.
+ *
+ * Its own entry point rather than a {@link ModuleSendable} kind because the destination is
+ * the character's, not the caller's: the vault must go without the campaign header.
+ * Throws, like {@link sendToTome}, when the note's image cannot be read.
+ */
+export async function sendCharacterToTome(
+	ports: SendPorts,
+	note: CharacterNote,
+	sender: Omit<Destination, 'campaignId'>,
+	destination: CharacterDestination,
+): Promise<SendResult> {
+	const request = requestFor(destination);
+	const result = await ports.postJson(
+		{ ...sender, path: request.route, campaignId: request.campaignId },
+		JSON.stringify(await characterBody(ports, note)),
+	);
+	if (!result.ok || result.id === null) return result;
+	try {
+		await ports.setFrontmatter(note.path, request.frontmatterKey, result.id);
+	} catch (error) {
+		// The character is in Tome by now; say so, or a retry looks like the fix.
+		const reason = error instanceof Error ? error.message : String(error);
+		throw new Error(`Sent to Tome, but its id could not be written to ${note.path}: ${reason}`);
+	}
+	return result;
+}
+
+/**
+ * Only the properties the body mapper reads go on - anything else in the frontmatter could
+ * only trip the image walk or the markdown flattening. The sheet is parsed from the note text.
+ */
+async function characterBody(ports: SendPorts, note: CharacterNote): Promise<PlayerCharacterBody> {
+	const filtered: Record<string, unknown> = {};
+	for (const key of PLAYER_CHARACTER_PROPERTIES) {
+		if (key in note.frontmatter) filtered[key] = note.frontmatter[key];
+	}
+	if ('image' in filtered) filtered.image = unwrapWikilink(filtered.image) ?? filtered.image;
+	const withImages = await embedFrom(ports, stripMarkdown(filtered), note.path);
+	return playerCharacterBody(withImages as Record<string, unknown>, parsePcSheet(note.content));
 }

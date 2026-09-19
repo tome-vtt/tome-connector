@@ -16,7 +16,7 @@ export const tomeHttp = createTomeHttp(obsidianTransport);
  * Sends a JSON payload and reports what happened, without saying anything to the
  * user.
  *
- * The quiet half of {@link sendJsonToTome}, split out for bulk sending: one
+ * {@link noticeResult} is the loud half, for the buttons. Kept apart for bulk sending: one
  * Notice per item is right when somebody pressed a button on one block, and
  * unusable when 709 creatures are going across.
  */
@@ -60,23 +60,6 @@ export function postJsonAndReadFromTome<T>(
 	campaignId: string,
 ): Promise<JsonResult<T>> {
 	return tomeHttp.postJsonAndRead<T>({ baseUrl, path, apiKey, campaignId }, payload);
-}
-
-/**
- * Sends a raw JSON payload and tells the user how it went.
- *
- * Returns the `id` from the response body on success, or null if the request
- * failed or no id was present. Used by the per-block buttons, where one Notice
- * per send is exactly right.
- */
-export async function sendJsonToTome(
-	baseUrl: string,
-	path: string,
-	payload: string,
-	apiKey: string,
-	campaignId?: string,
-): Promise<string | null> {
-	return noticeResult(await postJsonToTome(baseUrl, path, payload, apiKey, campaignId));
 }
 
 /**
