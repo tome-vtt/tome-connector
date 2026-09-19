@@ -13,7 +13,7 @@
 
 import { parse as parseYaml } from 'yaml';
 
-import type { NoteInput } from '../../src/recognizers/noteScan';
+import type { Note } from '../../src/recognizers/note';
 
 /** `bestiary/aberration/githyanki-knight-xmm.md`, trimmed - gear, saves, a bonus action. */
 export const GITHYANKI_KNIGHT_NOTE = `---
@@ -330,7 +330,7 @@ export const MULTICLASS_FRONTMATTER: Record<string, unknown> = {
 };
 
 /** Splits a note into Obsidian's cached frontmatter and its text, the way `noteScan` is handed one. */
-export function noteInput(path: string, content: string): NoteInput {
+export function noteInput(path: string, content: string): Note {
 	const match = /^---\n([\s\S]*?)\n---\n/.exec(content);
 	const frontmatter = match?.[1] ? (parseYaml(match[1]) as Record<string, unknown>) : null;
 	return { path, content, frontmatter };

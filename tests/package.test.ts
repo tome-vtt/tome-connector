@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import type { Note } from '../src/recognizers/note';
 import {
 	assemblePackage,
 	describeCounts,
 	isEmpty,
-	keyFor,
 	packageKeyFrom,
-	type ScannedNote,
 } from '../src/recognizers/compendium/package';
 
 const srdSource =
@@ -17,7 +16,7 @@ function note(
 	cssClass: string,
 	body: string,
 	extraTags: string[] = [],
-): ScannedNote {
+): Note {
 	return {
 		path,
 		content: body,
@@ -50,16 +49,6 @@ const spell = note(
 	`# Fireball\n${srdSource}\n\n- **Casting time:** 1 Action\n- **Range:** 150 feet\n- **Components:** V, S\n- **Duration:** Instantaneous\n\nIt explodes.`,
 	['ttrpg-cli/spell/level/3rd-level', 'ttrpg-cli/spell/school/evocation'],
 );
-
-describe('keyFor', () => {
-	it.each([
-		['CLI/races/aasimar-xphb.md', 'aasimar-xphb'],
-		['CLI\\races\\elf-xphb.md', 'elf-xphb'],
-		['orc.md', 'orc'],
-	])('%s -> %s', (path, expected) => {
-		expect(keyFor(path)).toBe(expected);
-	});
-});
 
 describe('assemblePackage', () => {
 	/**

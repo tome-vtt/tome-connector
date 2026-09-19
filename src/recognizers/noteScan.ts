@@ -20,6 +20,7 @@ import { parseSpell } from './compendium/spell';
 import { mapToEncounterPayload } from './encounter';
 import { mapReferenceFrom } from './map';
 import { hasInlineStats } from './statblockCreature';
+import { noteName, type Note } from './note';
 
 export type SendableKind = 'creature' | 'encounter' | 'map' | 'magicItem' | 'equipmentItem' | 'spell';
 
@@ -49,13 +50,6 @@ export interface Sendable {
 /** Injected so this module never imports `obsidian`. Returns null on bad YAML. */
 export type YamlParser = (source: string) => unknown;
 
-export interface NoteInput {
-	path: string;
-	content: string;
-	/** Obsidian's parsed frontmatter, or null. The caller has it cached already. */
-	frontmatter: Record<string, unknown> | null;
-}
-
 /**
  * Whether a note's frontmatter declares it a creature.
  *
@@ -84,12 +78,6 @@ function creatureLabel(record: Record<string, unknown>, fallback: string): strin
 	return typeof name === 'string' && name.trim() !== '' ? name.trim() : fallback;
 }
 
-/** The note's filename without extension, used when a block does not name itself. */
-export function noteName(path: string): string {
-	const file = path.split(/[\\/]/).pop() ?? path;
-	return file.replace(/\.md$/i, '');
-}
-
 /**
  * Everything sendable in one note.
  *
@@ -101,7 +89,7 @@ export function noteName(path: string): string {
  * frontmatter carrying `statblock: inline` to point at it; reading both would
  * import every one of its 667 creatures twice.
  */
-export function findSendables(note: NoteInput, parseYaml: YamlParser): Sendable[] {
+export function findSendables(note: Note, parseYaml: YamlParser): Sendable[] {
 	const found: Sendable[] = [];
 	let sawStatblockFence = false;
 
@@ -133,7 +121,7 @@ export function findSendables(note: NoteInput, parseYaml: YamlParser): Sendable[
 }
 
 /** A whole-note spell, using the same structured parser as content-package imports. */
-function spellFrom(note: NoteInput): Sendable | null {
+function spellFrom(note: Note): Sendable | null {
 	if (cliNoteType(note.frontmatter) !== 'spell') return null;
 
 	const key = noteName(note.path);
@@ -162,7 +150,7 @@ function spellFrom(note: NoteInput): Sendable | null {
  * than content-package material, so it travels this route - the same one creatures
  * take - and shows up in the same preview.
  */
-function magicItemFrom(note: NoteInput): Sendable | null {
+function magicItemFrom(note: Note): Sendable | null {
 	if (cliNoteType(note.frontmatter) !== 'item') return null;
 
 	const key = noteName(note.path);
@@ -178,7 +166,7 @@ function magicItemFrom(note: NoteInput): Sendable | null {
  * one - `magicItemFrom`'s `rarity/none` twin. Only tried once `magicItemFrom`
  * has already returned null, so an item note is never counted as both.
  */
-function equipmentItemFrom(note: NoteInput): Sendable | null {
+function equipmentItemFrom(note: Note): Sendable | null {
 	if (cliNoteType(note.frontmatter) !== 'item' || isMagic(note.frontmatter)) return null;
 
 	const key = noteName(note.path);
@@ -190,7 +178,7 @@ function equipmentItemFrom(note: NoteInput): Sendable | null {
 function sendableFromBlock(
 	language: string,
 	record: Record<string, unknown>,
-	note: NoteInput,
+	note: Note,
 ): Sendable | null {
 	switch (language) {
 		case 'statblock': {
@@ -230,7 +218,7 @@ function sendableFromBlock(
  * `statblock: inline` pointing at it - so taking the frontmatter as well would
  * import every one of its 667 creatures twice.
  */
-function creatureFromFrontmatter(note: NoteInput, sawStatblockFence: boolean): Sendable | null {
+function creatureFromFrontmatter(note: Note, sawStatblockFence: boolean): Sendable | null {
 	if (sawStatblockFence || !note.frontmatter || !declaresStatblock(note.frontmatter)) {
 		return null;
 	}

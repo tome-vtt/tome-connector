@@ -1,11 +1,11 @@
-import { App, Notice, TFile, TFolder, parseYaml, requestUrl } from 'obsidian';
+import { App, Notice, TFolder, parseYaml, requestUrl } from 'obsidian';
 
 import type TomeConnectorPlugin from '../main';
-import { type BulkItem, type BulkReport, runBulkSend } from '../bulkSend';
+import { type BulkItem, type BulkReport, MAX_ATTEMPTS, runBulkSend, THROTTLE_MS } from '../bulkSend';
 import { oneAtATime } from '../oneAtATime';
 import { findSendables, type Sendable } from '../recognizers/noteScan';
 import { buildRequest } from '../sendablePayload';
-import { MAX_ATTEMPTS, THROTTLE_MS } from '../syncVaultToTome';
+import { vaultNotes } from '../vaultNotes';
 import { API_KEY_HEADER_NAME, CAMPAIGN_HEADER_NAME, joinUrl, postJsonToTome } from '../tomeApiClient';
 import { loadCampaignChoice, rememberCampaign } from '../tomeCampaigns';
 import { getApiKey } from '../tomeConnectorSettings';
@@ -113,20 +113,14 @@ async function resolveLinksPass(
 
 /** The one sendable in a target note that matches what the row was chosen to become. */
 async function sendableForEntity(app: App, entity: PlannedEntity): Promise<Sendable> {
-	const file = app.vault.getAbstractFileByPath(entity.key);
-	if (!(file instanceof TFile)) {
-		throw new Error(`"${entity.key}" no longer exists in the vault.`);
-	}
-
-	const content = await app.vault.cachedRead(file);
-	const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter ?? null;
+	const note = await vaultNotes(app).read(entity.key);
 	const wanted =
 		entity.chosen.to === 'NonPlayerCharacter'
 			? 'creature'
 			: entity.chosen.to === 'MagicItem'
 				? 'magicItem'
 				: 'equipmentItem';
-	const found = findSendables({ path: file.path, content, frontmatter }, parseYaml).find(
+	const found = findSendables(note, parseYaml).find(
 		(sendable) => sendable.kind === wanted,
 	);
 

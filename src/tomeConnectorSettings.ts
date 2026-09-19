@@ -2,7 +2,7 @@ import { App, PluginSettingTab, SecretComponent, Setting } from 'obsidian';
 import type { SettingDefinitionItem } from 'obsidian';
 import TomeConnectorPlugin from './main';
 import { baseUrlWarning } from './tomeBaseUrl';
-import { syncTagHint } from './syncVaultCommands';
+import { syncTagHint } from './scopeReader';
 import { downscaleWarning } from './tomeImageDownscale';
 
 export interface TomeConnectorSettings {

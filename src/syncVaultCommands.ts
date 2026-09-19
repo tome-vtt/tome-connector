@@ -132,14 +132,6 @@ function registerFolderMenu(plugin: TomeConnectorPlugin): void {
 	);
 }
 
-/** Shared by the settings tab, so the message is the same in both places. */
-export function syncTagHint(tag: string): string | null {
-	const trimmed = tag.trim();
-	if (trimmed === '') return null;
-	if (/\s/.test(trimmed)) return 'A tag cannot contain spaces.';
-	return null;
-}
-
 /** Warns once when a command is invoked with nothing configured. */
 export function warnIfUnconfigured(plugin: TomeConnectorPlugin): boolean {
 	if (plugin.settings.baseUrl.trim() === '') {

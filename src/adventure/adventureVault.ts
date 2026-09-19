@@ -10,6 +10,7 @@ import { parseMagicItem } from '../recognizers/compendium/magicItem';
 import { findFencedBlock } from '../recognizers/markdownBlocks';
 import { findSendables } from '../recognizers/noteScan';
 import { normalizeName } from '../recognizers/statblockCreature';
+import { vaultNotes } from '../vaultNotes';
 
 /**
  * The one module in `src/adventure/` that touches the vault.
@@ -179,8 +180,7 @@ async function resolveItem(
 	key: string,
 	fallback: string,
 ): Promise<{ name: string; destination: EntityDestination }> {
-	const content = await app.vault.cachedRead(file);
-	const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter ?? null;
+	const { content, frontmatter } = await vaultNotes(app).read(file.path);
 
 	const magic = parseMagicItem(content, frontmatter, key, fallback);
 	if (magic) return { name: magic.name, destination: { to: 'MagicItem' } };
@@ -198,9 +198,7 @@ async function resolveItem(
  * than guessed at.
  */
 async function resolveUnknownEntity(app: App, file: TFile, entity: PlannedEntity): Promise<PlannedEntity> {
-	const content = await app.vault.cachedRead(file);
-	const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter ?? null;
-	const sendables = findSendables({ path: file.path, content, frontmatter }, parseYaml);
+	const sendables = findSendables(await vaultNotes(app).read(file.path), parseYaml);
 
 	if (sendables.some((sendable) => sendable.kind === 'creature')) {
 		const name = await resolveBestiaryName(app, file);
