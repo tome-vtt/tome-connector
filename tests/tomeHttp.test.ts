@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { runBulkSend } from '../src/bulkSend';
 import {
 	NOT_CONFIGURED,
 	createTomeHttp,
@@ -9,10 +10,12 @@ import {
 } from '../src/tomeHttp';
 
 /** The test adapter at the transport seam: records what was sent, answers what it is told. */
-function fakeTransport(answer: TomeResponse | Error): TomeTransport & { sent: TomeRequest[] } {
+function fakeTransport(...answers: (TomeResponse | Error)[]): TomeTransport & { sent: TomeRequest[] } {
 	const sent: TomeRequest[] = [];
 	const transport = (request: TomeRequest): Promise<TomeResponse> => {
 		sent.push(request);
+		// Answers in turn, then keeps giving the last one.
+		const answer = answers[Math.min(sent.length, answers.length) - 1]!;
 		return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer);
 	};
 	return Object.assign(transport, { sent });
@@ -92,6 +95,35 @@ describe('postJson', () => {
 		expect(result).toMatchObject({ ok: false, status, retryable: true });
 	});
 
+	it.each([429, 503])("carries a %i's Retry-After in seconds", async (status) => {
+		const result = await createTomeHttp(
+			fakeTransport({ status, text: '', headers: { 'retry-after': '7' } }),
+		).postJson({ ...target, path: 'api/map' }, '{}');
+		expect(result).toMatchObject({ ok: false, status, retryable: true, retryAfterSeconds: 7 });
+	});
+
+	it('turns an HTTP-date Retry-After into seconds from now, whatever the header case', async () => {
+		vi.useFakeTimers({ now: Date.parse('Sat, 19 Sep 2026 12:00:00 GMT') });
+		try {
+			const result = await createTomeHttp(
+				fakeTransport({ status: 429, text: '', headers: { 'Retry-After': 'Sat, 19 Sep 2026 12:00:12 GMT' } }),
+			).postJson({ ...target, path: 'api/map' }, '{}');
+			expect(result).toMatchObject({ retryAfterSeconds: 12 });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('leaves retryAfterSeconds off when the header is missing or unreadable', async () => {
+		for (const headers of [undefined, { 'retry-after': 'soon' }, { 'retry-after': '1.5' }, { 'retry-after': '-5' }]) {
+			const result = await createTomeHttp(fakeTransport({ status: 429, text: '', headers })).postJson(
+				{ ...target, path: 'api/map' },
+				'{}',
+			);
+			expect(result).not.toHaveProperty('retryAfterSeconds');
+		}
+	});
+
 	it('marks a network failure as retryable with status 0', async () => {
 		const result = await createTomeHttp(fakeTransport(new Error('net::ERR_CONNECTION_REFUSED'))).postJson(
 			{ ...target, path: 'api/map' },
@@ -158,5 +190,29 @@ describe('postMultipart', () => {
 			message: 'offline',
 			retryable: true,
 		});
+	});
+});
+
+describe('a bulk run against a rate-limited server', () => {
+	it("waits the server's Retry-After, not its own backoff, then sends", async () => {
+		const transport = fakeTransport(
+			{ status: 429, text: '', headers: { 'Retry-After': '9' } },
+			{ status: 201, text: '{"id":"sent-1"}' },
+		);
+		const tome = createTomeHttp(transport);
+		const waits: number[] = [];
+
+		const report = await runBulkSend({
+			items: [{ label: 'Goblin', path: 'Goblin.md', value: '{}' }],
+			sleep: (ms) => {
+				waits.push(ms);
+				return Promise.resolve();
+			},
+			send: (item) => tome.postJson({ ...target, path: 'api/creature' }, item.value),
+		});
+
+		expect(waits).toEqual([9_000]);
+		expect(transport.sent).toHaveLength(2);
+		expect(report.sent.map((outcome) => outcome.id)).toEqual(['sent-1']);
 	});
 });
