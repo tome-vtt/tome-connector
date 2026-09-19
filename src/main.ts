@@ -4,11 +4,8 @@ import {
 	TomeConnectorSettings,
 	TomeConnectorSettingTab,
 } from './tomeConnectorSettings';
-import { registerStatblockCodeBlockButton } from './syncNpcStatblockToTome';
-import { registerMapCodeBlockButton } from './syncMapToTome';
+import { registerBlockSendButtons } from './blockSendButton';
 import { registerCharacterContextMenu, registerCharacterSyncButton } from './syncPlayerCharacterToTome';
-import { registerPropCodeBlockButton } from './syncPropToTome';
-import { registerEncounterCodeBlockButton } from './syncEncounterToTome';
 import { registerFolderExportMenuItem } from './syncFolderToTome';
 import { registerSyncCommands } from './syncVaultCommands';
 import { registerImageContextMenu } from './sendImageToTome';
@@ -21,12 +18,9 @@ export default class TomeConnectorPlugin extends Plugin {
 
 		this.addSettingTab(new TomeConnectorSettingTab(this.app, this));
 
-		registerStatblockCodeBlockButton(this);
-		registerMapCodeBlockButton(this);
+		registerBlockSendButtons(this);
 		registerCharacterSyncButton(this);
 		registerCharacterContextMenu(this);
-		registerPropCodeBlockButton(this);
-		registerEncounterCodeBlockButton(this);
 		registerFolderExportMenuItem(this);
 		registerSyncCommands(this);
 		registerImageContextMenu(this);

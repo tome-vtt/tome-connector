@@ -17,7 +17,7 @@
  * A pure module with no `obsidian` import, deliberately: the plugin's own rule -
  * stated in the headers of `tomeBaseUrl.ts` and `tomeChapterPlan.ts` - is that
  * logic worth testing gets its own file, because `obsidian` cannot resolve under
- * vitest. All of this mapping previously lived inside `syncNpcStatblockToTome.ts`
+ * vitest. All of this mapping previously lived inside the statblock button's file
  * beside the DOM handling and so had no tests at all.
  *
  * The field vocabulary is Fantasy Statblocks', which is also what
