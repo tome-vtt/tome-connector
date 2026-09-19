@@ -13,27 +13,9 @@ const obsidianTransport: TomeTransport = async (request) => {
 export const tomeHttp = createTomeHttp(obsidianTransport);
 
 /**
- * Sends a JSON payload and reports what happened, without saying anything to the
- * user.
- *
- * {@link noticeResult} is the loud half, for the buttons. Kept apart for bulk sending: one
- * Notice per item is right when somebody pressed a button on one block, and
- * unusable when 709 creatures are going across.
- */
-export function postJsonToTome(
-	baseUrl: string,
-	path: string,
-	payload: string,
-	apiKey: string,
-	campaignId?: string,
-): Promise<SendResult> {
-	return tomeHttp.postJson({ baseUrl, path, apiKey, campaignId }, payload);
-}
-
-/**
  * Posts a prebuilt `multipart/form-data` body, quietly: the PDF reference upload
- * and the content-package import. Retry classification is shared with
- * {@link postJsonToTome}, so a 429 backs off the same way on both.
+ * and the content-package import. Retry classification is shared with a JSON
+ * post, so a 429 backs off the same way on both.
  */
 export function postMultipartToTome(
 	baseUrl: string,
