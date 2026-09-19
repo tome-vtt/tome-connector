@@ -1,7 +1,7 @@
 import { Notice, TFile } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { IMAGE_EXTENSION } from './adventure/adventureImages';
-import { joinUrl, sendJsonToTome } from './tomeApiClient';
+import { sendJsonToTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { TomeImageKind } from './tomeImageDownscale';
 import { readImageAsDataUri } from './tomeImageEmbedding';
@@ -56,7 +56,8 @@ async function sendImage(
 			),
 		};
 		await sendJsonToTome(
-			joinUrl(plugin.settings.baseUrl, route),
+			plugin.settings.baseUrl,
+			route,
 			JSON.stringify(payload),
 			getApiKey(plugin),
 			campaignId,

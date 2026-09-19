@@ -1,7 +1,7 @@
 import { MarkdownView, Notice, TFile, setIcon } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { resolveImagePaths } from './tomeImageEmbedding';
-import { joinUrl, sendJsonToTome } from './tomeApiClient';
+import { sendJsonToTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { stripMarkdown } from './tomeMarkdownSanitizer';
 import { parsePcSheet } from './tomePcSheetParser';
@@ -142,7 +142,8 @@ async function sendCharacter(plugin: TomeConnectorPlugin, file: TFile): Promise<
 
 	const request = requestFor(destination);
 	const id = await sendJsonToTome(
-		joinUrl(plugin.settings.baseUrl, request.route),
+		plugin.settings.baseUrl,
+		request.route,
 		await buildCharacterPayload(plugin, file),
 		getApiKey(plugin),
 		request.campaignId,

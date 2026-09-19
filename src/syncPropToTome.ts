@@ -2,7 +2,7 @@ import { Notice, TFile, parseYaml } from 'obsidian';
 import type { MarkdownPostProcessorContext } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { resolveImagePaths } from './tomeImageEmbedding';
-import { joinUrl, sendJsonToTome } from './tomeApiClient';
+import { sendJsonToTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { stripMarkdown } from './tomeMarkdownSanitizer';
 import { writeTomeIdToYamlBlock } from './writeTomeIdToYamlBlock';
@@ -169,14 +169,13 @@ async function handleSendClick(
 			plugin.settings.downscaleImages,
 		);
 		const id = await sendJsonToTome(
-			joinUrl(plugin.settings.baseUrl, TOME_ROUTES.addProp),
+			plugin.settings.baseUrl,
+			TOME_ROUTES.addProp,
 			JSON.stringify(resolved),
 			getApiKey(plugin),
 			campaignId,
 		);
-		if (id !== null) {
-			await writeTomeIdToYamlBlock(plugin, ctx, sectionEl, 'prop', id);
-		}
+		if (id !== null) await writeTomeIdToYamlBlock(plugin, ctx, sectionEl, 'prop', id);
 	} catch (error) {
 		console.error('Tome Connector: failed to send prop', error);
 		const message = error instanceof Error ? error.message : String(error);

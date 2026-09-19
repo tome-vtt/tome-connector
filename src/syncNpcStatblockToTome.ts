@@ -2,7 +2,7 @@ import { Notice, parseYaml } from 'obsidian';
 import type { MarkdownPostProcessorContext } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { resolveImagePaths } from './tomeImageEmbedding';
-import { joinUrl, sendJsonToTome } from './tomeApiClient';
+import { sendJsonToTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { stripMarkdown } from './tomeMarkdownSanitizer';
 // The mapping and the Fantasy Statblocks normalisers live in a pure module so
@@ -117,7 +117,8 @@ async function handleSendClick(
 		>;
 		const payload = mapToNpcPayload(resolved);
 		const id = await sendJsonToTome(
-			joinUrl(plugin.settings.baseUrl, TOME_ROUTES.addNonPlayerCharacter),
+			plugin.settings.baseUrl,
+			TOME_ROUTES.addNonPlayerCharacter,
 			JSON.stringify(payload),
 			getApiKey(plugin),
 			campaignId,
