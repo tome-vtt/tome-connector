@@ -21,16 +21,18 @@ export interface BlockKind {
 	/** The id write-back module's kind for it, which picks the key the id goes under. */
 	writeBack: TomeBlockKind;
 	/**
-	 * No other plugin draws this fence, so Tome renders a title-and-image preview
-	 * itself rather than decorating another plugin's render.
+	 * No other plugin draws this fence, so Tome draws it as a `title`-and-`image`
+	 * preview rather than decorating another plugin's render. The row's recognizer
+	 * must require a `title`.
 	 */
-	ownsFence?: true;
+	titleAndImagePreview?: true;
 }
 
 function isMapping(parsed: unknown): parsed is Record<string, unknown> {
 	return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
 }
 
+// No image, nothing to send: a Leaflet block that only sets up coordinates, or a zoommap block still being written.
 const namesAnImage = (parsed: unknown) => mapReferenceFrom(parsed) !== null;
 
 export const BLOCK_KINDS: readonly BlockKind[] = [
@@ -50,7 +52,7 @@ export const BLOCK_KINDS: readonly BlockKind[] = [
 		recognizes: (parsed) => isMapping(parsed) && typeof parsed.title === 'string' && parsed.title.trim() !== '',
 		sends: 'prop',
 		writeBack: 'prop',
-		ownsFence: true,
+		titleAndImagePreview: true,
 	},
 ];
 

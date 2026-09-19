@@ -39,7 +39,7 @@ interface RenderedBlock {
 export function registerBlockSendButtons(plugin: TomeConnectorPlugin): void {
 	registerDecoratedBlocks(plugin);
 	for (const kind of BLOCK_KINDS) {
-		if (kind.ownsFence) registerOwnedBlock(plugin, kind);
+		if (kind.titleAndImagePreview) registerOwnedBlock(plugin, kind);
 	}
 }
 
@@ -54,7 +54,7 @@ function parse(source: string): unknown {
 
 /** Blocks another plugin draws: wrap its `<pre>` and put the button under it. */
 function registerDecoratedBlocks(plugin: TomeConnectorPlugin): void {
-	const languages = BLOCK_KINDS.filter((kind) => !kind.ownsFence).map((kind) => kind.language);
+	const languages = BLOCK_KINDS.filter((kind) => !kind.titleAndImagePreview).map((kind) => kind.language);
 	const selector = languages.map((language) => `code.language-${language}`).join(', ');
 
 	plugin.registerMarkdownPostProcessor((el, ctx) => {

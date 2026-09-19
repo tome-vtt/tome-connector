@@ -37,7 +37,7 @@ describe('recognizeBlock', () => {
 		expect(recognizeBlock('prop', { title: 'Simple Chest' })).toMatchObject({
 			sends: 'prop',
 			writeBack: 'prop',
-			ownsFence: true,
+			titleAndImagePreview: true,
 		});
 	});
 
