@@ -27,6 +27,7 @@
 
 import { stripMarkdownFromString } from '../tomeMarkdownSanitizer';
 import { isPf2eCreature, mapToPf2eCreature, type Pf2eCreature } from './pf2eCreature';
+import { existingTomeId } from '../tomeIdWriteBack';
 
 /** The server's `NamedAbility`, in the casing its record pins. */
 export interface NamedAbility {
@@ -77,9 +78,6 @@ export interface NpcPayload {
 	dnd5e?: Dnd5eCreature;
 	pf2e?: Pf2eCreature;
 }
-
-const UUID_PATTERN =
-	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /* -------------------------------------------------------------------------
  * Coercion. Fantasy Statblocks is permissive about types; the server is not.
@@ -302,16 +300,6 @@ function legendaryActions(record: Record<string, unknown>): NamedAbility[] {
 
 
 /**
- * The GUID a note carries from an earlier send, so a re-send updates rather than
- * duplicating. Guarded because the source `id` is often the plugin's own, which is
- * not a GUID and would fail model binding.
- */
-function guidOf(record: Record<string, unknown>): string | undefined {
-	const id = record.id;
-	return typeof id === 'string' && UUID_PATTERN.test(id) ? id : undefined;
-}
-
-/**
  * A 5e stat block as the `dnd5e` bag, dropping the fields the server does not
  * model (`layout`, `fage_stats`, `bestiary`, `modifier`, `source`).
  */
@@ -369,7 +357,8 @@ export function mapToNpcPayload(record: Record<string, unknown>): NpcPayload {
 		payload = { image, name: optionalString(record.name) ?? '', dnd5e: mapToDnd5eCreature(record) };
 	}
 
-	const id = guidOf(record);
+	// The source `id` is often Fantasy Statblocks' own, which is not a GUID.
+	const id = existingTomeId(record);
 	if (id !== undefined) payload.id = id;
 
 	return payload;

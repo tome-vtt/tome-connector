@@ -23,6 +23,8 @@
  * Pure and `obsidian`-free; resolving a vault path to bytes is the caller's job.
  */
 
+import { existingTomeId } from '../tomeIdWriteBack';
+
 export interface MapReference {
 	/** Vault-relative path or wikilink target, as written. The caller resolves it. */
 	image: string;
@@ -102,17 +104,11 @@ export function mapReferenceFrom(parsed: unknown): MapReference | null {
 
 	const reference: MapReference = { image, title: titleFromImagePath(image) };
 
-	// Leaflet's `id` is the user's own string ("my-map"), not a GUID, so it is
-	// carried only when it could be one of ours - the server would reject the
-	// rest on model binding, and sending it would turn a working import into a
-	// 400 for everybody using Leaflet normally.
-	const id = record.id;
-	if (
-		typeof id === 'string' &&
-		/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
-	) {
-		reference.id = id;
-	}
+	// Leaflet's `id` is the user's own string ("my-map"), not a GUID, so only an
+	// id Tome issued is carried - the server would reject the rest on model
+	// binding. Tome's id sits under `tome_id` on a Leaflet block.
+	const id = existingTomeId(record);
+	if (id !== undefined) reference.id = id;
 
 	return reference;
 }
