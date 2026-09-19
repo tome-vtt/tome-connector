@@ -166,7 +166,7 @@ async function entitiesPass(
 				campaignId,
 			);
 			if (result.ok && result.id) item.value.resolvedId = result.id;
-			return { ok: result.ok, id: result.id, message: result.message, retryable: result.retryable };
+			return result;
 		},
 	});
 }
@@ -215,7 +215,7 @@ async function imagesPass(
 				campaignId,
 			);
 			if (result.ok && result.id) item.value.resolvedId = result.id;
-			return { ok: result.ok, id: result.id, message: result.message, retryable: result.retryable };
+			return result;
 		},
 	});
 }

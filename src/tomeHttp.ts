@@ -34,6 +34,8 @@ export interface TomeRequest {
 export interface TomeResponse {
 	status: number;
 	text: string;
+	/** Response headers, in whatever case the adapter gives them. */
+	headers?: Record<string, string>;
 }
 
 /** Sends one request. Resolves with any status the server answered; rejects only when nothing came back. */
@@ -58,6 +60,8 @@ export interface SendResult {
 	message: string | null;
 	/** Whether trying the same request again could plausibly succeed. */
 	retryable: boolean;
+	/** Seconds the server asked us to wait before trying again, from its `Retry-After`. */
+	retryAfterSeconds?: number;
 }
 
 export function createTomeHttp(transport: TomeTransport) {
@@ -117,7 +121,30 @@ async function post(
 	}
 
 	console.error(`Tome Connector: server responded with status ${status}`, text);
-	return { ok: false, status, id: null, message: extractErrorMessage(text), retryable: isRetryable(status) };
+	const result: SendResult = {
+		ok: false,
+		status,
+		id: null,
+		message: extractErrorMessage(text),
+		retryable: isRetryable(status),
+	};
+	const retryAfterSeconds = parseRetryAfter(response.headers);
+	if (retryAfterSeconds !== undefined) result.retryAfterSeconds = retryAfterSeconds;
+	return result;
+}
+
+/**
+ * The server's `Retry-After` as seconds from now: either delay-seconds or an
+ * HTTP-date, per RFC 9110. Undefined when absent or unreadable, so the bulk
+ * sender falls back to its own backoff.
+ */
+function parseRetryAfter(headers: Record<string, string> | undefined): number | undefined {
+	const name = Object.keys(headers ?? {}).find((key) => key.toLowerCase() === 'retry-after');
+	const value = name === undefined ? '' : (headers?.[name] ?? '').trim();
+	if (/^\d+$/.test(value)) return Number(value);
+	const date = Date.parse(value);
+	if (Number.isNaN(date)) return undefined;
+	return Math.max(0, Math.ceil((date - Date.now()) / 1_000));
 }
 
 /**

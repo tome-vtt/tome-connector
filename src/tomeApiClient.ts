@@ -6,7 +6,7 @@ export { API_KEY_HEADER_NAME, CAMPAIGN_HEADER_NAME, joinUrl, type SendResult } f
 /** The production adapter at the transport seam. `throw: false` so a 4xx comes back as a status. */
 const obsidianTransport: TomeTransport = async (request) => {
 	const response = await requestUrl({ ...request, throw: false });
-	return { status: response.status, text: response.text };
+	return { status: response.status, text: response.text, headers: response.headers };
 };
 
 const tome = createTomeHttp(obsidianTransport);
