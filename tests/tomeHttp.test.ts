@@ -115,7 +115,7 @@ describe('postJson', () => {
 	});
 
 	it('leaves retryAfterSeconds off when the header is missing or unreadable', async () => {
-		for (const headers of [undefined, { 'retry-after': 'soon' }]) {
+		for (const headers of [undefined, { 'retry-after': 'soon' }, { 'retry-after': '1.5' }, { 'retry-after': '-5' }]) {
 			const result = await createTomeHttp(fakeTransport({ status: 429, text: '', headers })).postJson(
 				{ ...target, path: 'api/map' },
 				'{}',

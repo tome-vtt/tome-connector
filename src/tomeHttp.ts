@@ -121,16 +121,15 @@ async function post(
 	}
 
 	console.error(`Tome Connector: server responded with status ${status}`, text);
-	const result: SendResult = {
+	const retryAfterSeconds = parseRetryAfter(response.headers);
+	return {
 		ok: false,
 		status,
 		id: null,
 		message: extractErrorMessage(text),
 		retryable: isRetryable(status),
+		...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
 	};
-	const retryAfterSeconds = parseRetryAfter(response.headers);
-	if (retryAfterSeconds !== undefined) result.retryAfterSeconds = retryAfterSeconds;
-	return result;
 }
 
 /**
@@ -139,9 +138,11 @@ async function post(
  * sender falls back to its own backoff.
  */
 function parseRetryAfter(headers: Record<string, string> | undefined): number | undefined {
-	const name = Object.keys(headers ?? {}).find((key) => key.toLowerCase() === 'retry-after');
-	const value = name === undefined ? '' : (headers?.[name] ?? '').trim();
+	const value = Object.entries(headers ?? {}).find(([key]) => key.toLowerCase() === 'retry-after')?.[1].trim() ?? '';
 	if (/^\d+$/.test(value)) return Number(value);
+	// Every HTTP-date form ends in GMT; checking for it keeps Date.parse's
+	// leniency from reading "1.5" as a date in 2001.
+	if (!/ GMT$/.test(value)) return undefined;
 	const date = Date.parse(value);
 	if (Number.isNaN(date)) return undefined;
 	return Math.max(0, Math.ceil((date - Date.now()) / 1_000));
