@@ -1,22 +1,24 @@
 import type { App } from 'obsidian';
 
-import { resolveCreatureData } from './fantasyStatblocksBestiary';
 import { mapToEncounterPayload } from './recognizers/encounter';
 import { mapReferenceFrom } from './recognizers/map';
 import type { Sendable } from './recognizers/noteScan';
 import { libraryItemBody, type LibraryItemKind } from './libraryItemBody';
-import { mapToNpcPayload } from './recognizers/statblockCreature';
+import { obsidianSendPorts } from './obsidianSendPorts';
 import { TOME_ROUTES } from './routes';
-import { readImageAsDataUri, resolveImagePaths } from './tomeImageEmbedding';
-import { stripMarkdown } from './tomeMarkdownSanitizer';
+import { sendToTome, type Destination } from './sendModule';
+import { tomeHttp } from './tomeApiClient';
+import type { SendResult } from './tomeHttp';
+import { readImageAsDataUri } from './tomeImageEmbedding';
 
 /**
- * Turns a scanned {@link Sendable} into a request.
+ * Sends a scanned {@link Sendable}. Creatures go through the send module
+ * (`sendModule.ts`); the other kinds are still built here, until they move
+ * there too.
  *
- * The impure half of the scan. Everything here needs the vault or the Fantasy
- * Statblocks bestiary — reading a token off disk, resolving a `monster:`
- * reference — which is exactly why the scan itself stops at intent and the
- * preview can count 709 creatures without touching a single image.
+ * The impure half of the scan. Building these bodies needs the vault - reading
+ * an image off disk - which is exactly why the scan itself stops at intent and
+ * the preview can count 709 notes without touching a single image.
  *
  * **Throwing is how an item is reported as unresolvable.** `runBulkSend` treats a
  * thrown error as permanent for that item and does not retry it: a missing image
@@ -24,24 +26,36 @@ import { stripMarkdown } from './tomeMarkdownSanitizer';
  * will not be installed a second later.
  */
 
-export interface PreparedRequest {
+/** A sendable this file still builds itself. */
+type BuiltHere = Sendable & { kind: Exclude<Sendable['kind'], 'creature'> };
+
+interface PreparedRequest {
 	/** Route appended to the configured base URL. */
 	path: string;
 	/** Serialised body. */
 	body: string;
 }
 
-export async function buildRequest(
+/** Sends one scanned sendable, quietly, and reports what the server said. */
+export async function sendSendable(
 	app: App,
 	sendable: Sendable,
+	destination: Destination,
+	downscale: boolean,
+): Promise<SendResult> {
+	if (sendable.kind === 'creature') {
+		return sendToTome(obsidianSendPorts(app, downscale), { ...sendable, kind: 'creature' }, destination);
+	}
+	const request = await buildRequest(app, { ...sendable, kind: sendable.kind }, downscale);
+	return tomeHttp.postJson({ ...destination, path: request.path }, request.body);
+}
+
+async function buildRequest(
+	app: App,
+	sendable: BuiltHere,
 	downscale: boolean,
 ): Promise<PreparedRequest> {
 	switch (sendable.kind) {
-		case 'creature':
-			return {
-				path: TOME_ROUTES.addNonPlayerCharacter,
-				body: await creatureBody(app, sendable, downscale),
-			};
 		case 'encounter':
 			return { path: TOME_ROUTES.addEncounter, body: encounterBody(sendable) };
 		case 'map':
@@ -100,27 +114,6 @@ async function itemBody(
 	}
 
 	return JSON.stringify(libraryItemBody(kind, fields, image));
-}
-
-/**
- * Same three steps the per-block button takes, in the same order: resolve
- * against the bestiary, flatten the markdown links the CLI embeds in every
- * value, then swap image paths for bytes.
- */
-async function creatureBody(
-	app: App,
-	sendable: Sendable,
-	downscale: boolean,
-): Promise<string> {
-	const resolved = resolveCreatureData(sendable.source);
-	const cleaned = stripMarkdown(resolved);
-	const withImages = (await resolveImagePaths(
-		app,
-		cleaned,
-		'token',
-		downscale,
-	)) as Record<string, unknown>;
-	return JSON.stringify(mapToNpcPayload(withImages));
 }
 
 function encounterBody(sendable: Sendable): string {

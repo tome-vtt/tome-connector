@@ -9,7 +9,7 @@ import { hasInlineStats, mergeCreature } from './recognizers/statblockCreature';
  * `recognizers/statblockCreature.ts` and are tested there.
  */
 
-interface StatblockBestiaryApi {
+export interface StatblockBestiaryApi {
 	getCreatureFromBestiary(name: string): Record<string, unknown> | null;
 }
 
@@ -49,8 +49,14 @@ export function getStatblockBestiaryApi(): StatblockBestiaryApi | null {
  *    send, and inventing an empty creature would be worse than refusing.
  *
  * This used to throw whenever the plugin was absent, including in case 1.
+ *
+ * `bestiary` is passed in - {@link getStatblockBestiaryApi} in the plugin, a
+ * plain object in the tests - so this never reaches for `window` itself.
  */
-export function resolveCreatureData(parsed: unknown): Record<string, unknown> {
+export function resolveCreatureData(
+	parsed: unknown,
+	bestiary: StatblockBestiaryApi | null,
+): Record<string, unknown> {
 	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
 		throw new Error('Statblock is not a valid object.');
 	}
@@ -69,7 +75,6 @@ export function resolveCreatureData(parsed: unknown): Record<string, unknown> {
 		);
 	}
 
-	const bestiary = getStatblockBestiaryApi();
 	if (!bestiary) {
 		if (selfSufficient) return mergeCreature(null, root);
 		throw new Error(

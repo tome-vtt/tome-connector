@@ -81,7 +81,8 @@ a PDF reference*, and is not affected either way.
 
 The plugin adds send controls for:
 
-- Fantasy Statblocks `statblock` YAML blocks
+- Fantasy Statblocks `statblock` YAML blocks. A statblock's `image` may be a vault path or a
+  wikilink (`image: [[Goblin.png]]`), resolved from the note the block is in
 - Encounter `encounter` YAML blocks
 - Map View `zoommap` YAML blocks
 - Prop `prop` YAML blocks
