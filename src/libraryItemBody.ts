@@ -26,9 +26,6 @@ import type { EquipmentItem } from './recognizers/compendium/equipmentItem';
 import type { MagicItem } from './recognizers/compendium/magicItem';
 import type { Spell } from './recognizers/compendium/spell';
 
-/** The `Sendable` kinds that are library rows parsed out of a compendium note. */
-export type LibraryItemKind = 'magicItem' | 'equipmentItem' | 'spell';
-
 /** What `noteScan` carries for a spell: the parse, its key renamed to the column it lands in, and its art. */
 export type SpellNote = Omit<Spell, 'key'> & { sourceKey: string; imagePath: string | null };
 
@@ -104,7 +101,6 @@ export interface SpellBody {
 	dnd5e: Dnd5eSpell;
 }
 
-export type LibraryItemBody = MagicItemBody | EquipmentItemBody | SpellBody;
 
 /** Adds the picture only when there is one; a missing image is an absent key, never `null`. */
 function withImage<T extends object>(body: T, image: string | undefined): T & { image?: string } {
@@ -175,24 +171,4 @@ export function spellBody(spell: SpellNote, image?: string): SpellBody {
 		},
 		image,
 	);
-}
-
-/**
- * The body for whichever of the three a sendable is. `item` is the parse `noteScan` put on
- * the sendable, trusted to be that kind's shape because the scan chose the kind from it.
- * Its `imagePath` is never copied: the caller reads the file and passes the bytes as `image`.
- */
-export function libraryItemBody(
-	kind: LibraryItemKind,
-	item: Record<string, unknown>,
-	image?: string,
-): LibraryItemBody {
-	switch (kind) {
-		case 'magicItem':
-			return magicItemBody(item as unknown as MagicItem, image);
-		case 'equipmentItem':
-			return equipmentItemBody(item as unknown as EquipmentItem, image);
-		case 'spell':
-			return spellBody(item as unknown as SpellNote, image);
-	}
 }

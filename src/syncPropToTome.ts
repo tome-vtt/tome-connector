@@ -120,7 +120,7 @@ async function handleSendClick(
 		if (campaignId === null) return;
 
 		const source = parseYaml(rawYaml) as Record<string, unknown>;
-		const id = await sendWithNotice(plugin, { kind: 'prop', path: ctx.sourcePath, source }, campaignId);
+		const id = await sendWithNotice(plugin, { kind: 'prop', path: ctx.sourcePath, block: source }, campaignId);
 		if (id !== null) await writeTomeIdToYamlBlock(plugin, ctx, sectionEl, 'prop', id);
 	} catch (error) {
 		console.error('Tome Connector: failed to send prop', error);

@@ -77,6 +77,10 @@ describe('mapReferenceFrom', () => {
 	 * binding server-side and turn a working import into a 400 for everyone using
 	 * Leaflet the normal way.
 	 */
+	it('reads an unquoted wikilink, which YAML reads as a nested list', () => {
+		expect(mapReferenceFrom({ image: [['Old Keep.jpg']] })).toEqual({ image: 'Old Keep.jpg', title: 'Old Keep' });
+	});
+
 	it('drops a non-GUID id', () => {
 		expect(mapReferenceFrom({ id: 'my-map', image: 'Map.jpg' })).not.toHaveProperty('id');
 	});

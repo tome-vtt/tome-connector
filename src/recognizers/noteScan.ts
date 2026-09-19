@@ -13,16 +13,27 @@
  */
 
 import { extractFencedBlocks } from './markdownBlocks';
+import type { SpellNote } from '../libraryItemBody';
 import { cliNoteType } from './compendium/cliNote';
-import { parseEquipmentItem } from './compendium/equipmentItem';
-import { isMagic, parseMagicItem, readImagePath } from './compendium/magicItem';
+import { parseEquipmentItem, type EquipmentItem } from './compendium/equipmentItem';
+import { isMagic, parseMagicItem, readImagePath, type MagicItem } from './compendium/magicItem';
 import { parseSpell } from './compendium/spell';
-import { mapToEncounterPayload } from './encounter';
-import { mapReferenceFrom } from './map';
+import { mapToEncounterPayload, type EncounterPayload } from './encounter';
+import { mapReferenceFrom, type MapReference } from './map';
 import { hasInlineStats } from './statblockCreature';
 import { noteName, type Note } from './note';
 
-export type SendableKind = 'creature' | 'encounter' | 'map' | 'magicItem' | 'equipmentItem' | 'spell';
+/**
+ * What was recognised, by kind, each carrying its own typed parse. A creature stays
+ * the raw block because it still needs the bestiary; everything else is parsed here.
+ */
+export type SendableParse =
+	| { kind: 'creature'; block: Record<string, unknown> }
+	| { kind: 'encounter'; encounter: EncounterPayload }
+	| { kind: 'map'; map: MapReference }
+	| { kind: 'magicItem'; item: MagicItem }
+	| { kind: 'equipmentItem'; item: EquipmentItem }
+	| { kind: 'spell'; spell: SpellNote };
 
 /**
  * One thing in one note that could be sent.
@@ -32,20 +43,14 @@ export type SendableKind = 'creature' | 'encounter' | 'map' | 'magicItem' | 'equ
  * The scan produces intent, and the sender resolves it — which is also what lets
  * the preview count things without reading a single image.
  */
-export interface Sendable {
-	kind: SendableKind;
+export type Sendable = SendableParse & {
 	/** Vault-relative path of the note it came from. */
 	path: string;
 	/** What the preview lists it as. */
 	label: string;
-	/** The parsed block or frontmatter, for the sender to finish. */
-	source: Record<string, unknown>;
-	/**
-	 * Line of the opening fence, so an id can be written back. Absent when the
-	 * creature came from frontmatter rather than a fence.
-	 */
-	startLine?: number;
-}
+};
+
+export type SendableKind = Sendable['kind'];
 
 /** Injected so this module never imports `obsidian`. Returns null on bad YAML. */
 export type YamlParser = (source: string) => unknown;
@@ -105,7 +110,7 @@ export function findSendables(note: Note, parseYaml: YamlParser): Sendable[] {
 		if (!record) continue;
 
 		const sendable = sendableFromBlock(block.language, record, note);
-		if (sendable) found.push({ ...sendable, startLine: block.startLine });
+		if (sendable) found.push(sendable);
 	}
 
 	const fromFrontmatter = creatureFromFrontmatter(note, sawStatblockFence);
@@ -132,13 +137,7 @@ function spellFrom(note: Note): Sendable | null {
 		kind: 'spell',
 		path: note.path,
 		label: spell.name,
-		source: {
-			item: {
-				...spell,
-				sourceKey,
-				imagePath: readImagePath(note.content),
-			},
-		},
+		spell: { ...spell, sourceKey, imagePath: readImagePath(note.content) },
 	};
 }
 
@@ -157,7 +156,7 @@ function magicItemFrom(note: Note): Sendable | null {
 	const item = parseMagicItem(note.content, note.frontmatter, key, key);
 
 	return item
-		? { kind: 'magicItem', path: note.path, label: item.name, source: { item } }
+		? { kind: 'magicItem', path: note.path, label: item.name, item }
 		: null;
 }
 
@@ -171,7 +170,7 @@ function equipmentItemFrom(note: Note): Sendable | null {
 
 	const key = noteName(note.path);
 	const item = parseEquipmentItem(note.content, key, key);
-	return { kind: 'equipmentItem', path: note.path, label: item.name, source: { item } };
+	return { kind: 'equipmentItem', path: note.path, label: item.name, item };
 }
 
 /** One recognised block, or null when this language or shape is not sendable. */
@@ -190,21 +189,17 @@ function sendableFromBlock(
 				kind: 'creature',
 				path: note.path,
 				label: creatureLabel(record, noteName(note.path)),
-				source: record,
+				block: record,
 			};
 		}
 		case 'encounter': {
-			const payload = mapToEncounterPayload(record);
-			return payload
-				? { kind: 'encounter', path: note.path, label: payload.name, source: record }
-				: null;
+			const encounter = mapToEncounterPayload(record);
+			return encounter ? { kind: 'encounter', path: note.path, label: encounter.name, encounter } : null;
 		}
 		case 'leaflet':
 		case 'zoommap': {
-			const reference = mapReferenceFrom(record);
-			return reference
-				? { kind: 'map', path: note.path, label: reference.title, source: record }
-				: null;
+			const map = mapReferenceFrom(record);
+			return map ? { kind: 'map', path: note.path, label: map.title, map } : null;
 		}
 		default:
 			return null;
@@ -230,7 +225,7 @@ function creatureFromFrontmatter(note: Note, sawStatblockFence: boolean): Sendab
 		kind: 'creature',
 		path: note.path,
 		label: creatureLabel(record, noteName(note.path)),
-		source: record,
+		block: record,
 	};
 }
 

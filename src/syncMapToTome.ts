@@ -83,8 +83,9 @@ async function handleSendClick(
 		const campaignId = await chooseCampaign(plugin);
 		if (campaignId === null) return;
 
-		const source = parseYaml(rawYaml) as Record<string, unknown>;
-		const id = await sendWithNotice(plugin, { kind: 'map', path: ctx.sourcePath, source }, campaignId);
+		const map = mapReferenceFrom(parseYaml(rawYaml));
+		if (!map) throw new Error('This map no longer names an image.');
+		const id = await sendWithNotice(plugin, { kind: 'map', path: ctx.sourcePath, map }, campaignId);
 		if (id !== null) {
 			await writeTomeIdToYamlBlock(plugin, ctx, sectionEl, kind, id);
 		}

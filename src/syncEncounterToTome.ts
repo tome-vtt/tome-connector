@@ -84,8 +84,9 @@ async function handleSendClick(
 
 		// Re-parsed rather than captured at registration, so an edit since the
 		// block was rendered is picked up rather than silently sending stale YAML.
-		const source = parseYaml(rawYaml) as Record<string, unknown>;
-		const id = await sendWithNotice(plugin, { kind: 'encounter', path: ctx.sourcePath, source }, campaignId);
+		const encounter = mapToEncounterPayload(parseYaml(rawYaml));
+		if (!encounter) throw new Error('This encounter no longer has a name.');
+		const id = await sendWithNotice(plugin, { kind: 'encounter', path: ctx.sourcePath, encounter }, campaignId);
 
 		if (id !== null) {
 			await writeTomeIdToYamlBlock(plugin, ctx, sectionEl, 'encounter', id);

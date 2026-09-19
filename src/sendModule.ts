@@ -13,12 +13,11 @@
  */
 
 import { resolveCreatureData, type StatblockBestiaryApi } from './fantasyStatblocksBestiary';
-import { libraryItemBody, type LibraryItemKind } from './libraryItemBody';
-import { mapToEncounterPayload, type EncounterPayload } from './recognizers/encounter';
-import { mapReferenceFrom, unwrapWikilink } from './recognizers/map';
-import type { Sendable, SendableKind } from './recognizers/noteScan';
+import { equipmentItemBody, magicItemBody, spellBody } from './libraryItemBody';
+import { unwrapWikilink, type MapReference } from './recognizers/map';
+import type { SendableKind, SendableParse } from './recognizers/noteScan';
 import { mapToNpcPayload, type NpcPayload } from './recognizers/statblockCreature';
-import { TOME_ROUTES } from './routes';
+import { TOME_ROUTES, type TomeRoute } from './routes';
 import { embedImages, type TomeImageKind } from './tomeImageDownscale';
 import type { SendResult, TomeTarget } from './tomeHttp';
 import { existingTomeId } from './tomeIdWriteBack';
@@ -46,10 +45,12 @@ export type Destination = Omit<TomeTarget, 'path'>;
  * resolves from - and for a bare image it is the image itself.
  */
 export type ModuleSendable =
-	| (Pick<Sendable, 'path' | 'source'> & { kind: SendableKind | 'prop' })
+	| (SendableParse & { path: string })
+	| { kind: 'prop'; path: string; block: Record<string, unknown> }
 	| { kind: 'image'; path: string; to: 'map' | 'prop' };
 
-const ROUTES = {
+/** Which route each kind posts to; pinned by `tests/sendModule.test.ts`. */
+const ROUTES: Record<SendableKind | 'prop', TomeRoute> = {
 	creature: TOME_ROUTES.addNonPlayerCharacter,
 	encounter: TOME_ROUTES.addEncounter,
 	map: TOME_ROUTES.addMap,
@@ -57,13 +58,13 @@ const ROUTES = {
 	magicItem: TOME_ROUTES.addMagicItem,
 	equipmentItem: TOME_ROUTES.addEquipmentItem,
 	spell: TOME_ROUTES.addSpell,
-} as const;
+};
 
 /**
  * Sends one sendable and reports what the server said.
  *
  * **Throwing means it never became a request** - a monster reference with no
- * bestiary, a map that no longer names an image. `runBulkSend` counts that as
+ * bestiary, an image that is not in the vault. `runBulkSend` counts that as
  * unresolvable rather than retrying it; a refusal from the server comes back as
  * a result instead.
  *
@@ -92,20 +93,21 @@ async function bodyFor(ports: SendPorts, sendable: ModuleSendable): Promise<unkn
 		return { title, image: await readImage(ports, path, path, kind) };
 	}
 
-	const { source } = sendable;
 	switch (sendable.kind) {
 		case 'creature':
-			return creatureBody(ports, source, path);
+			return creatureBody(ports, sendable.block, path);
 		case 'encounter':
-			return encounterBody(source);
+			return sendable.encounter;
 		case 'map':
-			return mapBody(ports, source, path);
+			return mapBody(ports, sendable.map, path);
 		case 'prop':
-			return propBody(ports, source, path);
+			return propBody(ports, sendable.block, path);
 		case 'magicItem':
+			return magicItemBody(sendable.item, await itemImage(ports, sendable.item, path));
 		case 'equipmentItem':
+			return equipmentItemBody(sendable.item, await itemImage(ports, sendable.item, path));
 		case 'spell':
-			return itemBody(ports, sendable.kind, source, path);
+			return spellBody(sendable.spell, await itemImage(ports, sendable.spell, path));
 	}
 }
 
@@ -148,26 +150,16 @@ async function creatureBody(
 	return mapToNpcPayload(withImages as Record<string, unknown>);
 }
 
-function encounterBody(source: Record<string, unknown>): EncounterPayload {
-	const payload = mapToEncounterPayload(source);
-	// It was sendable when it was found, so this means the note changed underneath -
-	// worth saying plainly rather than sending an empty encounter.
-	if (!payload) throw new Error('This encounter no longer has a name.');
-	return payload;
-}
-
 /**
  * Only the image, a title and an id Tome issued. Everything else in a map block is
  * the map plugin's own display configuration - zoom bounds, layers, markers - which
- * Tome neither models nor should be storing.
+ * `mapReferenceFrom` already left behind and Tome neither models nor should be storing.
  */
 async function mapBody(
 	ports: SendPorts,
-	source: Record<string, unknown>,
+	reference: MapReference,
 	sourcePath: string,
 ): Promise<Record<string, string>> {
-	const reference = mapReferenceFrom(source);
-	if (!reference) throw new Error('This map no longer names an image.');
 	const body: Record<string, string> = {
 		title: reference.title,
 		image: await readImage(ports, reference.image, sourcePath, 'map'),
@@ -187,22 +179,11 @@ function propBody(ports: SendPorts, source: Record<string, unknown>, sourcePath:
 	return embedFrom(ports, stripMarkdown(payload), sourcePath);
 }
 
-/** The item as `noteScan` parsed it, with its art. Its local path is never sent. */
-async function itemBody(
+/** A library item's art as bytes, or undefined when it has none. Its local path is never sent. */
+async function itemImage(
 	ports: SendPorts,
-	kind: LibraryItemKind,
-	source: Record<string, unknown>,
+	{ imagePath }: { imagePath: string | null },
 	sourcePath: string,
-): Promise<unknown> {
-	const item = source['item'];
-	if (item === undefined || item === null || typeof item !== 'object') {
-		throw new Error(`No library entry was parsed from ${sourcePath}.`);
-	}
-	const fields = item as Record<string, unknown>;
-	const imagePath = fields['imagePath'];
-	const image =
-		typeof imagePath === 'string' && imagePath !== ''
-			? await readImage(ports, imagePath, sourcePath, 'token')
-			: undefined;
-	return libraryItemBody(kind, fields, image);
+): Promise<string | undefined> {
+	return imagePath ? readImage(ports, imagePath, sourcePath, 'token') : undefined;
 }
