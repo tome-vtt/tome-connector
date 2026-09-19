@@ -10,7 +10,7 @@
  *
  * Every kind a block button, the bulk sync or the image menu sends goes through
  * {@link sendToTome}; a player character through {@link sendCharacterToTome}, whose
- * destination decides its route and campaign. The adventure import's images do not yet.
+ * destination decides its route and campaign.
  */
 
 import { requestFor, type CharacterDestination } from './characterDestination';
@@ -48,13 +48,14 @@ export type Destination = Omit<TomeTarget, 'path'>;
 /**
  * What the module sends: a scanned sendable, a `prop` block, or a bare image file
  * sent as a map or a prop. `path` is the note the thing is in - what an image link
- * resolves from - and for a bare image it is the image itself.
+ * resolves from - and for a bare image it is the image itself, titled `title` when
+ * given (an adventure's caption) and after its file name otherwise.
  */
 export type ModuleSendable =
 	| (SendableParse & { path: string })
 	// Not in `SendableParse`: the scan never finds a prop, only its block button sends one.
 	| { kind: 'prop'; path: string; block: Record<string, unknown> }
-	| { kind: 'image'; path: string; to: 'map' | 'prop' };
+	| { kind: 'image'; path: string; to: 'map' | 'prop'; title?: string };
 
 /** Which route each kind posts to; pinned by `tests/sendModule.test.ts`. */
 const ROUTES: Record<SendableKind | 'prop', TomeRoute> = {
@@ -95,7 +96,7 @@ async function bodyFor(ports: SendPorts, sendable: ModuleSendable): Promise<unkn
 	if (sendable.kind === 'image') {
 		// The file name is the only thing on a bare image that reads like a title. Kept
 		// as written (Obsidian's `basename`), not title-cased the way a map block's is.
-		const title = (path.split('/').pop() ?? path).replace(/\.[^.]+$/, '');
+		const title = sendable.title ?? (path.split('/').pop() ?? path).replace(/\.[^.]+$/, '');
 		const kind = sendable.to === 'map' ? 'map' : 'token';
 		return { title, image: await readImage(ports, path, path, kind) };
 	}
