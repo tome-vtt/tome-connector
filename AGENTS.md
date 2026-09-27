@@ -281,3 +281,11 @@ The five default triage labels, as Linear issue labels. See `docs/agents/triage-
 ### Domain docs
 
 Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## User Additions
+- **Answer simply; expand only when asked.** Write every reply for a non-technical reader: the
+  outcome and anything Bart must do, in a few plain sentences, starting with 🟣 so it stands out.
+  Leave out file paths, reasoning, alternatives and step lists unless Bart asks for detail; then
+  give it in full.
+- **Ask every question through the harness's question interface** when it has one
+  (AskUserQuestion in Claude Code). Ask in plain text only when there is none.
