@@ -62,9 +62,9 @@ export const TOME_MAX_EDGE: Readonly<Record<TomeImageKind, number>> = {
  * stronger evidence than whatever the caller guessed; `image` means whatever
  * the caller is sending; anything else is not an image and keeps walking.
  *
- * Lives here rather than beside the walker because `tomeImageEmbedding` imports
- * `obsidian`, and a module that does cannot be imported from a test at all -
- * the connector runs Vitest on Node defaults with no mock for it.
+ * Lives here, with the walker, rather than in `tomeImageEmbedding` because that
+ * imports `obsidian`, and a module that does cannot be imported from a test at
+ * all - the connector runs Vitest on Node defaults with no mock for it.
  */
 export function imageKindForKey(
 	key: string,
@@ -73,6 +73,54 @@ export function imageKindForKey(
 	if (key === 'map') return 'map';
 	if (key === 'image') return callerKind;
 	return null;
+}
+
+/** Reads the image a payload names and returns it as a `data:` URI; throws when it cannot. */
+export type ImageReader = (reference: string, kind: TomeImageKind) => Promise<string>;
+
+/**
+ * Recursively walks a parsed JSON value and replaces every non-empty string under
+ * an image key (see {@link imageKindForKey}) with what `read` returns for it, so
+ * the receiving API never needs filesystem access.
+ *
+ * The input is not mutated; a new value is returned. If a referenced file can't
+ * be read the whole walk fails, so a local vault path is never sent.
+ */
+export async function embedImages(
+	value: unknown,
+	kind: TomeImageKind,
+	read: ImageReader,
+): Promise<unknown> {
+	let missingFile = false;
+
+	async function walk(node: unknown): Promise<unknown> {
+		if (Array.isArray(node)) return Promise.all(node.map(walk));
+		if (typeof node !== 'object' || node === null) return node;
+
+		const result: Record<string, unknown> = {};
+		await Promise.all(
+			Object.entries(node as Record<string, unknown>).map(async ([key, val]) => {
+				const keyKind = typeof val === 'string' && val.trim() !== '' ? imageKindForKey(key, kind) : null;
+				if (!keyKind) {
+					result[key] = await walk(val);
+					return;
+				}
+				try {
+					result[key] = await read(val as string, keyKind);
+				} catch {
+					missingFile = true;
+					result[key] = val;
+				}
+			}),
+		);
+		return result;
+	}
+
+	const resolved = await walk(value);
+	if (missingFile) {
+		throw new Error('One or more images could not be read. Nothing was sent to Tome.');
+	}
+	return resolved;
 }
 
 /** Quality asked of the WebP encoder. */

@@ -267,3 +267,25 @@ this.registerInterval(
 - Developer policies: https://docs.obsidian.md/Developer+policies
 - Plugin guidelines: https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines
 - Style guide: https://help.obsidian.md/style-guide
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in Linear, team **Tome Connector** (`TC`), project **TC**, via the `linear-agent` MCP tools. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default triage labels, as Linear issue labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## User Additions
+- **Answer simply; expand only when asked.** Write every reply for a non-technical reader: the
+  outcome and anything Bart must do, in a few plain sentences, starting with 🟣 so it stands out.
+  Leave out file paths, reasoning, alternatives and step lists unless Bart asks for detail; then
+  give it in full.
+- **Ask every question through the harness's question interface** when it has one
+  (AskUserQuestion in Claude Code). Ask in plain text only when there is none.

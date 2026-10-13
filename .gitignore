@@ -20,3 +20,8 @@ data.json
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
+
+# Claude agent runtime state (locks, gate caches, worktrees)
+.claude/locks/
+.claude/worktrees/
+.claude/settings.local.json

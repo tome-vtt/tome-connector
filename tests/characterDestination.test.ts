@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	destinationOptions,
-	frontmatterKeyFor,
+	encodeDestination,
 	initialDestinationValue,
 	parseDestination,
+	recallDestination,
+	requestFor,
 	VAULT_DESTINATION_LABEL,
 	VAULT_DESTINATION_VALUE,
 	type DestinationCampaign,
@@ -96,13 +98,64 @@ describe('initialDestinationValue', () => {
 	});
 });
 
-describe('frontmatterKeyFor', () => {
+/**
+ * Routes restated rather than read off `TOME_ROUTES`, the way `routes.test.ts` does. The two
+ * frontmatter properties are independent on purpose: a note sent to both destinations is two
+ * characters in Tome, and one id must not overwrite the other's record.
+ */
+describe('requestFor', () => {
 	/**
-	 * The two properties are independent on purpose: a note sent to both destinations is two
-	 * characters in Tome, and one id must not overwrite the other's record.
+	 * My Characters is account-scoped: no campaign id, so no `X-Campaign-Id` header. Sending the
+	 * remembered campaign anyway would 401 the whole request when the key owner no longer owns it.
 	 */
-	it('records each destination under its own property', () => {
-		expect(frontmatterKeyFor({ kind: 'vault' })).toBe('tome_vault_id');
-		expect(frontmatterKeyFor({ kind: 'campaign', campaignId: CAMPAIGNS[0]!.id })).toBe('tome_id');
+	it('sends My Characters to the vault import, unscoped, recorded under tome_vault_id', () => {
+		expect(requestFor({ kind: 'vault' })).toEqual({
+			route: '/api/vault/characters/import',
+			campaignId: undefined,
+			frontmatterKey: 'tome_vault_id',
+		});
 	});
+
+	it('sends a campaign to AddPlayerCharacter, scoped to that campaign, recorded under tome_id', () => {
+		expect(requestFor({ kind: 'campaign', campaignId: CAMPAIGNS[1]!.id })).toEqual({
+			route: '/api/playercharacters/addplayercharacter',
+			campaignId: CAMPAIGNS[1]!.id,
+			frontmatterKey: 'tome_id',
+		});
+	});
+});
+
+describe('remembered destination', () => {
+	it('stores My Characters as the sentinel and a campaign as "campaign"', () => {
+		expect(encodeDestination({ kind: 'vault' })).toBe('vault');
+		expect(encodeDestination({ kind: 'campaign', campaignId: CAMPAIGNS[0]!.id })).toBe('campaign');
+	});
+
+	it('round-trips My Characters, whatever campaign is remembered beside it', () => {
+		const stored = encodeDestination({ kind: 'vault' });
+
+		expect(recallDestination({ destination: stored, campaignId: CAMPAIGNS[0]!.id })).toEqual({ kind: 'vault' });
+	});
+
+	/** The campaign's id lives in the shared `campaignId` setting, not in the stored value. */
+	it('round-trips a campaign through the shared campaignId setting', () => {
+		const campaign = { kind: 'campaign', campaignId: CAMPAIGNS[1]!.id } as const;
+		const stored = encodeDestination(campaign);
+
+		expect(recallDestination({ destination: stored, campaignId: campaign.campaignId })).toEqual(campaign);
+	});
+
+	/**
+	 * An install from before the vault existed back-fills to 'campaign'; anything else unknown
+	 * reads the same way, since a campaign is where every send went before this choice existed.
+	 */
+	it.each(['', 'Vault', 'something-from-a-future-version'])(
+		'reads the unknown value %j as the remembered campaign',
+		(value) => {
+			expect(recallDestination({ destination: value, campaignId: CAMPAIGNS[0]!.id })).toEqual({
+				kind: 'campaign',
+				campaignId: CAMPAIGNS[0]!.id,
+			});
+		},
+	);
 });

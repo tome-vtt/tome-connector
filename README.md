@@ -83,14 +83,21 @@ The plugin adds send controls for:
 
 - Fantasy Statblocks `statblock` YAML blocks
 - Encounter `encounter` YAML blocks
-- Map View `zoommap` YAML blocks
+- Map View `zoommap` and Leaflet `leaflet` YAML blocks
 - Prop `prop` YAML blocks
+- An image file, from its menu in the file explorer, as a map or a prop
 - Player-character note properties
 - JSON blocks containing a top-level `tome` encounter object
 - Whole folders, compiled into a single PDF reference (see below)
 - Whole folders, imported as a Storybook adventure - see
   [`docs/authoring-adventures.md`](docs/authoring-adventures.md) for the format, whether the
   folder came from `ttrpg-convert-cli` or was written by hand
+
+An `image` in a statblock, map or prop block may be a vault path or a wikilink
+(`image: [[Goblin.png]]`), resolved from the note the block is in, wherever in the
+vault the file is. **An image that cannot be read stops that send** - for every kind,
+including a magic item, equipment or spell in a vault sync, which used to go without its
+art. Nothing is sent in its place, and a vault sync lists it as unresolvable.
 
 Example JSON encounter:
 
@@ -106,7 +113,9 @@ Example JSON encounter:
 ```
 
 On creation, Tome Connector writes the returned ID back into encounter, NPC,
-map, and prop source blocks. Player-character IDs are stored in the note's
+map, and prop source blocks, as `id` - except a Leaflet block, whose `id` is
+Leaflet's own map name, where it goes under `tome_id` instead. Only an ID Tome
+issued (a GUID) is sent back on a later send. Player-character IDs are stored in the note's
 frontmatter: `tome_id` for a character sent to a campaign, and `tome_vault_id`
 for one sent to **My Characters**. They are separate properties because a note
 can be sent to both, and those are two characters in Tome that do not sync to

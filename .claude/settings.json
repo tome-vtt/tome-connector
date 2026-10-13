@@ -1,0 +1,124 @@
+{
+  "$comment": [
+    "Shared project settings for agent sessions, ported from TomeVTT's .claude/settings.json.",
+    "Tracked rather than in settings.local.json on purpose: every agent runs in its own git",
+    "worktree, and a gitignored file does not travel into one.",
+    "PreToolUse: test-lock.mjs refuses a bare test run (use .claude/scripts/lock.ps1 run tests);",
+    "agent-token.mjs keeps the GitHub App token fresh, refuses identity switches, and on mcp__",
+    "calls refuses a Linear write through a claude.ai connector. Both are silent without",
+    "TOME_AGENT_APP / a test command. Tests: node .claude/hooks/test-lock.test.mjs,",
+    "node .claude/hooks/agent-token.test.mjs.",
+    "Stop: ci-gate.mjs runs lint.yml's build, test and lint when the change touches code.",
+    "Switch it off with TOME_CI_GATE=off or an empty .claude/locks/ci-gate.off.",
+    "The two git push entries carry no ':*' on purpose: a trailing wildcard would permit",
+    "'--force' appended. A push to main cuts a release (release.yml), so it is denied."
+  ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/test-lock.mjs\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-token.mjs\"",
+            "timeout": 20
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-token.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/ci-gate.mjs\"",
+            "timeout": 600
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File \"${CLAUDE_PROJECT_DIR}/.claude/scripts/lock.ps1\" release-session",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(gh pr list:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(git fetch:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git switch:*)",
+      "Bash(git worktree list:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push -u origin HEAD)",
+      "Bash(git push origin HEAD)",
+      "PowerShell(.claude/scripts/lock.ps1:*)",
+      "PowerShell(& .claude/scripts/lock.ps1:*)",
+      "Bash(.claude/scripts/lock.ps1:*)"
+    ],
+    "deny": [
+      "Bash(gh pr merge:*)",
+      "PowerShell(gh pr merge:*)",
+      "Bash(gh pr close:*)",
+      "PowerShell(gh pr close:*)",
+      "Bash(gh pr review --approve:*)",
+      "PowerShell(gh pr review --approve:*)",
+      "Bash(git push --force:*)",
+      "PowerShell(git push --force:*)",
+      "Bash(git push -f:*)",
+      "PowerShell(git push -f:*)",
+      "Bash(git push origin main:*)",
+      "PowerShell(git push origin main:*)",
+      "Bash(gh auth login:*)",
+      "Bash(gh auth logout:*)",
+      "Bash(gh auth switch:*)",
+      "Bash(gh auth token:*)",
+      "Bash(gh auth refresh:*)",
+      "Bash(git config --global:*)",
+      "Bash(git config --system:*)",
+      "PowerShell(gh auth login:*)",
+      "PowerShell(gh auth logout:*)",
+      "PowerShell(gh auth switch:*)",
+      "PowerShell(gh auth token:*)",
+      "PowerShell(gh auth refresh:*)",
+      "PowerShell(git config --global:*)",
+      "PowerShell(git config --system:*)"
+    ]
+  }
+}

@@ -1,7 +1,7 @@
 {
 	"id": "tome-connector",
 	"name": "Tome Connector",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"minAppVersion": "1.11.4",
 	"description": "Sends statblocks, maps, props, encounters and characters to a Tome server, and compiles a folder of notes into a PDF for its reference library.",
 	"author": "Tome Gaming",

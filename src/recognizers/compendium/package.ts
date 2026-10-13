@@ -10,6 +10,7 @@
  * Pure and `obsidian`-free; the caller supplies the notes.
  */
 
+import { noteName, type Note } from '../note';
 import { cliNoteType, isImportable, type CliNoteType } from './cliNote';
 import { parseBackground, type Background } from './background';
 import { parseFeat, type Feat } from './feat';
@@ -39,14 +40,6 @@ import {
 	type NoteSource,
 	type SourceSummary,
 } from './sourceLine';
-
-/** A note as the scanner hands it over. */
-export interface ScannedNote {
-	/** Vault-relative path, used for the key and for reporting a failure. */
-	path: string;
-	content: string;
-	frontmatter: Record<string, unknown> | null;
-}
 
 /**
  * The document the server reads.
@@ -138,11 +131,6 @@ export interface AssembleOptions {
 	raiseEarlySubclassFeatures?: boolean;
 }
 
-/** The note's filename stem, which is the CLI's own stable handle. */
-export function keyFor(path: string): string {
-	return path.replace(/\\/g, '/').split('/').pop()?.replace(/\.md$/, '') ?? path;
-}
-
 /** The title-cased name to fall back on when a note has no `# Title`. */
 function nameFor(key: string): string {
 	return key
@@ -158,8 +146,8 @@ interface Parsed {
 	source: NoteSource;
 }
 
-function parseNote(note: ScannedNote, type: CliNoteType): Parsed | null {
-	const key = keyFor(note.path);
+function parseNote(note: Note, type: CliNoteType): Parsed | null {
+	const key = noteName(note.path);
 	const name = nameFor(key);
 
 	const value =
@@ -198,7 +186,7 @@ interface Sorted {
 }
 
 /** Reads every note and puts it in one of the four buckets. */
-function sortNotes(notes: ScannedNote[], options: AssembleOptions): Sorted {
+function sortNotes(notes: Note[], options: AssembleOptions): Sorted {
 	const out: Sorted = { parsed: [], unsupported: {}, failed: [], alreadyShipped: 0 };
 
 	for (const note of notes) {
@@ -249,7 +237,7 @@ function toPatches(subclasses: ParsedSubclass[], options: AssembleOptions): Clas
 }
 
 export function assemblePackage(
-	notes: ScannedNote[],
+	notes: Note[],
 	documentKey: string,
 	options: AssembleOptions = {},
 ): PackageReport {

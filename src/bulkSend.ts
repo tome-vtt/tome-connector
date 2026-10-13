@@ -9,6 +9,28 @@
  * going to reproduce by hand.
  */
 
+/**
+ * Milliseconds between items, for every bulk run: the vault sync and the
+ * adventure import's upload passes.
+ *
+ * **The budget is shared with the browser, and that is what sets this number.**
+ * The server's limiter allows 600 requests a minute *per user*, not per client,
+ * and these endpoints are not under the tighter 30/minute upload policy. At the
+ * old 120ms a run sat near 500/minute on its own, which left the person's own
+ * Tome tab about a hundred - and a library panel loading spends that instantly.
+ * Sending 1,478 magic items locked the UI out of its own server until the tab
+ * was reloaded.
+ *
+ * 200ms puts a run around 260/minute once the request itself is counted, which
+ * leaves more than half the budget for whoever is watching it happen. The cost
+ * is about two extra minutes on a full magic-item import, which is the right
+ * trade against a browser that cannot load a page.
+ */
+export const THROTTLE_MS = 200;
+
+/** A 429 is still handled rather than assumed away; this is how many tries it gets. */
+export const MAX_ATTEMPTS = 4;
+
 /** Why an item did not go. */
 export type FailureReason = 'refused' | 'unresolvable' | 'exhausted';
 

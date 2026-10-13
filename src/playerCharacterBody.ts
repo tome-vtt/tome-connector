@@ -12,13 +12,47 @@
  * What is deliberately *not* sent is as much the contract as what is: `alias` and
  * `isFavorite` are Tome's own, and leaving them off is what lets a re-send keep them.
  *
- * Pure and `obsidian`-free - the send path in `syncPlayerCharacterToTome.ts` reads the note,
+ * Pure and `obsidian`-free - the send module (`sendCharacterToTome`) prepares the note,
  * and this decides what the server is handed, so `tests/requestBodies.test.ts` can pin it.
  */
 
-import { classesFromFrontmatter, type PcClassPayload } from './pcClassLine';
+import { CLASSES_PROPERTY, classesFromFrontmatter, type PcClassPayload } from './pcClassLine';
 import { toIntSafe, toStringSafe } from './recognizers/statblockCreature';
 import type { PcSheet } from './tomePcSheetParser';
+
+/**
+ * Every frontmatter property {@link playerCharacterBody} reads, in the exporter's names - and
+ * so the only ones the send path lets through. `tests/playerCharacterBody.test.ts` fails when
+ * the mapper reads a key missing here, which would otherwise send nothing, silently.
+ */
+export const PLAYER_CHARACTER_PROPERTIES = [
+	'name',
+	'race',
+	'class',
+	'level',
+	'background',
+	'alignment',
+	'gender',
+	'xp',
+	'hp_max',
+	'hp_current',
+	'hp_temp',
+	'ac',
+	'speed',
+	'proficiency_bonus',
+	'str',
+	'dex',
+	'con',
+	'int',
+	'wis',
+	'cha',
+	'dndbeyond_id',
+	'image',
+	// Optional, and not something the exporter writes: one entry per class with its own
+	// level, for a character with more than one. Without it the server reads the classes
+	// out of `class` itself - see `pcClassLine`.
+	CLASSES_PROPERTY,
+] as const;
 
 /**
  * The server's `Dnd5eCharacter`, as far as a D&D Beyond note fills it. The note body's half
@@ -57,7 +91,7 @@ export interface PlayerCharacterBody {
 	name: string;
 	gender?: string;
 	dndBeyondId?: number;
-	/** A `data:` URI by the time this is built - `resolveImagePaths` swaps the path for bytes. */
+	/** A `data:` URI by the time this is built - the send module swaps the path for bytes. */
 	image?: string;
 	dnd5e: Dnd5eCharacter;
 }

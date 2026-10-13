@@ -5,9 +5,9 @@ import type TomeConnectorPlugin from './main';
 import { loadCampaigns, rememberCampaign, type TomeCampaign } from './tomeCampaigns';
 import {
 	destinationOptions,
+	encodeDestination,
 	initialDestinationValue,
 	parseDestination,
-	VAULT_DESTINATION_VALUE,
 	type CharacterDestination,
 } from './characterDestination';
 
@@ -107,7 +107,7 @@ async function rememberDestination(
 	plugin: TomeConnectorPlugin,
 	destination: CharacterDestination,
 ): Promise<void> {
-	const remembered = destination.kind === 'vault' ? VAULT_DESTINATION_VALUE : 'campaign';
+	const remembered = encodeDestination(destination);
 	if (plugin.settings.characterDestination !== remembered) {
 		plugin.settings.characterDestination = remembered;
 		await plugin.saveSettings();

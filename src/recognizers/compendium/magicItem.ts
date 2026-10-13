@@ -32,7 +32,7 @@ export interface MagicItem {
 	 * Vault-relative path of the item's art, or null when the note has none.
 	 *
 	 * A *path*, not the bytes: this module is pure, and reading a file needs the
-	 * vault. `sendablePayload` swaps it for a `data:` URI on the way out.
+	 * vault. The send module swaps it for a `data:` URI on the way out.
 	 */
 	imagePath: string | null;
 }

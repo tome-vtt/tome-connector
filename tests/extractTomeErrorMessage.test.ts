@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractErrorMessage } from '../src/extractTomeErrorMessage';
+import { extractErrorMessage } from '../src/tomeHttp';
 
 /**
  * The connector used to answer every refusal with "server responded with status

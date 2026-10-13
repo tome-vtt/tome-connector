@@ -1,13 +1,13 @@
 {
 	"name": "tome-connector",
-	"version": "1.1.0",
+	"version": "1.1.1",
 	"description": "Send note content from Obsidian to a Tome server via a configurable HTTP endpoint.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"test": "vitest run",
+		"test": "vitest run --dir tests",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"lint": "eslint . --max-warnings=0 && node scripts/verify-file-sizes.mjs && node scripts/verify-function-sizes.mjs"
 	},

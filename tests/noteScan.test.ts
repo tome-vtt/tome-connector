@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	declaresStatblock,
-	findSendables,
-	noteName,
-	summarise,
-	type NoteInput
-} from '../src/recognizers/noteScan';
+import type { Note } from '../src/recognizers/note';
+import { declaresStatblock, findSendables, summarise } from '../src/recognizers/noteScan';
 
 /**
  * A stub parser rather than a real one.
@@ -26,7 +21,7 @@ function stubParser(blocks: Record<string, unknown>): (source: string) => unknow
 	};
 }
 
-function note(content: string, frontmatter: Record<string, unknown> | null = null): NoteInput {
+function note(content: string, frontmatter: Record<string, unknown> | null = null): Note {
 	return { path: 'Bestiary/Goblin.md', content, frontmatter };
 }
 
@@ -51,16 +46,6 @@ describe('declaresStatblock', () => {
 	});
 });
 
-describe('noteName', () => {
-	it.each([
-		['Bestiary/Goblin.md', 'Goblin'],
-		['Goblin.md', 'Goblin'],
-		['A/B/The Old Keep.md', 'The Old Keep']
-	])('%s -> %s', (path, expected) => {
-		expect(noteName(path)).toBe(expected);
-	});
-});
-
 describe('findSendables', () => {
 	it('finds a creature in a statblock fence', () => {
 		const found = findSendables(
@@ -69,7 +54,7 @@ describe('findSendables', () => {
 		);
 
 		expect(found).toHaveLength(1);
-		expect(found[0]).toMatchObject({ kind: 'creature', label: 'Goblin', startLine: 0 });
+		expect(found[0]).toMatchObject({ kind: 'creature', label: 'Goblin', block: goblinStats });
 	});
 
 	/**
@@ -83,7 +68,7 @@ describe('findSendables', () => {
 		);
 
 		expect(found).toHaveLength(1);
-		expect(found[0]?.startLine).toBe(0);
+		expect(found[0]).toMatchObject({ kind: 'creature', block: goblinStats });
 	});
 
 	it('takes the creature from frontmatter when there is no fence', () => {
@@ -94,8 +79,6 @@ describe('findSendables', () => {
 
 		expect(found).toHaveLength(1);
 		expect(found[0]).toMatchObject({ kind: 'creature', label: 'Goblin' });
-		// No fence, so nothing to write an id back into.
-		expect(found[0]?.startLine).toBeUndefined();
 	});
 
 	it('ignores frontmatter that declares a statblock but carries no creature', () => {
@@ -184,7 +167,7 @@ describe('findSendables', () => {
 		expect(found[0]?.label).toBe('Old Goblin');
 	});
 
-	const itemNote = (content: string, tags: string[]): NoteInput =>
+	const itemNote = (content: string, tags: string[]): Note =>
 		note(content, { cssclasses: ['json5e-item'], tags });
 
 	it('finds a magic item note', () => {
@@ -238,7 +221,7 @@ describe('findSendables', () => {
 		expect(found[0]).toMatchObject({
 			kind: 'spell',
 			label: 'Fireball',
-			source: { item: { name: 'Fireball', level: 3, school: 'evocation', range: 150 } }
+			spell: { name: 'Fireball', level: 3, school: 'evocation', range: 150 }
 		});
 	});
 });
@@ -246,9 +229,9 @@ describe('findSendables', () => {
 describe('summarise', () => {
 	it('counts by kind', () => {
 		const counts = summarise([
-			{ kind: 'creature', path: 'a', label: 'A', source: {} },
-			{ kind: 'creature', path: 'b', label: 'B', source: {} },
-			{ kind: 'map', path: 'c', label: 'C', source: {} }
+			{ kind: 'creature', path: 'a', label: 'A', block: {} },
+			{ kind: 'creature', path: 'b', label: 'B', block: {} },
+			{ kind: 'map', path: 'c', label: 'C', map: { title: 'C', image: 'c.png' } }
 		]);
 
 		expect(counts).toEqual({

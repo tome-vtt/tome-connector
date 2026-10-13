@@ -9,7 +9,7 @@
  * Two sources, both in the TomeVTT repository:
  *
  * - **What each body may carry** is `components.schemas` in the generated client schema,
- *   `tomevtt.client/src/app/api/generated/api-schema.ts`, as of TomeVTT `43f1867a`: the
+ *   `tomevtt.client/src/app/api/generated/api-schema.ts`, as of TomeVTT `3b8e0488`: the
  *   input DTO each action binds, the named bag records under `Models/Dnd5e` and
  *   `Models/Pf2e`, and the nested records inside them. Every name is the camelCase one the
  *   records pin with `[JsonPropertyName]`.
@@ -71,7 +71,7 @@ const DND5E_CHARACTER: Shape = {
 		'hpCurrent', 'hpTemp', 'ac', 'speed', 'proficiencyBonus', 'str', 'dex', 'con', 'int', 'wis',
 		'cha', 'initiative', 'saves', 'skills', 'attacks', 'spells', 'features', 'darkvisionFeet',
 		'equipment', 'currency', 'playState', 'languages', 'armorProficiencies',
-		'weaponProficiencies', 'toolProficiencies', 'build',
+		'weaponProficiencies', 'toolProficiencies', 'build', 'size',
 	],
 	nested: {
 		classes: { keys: ['name', 'subclass', 'level', 'classKey', 'subclassKey'] },
@@ -83,7 +83,12 @@ const DND5E_CHARACTER: Shape = {
 				'rangeNormal', 'rangeLong', 'properties', 'notes', 'attackBonus', 'damage', 'range',
 			],
 		},
-		spells: { keys: ['name', 'level', 'school', 'castTime', 'range', 'concentration', 'prepared'] },
+		spells: {
+			keys: [
+				'name', 'level', 'school', 'castTime', 'range', 'concentration', 'prepared', 'source',
+				'ability', 'saveDc', 'attackBonus',
+			],
+		},
 		features: { keys: ['category', 'name', 'desc'] },
 		equipment: {
 			keys: [
@@ -165,7 +170,8 @@ export interface InputContract {
 export const IMPORT_NON_PLAYER_CHARACTER: InputContract = {
 	dto: 'ImportNonPlayerCharacterDto',
 	shape: {
-		keys: ['id', 'image', 'name', 'alias', 'dnd5e', 'pf2e', 'isFavorite'],
+		// `fgg` (For Gold & Glory) is declared too; the connector has no such stat block to fill it with.
+		keys: ['id', 'image', 'name', 'alias', 'dnd5e', 'pf2e', 'fgg', 'isFavorite'],
 		nested: { dnd5e: DND5E_CREATURE, pf2e: PF2E_CREATURE },
 	},
 	retired: RETIRED_CREATURE,
@@ -174,8 +180,8 @@ export const IMPORT_NON_PLAYER_CHARACTER: InputContract = {
 export const PLAYER_CHARACTER_INPUT: InputContract = {
 	dto: 'PlayerCharacterInputDto',
 	shape: {
-		// `pf2e` is declared too; the connector sends only D&D Beyond sheets, so it never fills it.
-		keys: ['name', 'alias', 'gender', 'dndBeyondId', 'image', 'isFavorite', 'dnd5e', 'pf2e'],
+		// `pf2e` and `fgg` are declared too; the connector sends only D&D Beyond sheets, so it fills neither.
+		keys: ['name', 'alias', 'gender', 'dndBeyondId', 'image', 'isFavorite', 'dnd5e', 'pf2e', 'fgg'],
 		nested: { dnd5e: DND5E_CHARACTER },
 	},
 	retired: RETIRED_CHARACTER,

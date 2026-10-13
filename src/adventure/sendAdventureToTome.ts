@@ -1,17 +1,17 @@
-import { App, Notice, TFile, TFolder, parseYaml, requestUrl } from 'obsidian';
+import { App, Notice, TFolder, parseYaml } from 'obsidian';
 
 import type TomeConnectorPlugin from '../main';
-import { type BulkItem, type BulkReport, runBulkSend } from '../bulkSend';
-import { findSendables, type Sendable } from '../recognizers/noteScan';
-import { buildRequest } from '../sendablePayload';
-import { MAX_ATTEMPTS, THROTTLE_MS } from '../syncVaultToTome';
-import { API_KEY_HEADER_NAME, CAMPAIGN_HEADER_NAME, joinUrl, postJsonToTome } from '../tomeApiClient';
+import type { BulkReport } from '../bulkSend';
+import { obsidianSendPorts } from '../obsidianSendPorts';
+import { oneAtATime } from '../oneAtATime';
+import { postJsonAndReadFromTome } from '../tomeApiClient';
 import { loadCampaignChoice, rememberCampaign } from '../tomeCampaigns';
 import { getApiKey } from '../tomeConnectorSettings';
-import { TomeImageKind } from '../tomeImageDownscale';
 import { readImageAsDataUri } from '../tomeImageEmbedding';
 import { TomeProgressNotice } from '../tomeProgressNotice';
+import { vaultNotes } from '../vaultNotes';
 import { TOME_ROUTES } from '../routes';
+import { entitiesPass, imagesPass, type PassDeps } from './adventurePasses';
 import { AdventureReviewModal } from './adventureReviewModal';
 import { buildAdventurePlan } from './adventureVault';
 import { renderBlockText, type ResolvedEntityLink } from './adventureLinkRewrite';
@@ -51,23 +51,9 @@ async function postJson<TResponse>(
 	apiKey: string,
 	campaignId: string,
 ): Promise<TResponse> {
-	const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-	if (apiKey) headers[API_KEY_HEADER_NAME] = apiKey;
-	headers[CAMPAIGN_HEADER_NAME] = campaignId;
-
-	const response = await requestUrl({
-		url: joinUrl(baseUrl, path),
-		method: 'POST',
-		contentType: 'application/json',
-		headers,
-		body: JSON.stringify(body),
-		throw: false,
-	});
-
-	if (response.status < 200 || response.status >= 300) {
-		throw new Error(`Server responded with status ${response.status}.`);
-	}
-	return JSON.parse(response.text) as TResponse;
+	const result = await postJsonAndReadFromTome<TResponse>(baseUrl, path, JSON.stringify(body), apiKey, campaignId);
+	if (!result.ok) throw new Error(result.message);
+	return result.value;
 }
 
 /** `LibraryLookupService.MaxLookupsPerRequest`. */
@@ -108,119 +94,6 @@ async function resolveLinksPass(
 			}
 		}
 	}
-}
-
-/** The one sendable in a target note that matches what the row was chosen to become. */
-async function sendableForEntity(app: App, entity: PlannedEntity): Promise<Sendable> {
-	const file = app.vault.getAbstractFileByPath(entity.key);
-	if (!(file instanceof TFile)) {
-		throw new Error(`"${entity.key}" no longer exists in the vault.`);
-	}
-
-	const content = await app.vault.cachedRead(file);
-	const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter ?? null;
-	const wanted =
-		entity.chosen.to === 'NonPlayerCharacter'
-			? 'creature'
-			: entity.chosen.to === 'MagicItem'
-				? 'magicItem'
-				: 'equipmentItem';
-	const found = findSendables({ path: file.path, content, frontmatter }, parseYaml).find(
-		(sendable) => sendable.kind === wanted,
-	);
-
-	if (!found) {
-		const noun = wanted === 'creature' ? 'statblock' : wanted === 'magicItem' ? 'magic item' : 'equipment';
-		throw new Error(`No ${noun} was found in "${entity.key}".`);
-	}
-	return found;
-}
-
-async function entitiesPass(
-	plugin: TomeConnectorPlugin,
-	plan: AdventurePlan,
-	apiKey: string,
-	campaignId: string,
-	onProgress?: (done: number) => void,
-): Promise<BulkReport<PlannedEntity>> {
-	const targets = plan.entities.filter((entity) => entity.chosen.to !== 'skip' && entity.resolvedId === null);
-	const items: BulkItem<PlannedEntity>[] = targets.map((entity) => ({
-		label: entity.tomeName,
-		path: entity.key,
-		value: entity,
-	}));
-
-	return runBulkSend<PlannedEntity>({
-		items,
-		sleep,
-		throttleMs: THROTTLE_MS,
-		maxAttempts: MAX_ATTEMPTS,
-		onProgress: onProgress ? (done) => onProgress(done) : undefined,
-		send: async (item) => {
-			const sendable = await sendableForEntity(plugin.app, item.value);
-			const request = await buildRequest(
-				plugin.app,
-				sendable,
-				plugin.settings.downscaleImages,
-			);
-			const result = await postJsonToTome(
-				joinUrl(plugin.settings.baseUrl, request.path),
-				request.body,
-				apiKey,
-				campaignId,
-			);
-			if (result.ok && result.id) item.value.resolvedId = result.id;
-			return { ok: result.ok, id: result.id, message: result.message, retryable: result.retryable };
-		},
-	});
-}
-
-async function imagesPass(
-	plugin: TomeConnectorPlugin,
-	plan: AdventurePlan,
-	apiKey: string,
-	campaignId: string,
-	onProgress?: (done: number) => void,
-): Promise<BulkReport<PlannedImage>> {
-	const targets = plan.images.filter((image) => image.chosen.to === 'Map' || image.chosen.to === 'Prop');
-	const items: BulkItem<PlannedImage>[] = targets.map((image) => ({
-		label: image.label,
-		path: image.dmPath,
-		value: image,
-	}));
-
-	return runBulkSend<PlannedImage>({
-		items,
-		sleep,
-		throttleMs: THROTTLE_MS,
-		maxAttempts: MAX_ATTEMPTS,
-		onProgress: onProgress ? (done) => onProgress(done) : undefined,
-		send: async (item) => {
-			// The GM's choice in the review dialog decides both where the image goes and
-			// how large it is allowed to stay, so the two are read off it together
-			// rather than one being re-derived from the route later.
-			const toMap = item.value.chosen.to === 'Map';
-			const route = toMap ? TOME_ROUTES.addMap : TOME_ROUTES.addProp;
-			const kind: TomeImageKind = toMap ? 'map' : 'token';
-			const body = JSON.stringify({
-				title: item.value.label,
-				image: await readImageAsDataUri(
-					plugin.app,
-					item.value.dmPath,
-					kind,
-					plugin.settings.downscaleImages,
-				),
-			});
-			const result = await postJsonToTome(
-				joinUrl(plugin.settings.baseUrl, route),
-				body,
-				apiKey,
-				campaignId,
-			);
-			if (result.ok && result.id) item.value.resolvedId = result.id;
-			return { ok: result.ok, id: result.id, message: result.message, retryable: result.retryable };
-		},
-	});
 }
 
 /** The `Entity`-kind library and id a resolved row sends as - never sent itself, only a link target. */
@@ -416,6 +289,16 @@ function reportAdventureFailures(
 	return failureCount;
 }
 
+/** The upload passes over the vault: the send module's Obsidian ports and the vault's notes. */
+function passDeps(plugin: TomeConnectorPlugin): PassDeps {
+	return {
+		ports: obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),
+		readNote: (path) => vaultNotes(plugin.app).read(path),
+		parseYaml,
+		sleep,
+	};
+}
+
 export async function runAdventureImport(
 	plugin: TomeConnectorPlugin,
 	plan: AdventurePlan,
@@ -430,11 +313,14 @@ export async function runAdventureImport(
 	const totalSteps = targets.entities + targets.images + 1;
 	notice.setProgress(0, totalSteps);
 
+	const deps = passDeps(plugin);
+	const destination = { baseUrl, apiKey, campaignId };
+
 	notice.setMessage(`Tome connector: sending "${plan.title}" - uploading creatures, magic items and equipment…`);
-	const entityReport = await entitiesPass(plugin, plan, apiKey, campaignId, (done) => notice.setProgress(done, totalSteps));
+	const entityReport = await entitiesPass(deps, plan, destination, (done) => notice.setProgress(done, totalSteps));
 
 	notice.setMessage(`Tome connector: sending "${plan.title}" - uploading maps and props…`);
-	const imageReport = await imagesPass(plugin, plan, apiKey, campaignId, (done) => notice.setProgress(targets.entities + done, totalSteps));
+	const imageReport = await imagesPass(deps, plan, destination, (done) => notice.setProgress(targets.entities + done, totalSteps));
 
 	notice.setMessage(`Tome connector: sending "${plan.title}" - writing the book…`);
 	notice.setProgress(targets.entities + targets.images, totalSteps);
@@ -473,21 +359,13 @@ export async function runAdventureImport(
 	reportImport(plan, response, failureCount);
 }
 
-/** Only one parse-and-review at a time, matching the guard `runVaultSync` keeps. */
-let importInProgress = false;
-
 /**
  * Parses `folder`, opens the review dialog, and runs the four passes if the
  * user presses Send. The entry point every command and menu item calls.
+ * One at a time, from the parse through the last pass.
  */
-export async function runAdventureFolderImport(plugin: TomeConnectorPlugin, folder: TFolder): Promise<void> {
-	if (importInProgress) {
-		new Notice('Tome connector: an adventure import is already running.');
-		return;
-	}
-
-	importInProgress = true;
-	try {
+export const runAdventureFolderImport = oneAtATime(
+	async (plugin: TomeConnectorPlugin, folder: TFolder): Promise<void> => {
 		const choice = await loadCampaignChoice(plugin);
 		if (choice === null) return;
 
@@ -502,11 +380,14 @@ export async function runAdventureFolderImport(plugin: TomeConnectorPlugin, fold
 			notice.hide();
 		}
 
-		new AdventureReviewModal(plugin.app, plan, choice, (reviewed, campaignId) => {
-			void rememberCampaign(plugin, campaignId);
-			void runAdventureImport(plugin, reviewed, campaignId);
-		}).open();
-	} finally {
-		importInProgress = false;
-	}
-}
+		// Awaited, not fired from the callback: the guard has to hold through the send.
+		const campaignId = await new Promise<string | null>((resolve) => {
+			new AdventureReviewModal(plugin.app, plan, choice, resolve).open();
+		});
+		if (campaignId === null) return;
+
+		void rememberCampaign(plugin, campaignId);
+		await runAdventureImport(plugin, plan, campaignId);
+	},
+	() => new Notice('Tome connector: an adventure import is already running.'),
+);

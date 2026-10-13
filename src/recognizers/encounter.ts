@@ -10,6 +10,8 @@
  * Pure and `obsidian`-free so vitest can reach it; the caller parses the YAML.
  */
 
+import { existingTomeId } from '../tomeIdWriteBack';
+
 /** The server's `Encounter` shape, which is camelCase unlike the NPC endpoint's. */
 export interface EncounterPayload {
 	id?: string;
@@ -132,9 +134,8 @@ export function mapToEncounterPayload(parsed: unknown): EncounterPayload | null 
 		})),
 	};
 
-	if (typeof record.id === 'string' && record.id.trim() !== '') {
-		payload.id = record.id;
-	}
+	const id = existingTomeId(record);
+	if (id !== undefined) payload.id = id;
 
 	return payload;
 }

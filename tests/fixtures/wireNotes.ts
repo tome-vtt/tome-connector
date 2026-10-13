@@ -5,15 +5,15 @@
  * exporter for the character.
  *
  * `requestBodies.test.ts` pins every body built from them against the server's contract.
- * They are also what 1.1.0 was checked with against a running Tome server: `everyBody()`
- * in `wireBodies.ts` bundles with esbuild, and posting its output with an API key is the
- * whole of a live check - so "the bodies the tests pinned" and "the bodies the server
- * accepted" stay the same bodies.
+ * They are also what 1.1.0 was checked with against a running Tome server. A live check sends
+ * them through the send module with real ports, as `everyBody()` in the test does with the
+ * in-memory ones - so "the bodies the tests pinned" and "the bodies the server accepted" stay
+ * the same bodies.
  */
 
 import { parse as parseYaml } from 'yaml';
 
-import type { NoteInput } from '../../src/recognizers/noteScan';
+import type { Note } from '../../src/recognizers/note';
 
 /** `bestiary/aberration/githyanki-knight-xmm.md`, trimmed - gear, saves, a bonus action. */
 export const GITHYANKI_KNIGHT_NOTE = `---
@@ -330,7 +330,7 @@ export const MULTICLASS_FRONTMATTER: Record<string, unknown> = {
 };
 
 /** Splits a note into Obsidian's cached frontmatter and its text, the way `noteScan` is handed one. */
-export function noteInput(path: string, content: string): NoteInput {
+export function noteInput(path: string, content: string): Note {
 	const match = /^---\n([\s\S]*?)\n---\n/.exec(content);
 	const frontmatter = match?.[1] ? (parseYaml(match[1]) as Record<string, unknown>) : null;
 	return { path, content, frontmatter };

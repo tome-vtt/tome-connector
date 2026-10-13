@@ -100,6 +100,11 @@ describe('mapToEncounterPayload', () => {
 	});
 
 	it('carries an id so a re-send updates rather than duplicating', () => {
-		expect(mapToEncounterPayload({ name: 'A', id: 'abc', creatures: [] })?.id).toBe('abc');
+		const id = '3e8f6c30-0000-4000-8c00-000000000001';
+		expect(mapToEncounterPayload({ name: 'A', id, creatures: [] })?.id).toBe(id);
+	});
+
+	it('drops a non-GUID id, which would fail model binding', () => {
+		expect(mapToEncounterPayload({ name: 'A', id: 'abc', creatures: [] })).not.toHaveProperty('id');
 	});
 });

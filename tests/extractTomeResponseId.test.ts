@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractResponseId } from '../src/extractTomeResponseId';
+import { extractResponseId } from '../src/tomeHttp';
 
 const ID = '115051de-2f9f-4a8f-a9f7-c7decd622da2';
 

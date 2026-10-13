@@ -77,6 +77,10 @@ describe('mapReferenceFrom', () => {
 	 * binding server-side and turn a working import into a 400 for everyone using
 	 * Leaflet the normal way.
 	 */
+	it('reads an unquoted wikilink, which YAML reads as a nested list', () => {
+		expect(mapReferenceFrom({ image: [['Old Keep.jpg']] })).toEqual({ image: 'Old Keep.jpg', title: 'Old Keep' });
+	});
+
 	it('drops a non-GUID id', () => {
 		expect(mapReferenceFrom({ id: 'my-map', image: 'Map.jpg' })).not.toHaveProperty('id');
 	});
@@ -84,6 +88,11 @@ describe('mapReferenceFrom', () => {
 	it('carries a GUID id', () => {
 		const id = '3e8f6c30-0000-4000-8c00-000000000001';
 		expect(mapReferenceFrom({ id, image: 'Map.jpg' })?.id).toBe(id);
+	});
+
+	it("carries Tome's id from tome_id beside Leaflet's own id", () => {
+		const id = '3e8f6c30-0000-4000-8c00-000000000001';
+		expect(mapReferenceFrom({ id: 'my-map', tome_id: id, image: 'Map.jpg' })?.id).toBe(id);
 	});
 
 	it.each([[{}], [{ image: '   ' }], [{ imageBases: [] }], [null], [['a']]])(
