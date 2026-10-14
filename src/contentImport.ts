@@ -4,9 +4,10 @@ import {
 	type AssembleOptions,
 	type PackageReport,
 } from './recognizers/compendium/package';
-import { buildImportRequest, IMPORT_PATH, type ImportManifest } from './recognizers/compendium/importRequest';
+import { buildImportRequest, type ImportManifest } from './recognizers/compendium/importRequest';
 import type { Note } from './recognizers/note';
 import { readScope, type NoteSource, type SyncScope } from './scopeReader';
+import { TOME_ROUTES } from './routes';
 import { createMultipartBoundary } from './tomeMultipartBody';
 import type { SendResult } from './tomeHttp';
 
@@ -64,7 +65,7 @@ export async function uploadPackage(
 			{ ...report.package, documentKey: manifest.key },
 			createMultipartBoundary(),
 		);
-		const result = await http(IMPORT_PATH, body.body, body.contentType);
+		const result = await http(TOME_ROUTES.importContentSource, body.body, body.contentType);
 		if (result.ok) return { ok: true };
 
 		// The server explains itself - a plan ceiling, third-party content switched
