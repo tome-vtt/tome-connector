@@ -1,7 +1,7 @@
 /**
  * A ratchet on the functions that are already too long: they may shrink, and they may not grow.
  *
- * The sibling of `verify-file-sizes.mjs`, for `max-lines-per-function`. Five functions were over
+ * A ratchet for `max-lines-per-function`. Five functions were over
  * the 50-line limit when this was added, so switching the rule on in `eslint.config.mts` would
  * either have failed the build outright or arrived with five disables attached - a rule defeated
  * before it ran. A baseline lets it go on now and hold the line, instead of waiting on five
@@ -16,8 +16,7 @@
  * ordinary lint pass unusable. When the last baseline entry goes, move the rule into the config and
  * delete this file.
  *
- * The comparison is `ratchet.mjs`, shared with the file-size script and tested in
- * `tests/ratchet.test.ts`.
+ * The comparison is `ratchet.mjs`, tested in `tests/ratchet.test.ts`.
  *
  * ESLint does the counting. Reimplementing function-boundary detection and the rule's
  * `skipBlankLines`/`skipComments` semantics would give two numbers that disagree at the edges, and
@@ -112,10 +111,7 @@ const failures = compareToBaseline({
 	limit: LIMIT,
 	slack: SLACK,
 	noun: 'function',
-	updateCommand: 'node scripts/verify-function-sizes.mjs --update',
-	// eslint only reports functions already over the limit, so an entry that has
-	// dropped off is a success rather than a deletion.
-	measuresOnlyOverLimit: true
+	updateCommand: 'node scripts/verify-function-sizes.mjs --update'
 });
 
 if (failures.length) {
