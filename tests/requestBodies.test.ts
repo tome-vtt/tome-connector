@@ -5,7 +5,7 @@ import { findSendables, type Sendable, type SendableKind } from '../src/recogniz
 import { TOME_ROUTES } from '../src/routes';
 import { KIND_ROUTES, sendCharacterToTome, sendToTome, type SendPorts } from '../src/sendModule';
 import { CAMPAIGN_HEADER_NAME } from '../src/tomeHttp';
-import { TINY_PNG, bodyOf, inMemorySendPorts } from './fixtures/inMemorySendPorts';
+import { TINY_PNG, bodyOf, inMemorySendPorts, type InMemoryVault } from './fixtures/inMemorySendPorts';
 import {
 	BAG_NAMES,
 	EQUIPMENT_ITEM_INPUT,
@@ -66,8 +66,9 @@ const SERVER = { baseUrl: 'https://tome.example.com', apiKey: 'key' };
 async function posted(
 	files: Record<string, string>,
 	send: (ports: SendPorts) => Promise<unknown>,
+	notes: NonNullable<InMemoryVault['notes']> = {},
 ): Promise<Pick<BuiltBody, 'route' | 'accountScoped' | 'body'>> {
-	const { ports, sent } = inMemorySendPorts({ files });
+	const { ports, sent } = inMemorySendPorts({ files, notes });
 	await send(ports);
 	const [request] = sent;
 	if (sent.length !== 1 || !request) throw new Error(`expected one request, sent ${sent.length}`);
@@ -114,9 +115,10 @@ async function note(path: string, content: string, kind: SendableKind, image: st
 function character(frontmatter: Record<string, unknown>, content: string, image: string | undefined, destination: CharacterDestination) {
 	const files: Record<string, string> = image === undefined ? {} : { 'Characters/token.png': image };
 	const withImage = image === undefined ? frontmatter : { ...frontmatter, image: '[[token.png]]' };
-	return posted(files, (ports) =>
-		sendCharacterToTome(ports, { path: 'Characters/Zabadun.md', frontmatter: withImage, content }, SERVER, destination),
-	);
+	const path = 'Characters/Zabadun.md';
+	return posted(files, (ports) => sendCharacterToTome(ports, path, SERVER, destination), {
+		[path]: { frontmatter: withImage, content },
+	});
 }
 
 /** Every case, once per route it goes to; built with and without art, since an absent image must be an absent key. */

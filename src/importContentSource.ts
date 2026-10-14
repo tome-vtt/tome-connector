@@ -2,24 +2,16 @@ import { Modal, Notice, Setting } from 'obsidian';
 import type { App } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
+import { scanCompendium, suggestedKey, uploadPackage, type CompendiumScan } from './contentImport';
+import { oneAtATime } from './oneAtATime';
+import { validateManifest, type ImportManifest } from './recognizers/compendium/importRequest';
 import {
-	assemblePackage,
 	describeCounts,
 	isEmpty,
-	packageKeyFrom,
 	type AssembleOptions,
 	type PackageReport,
 } from './recognizers/compendium/package';
-import type { Note } from './recognizers/note';
-import {
-	buildImportRequest,
-	validateManifest,
-	type ImportManifest,
-} from './recognizers/compendium/importRequest';
-import { oneAtATime } from './oneAtATime';
-import { TOME_ROUTES } from './routes';
-import { describeScope, readScope, type SyncScope } from './scopeReader';
-import { createMultipartBoundary } from './tomeMultipartBody';
+import { describeScope, type SyncScope } from './scopeReader';
 import { postMultipartToTome } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { TomeProgressNotice } from './tomeProgressNotice';
@@ -41,13 +33,6 @@ import { vaultNotes } from './vaultNotes';
 
 /** Import on a yes, reassemble on a toggle, null on Cancel or Close. */
 type ImportAnswer = { manifest: ImportManifest } | { options: AssembleOptions } | null;
-
-/** A sensible package key from the scope, so the field is rarely edited. */
-function suggestedKey(scope: SyncScope): string {
-	return packageKeyFrom(
-		scope.kind === 'folder' ? scope.folder.name : scope.kind === 'tag' ? scope.tag : '',
-	);
-}
 
 /**
  * Shows what was found, collects the manifest, and waits for a yes.
@@ -335,13 +320,10 @@ class ConfirmImportModal extends Modal {
  */
 export const runContentImport = oneAtATime(
 	async (plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> => {
-		// Read once and re-assemble from the same notes if the SRD toggle is flipped:
-		// the parse is fast, and re-reading a 2,974-note vault to answer a checkbox is
-		// not.
 		const notice = new TomeProgressNotice('Tome connector: reading the compendium…');
-		let notes: Note[];
+		let scan: CompendiumScan;
 		try {
-			notes = await readScope(vaultNotes(plugin.app), scope, (done, total) =>
+			scan = await scanCompendium(vaultNotes(plugin.app), scope, (done, total) =>
 				notice.setProgress(done, total),
 			);
 		} finally {
@@ -351,7 +333,7 @@ export const runContentImport = oneAtATime(
 		// Awaited, not fired from a callback: the guard has to hold through the upload.
 		let options: AssembleOptions = {};
 		for (;;) {
-			const report = assemblePackage(notes, suggestedKey(scope), options);
+			const report = scan.assemble(options);
 			const answer = await new Promise<ImportAnswer>((resolve) => {
 				new ConfirmImportModal(plugin.app, report, scope, options, resolve).open();
 			});
@@ -373,42 +355,22 @@ async function upload(
 	manifest: ImportManifest,
 ): Promise<void> {
 	const notice = new TomeProgressNotice('Tome connector: importing…');
+	const outcome = await uploadPackage(
+		(path, body, contentType) =>
+			postMultipartToTome(plugin.settings.baseUrl, path, body, contentType, getApiKey(plugin)),
+		manifest,
+		report,
+	);
+	notice.hide();
 
-	try {
-		// The document key is the manifest's key: the person may have renamed it in
-		// the form, and the two disagreeing would file the package under one name and
-		// describe it under another.
-		const body = buildImportRequest(
-			manifest,
-			{ ...report.package, documentKey: manifest.key },
-			createMultipartBoundary(),
+	if (outcome.ok) {
+		new Notice(
+			`Tome connector: imported ${describeCounts(report.counts)}. ` +
+				'Switch it on for a campaign in Tome to use it.',
 		);
-
-		const result = await postMultipartToTome(
-			plugin.settings.baseUrl,
-			TOME_ROUTES.importContentSource,
-			body.body,
-			body.contentType,
-			getApiKey(plugin),
-		);
-
-		notice.hide();
-
-		if (result.ok) {
-			new Notice(
-				`Tome connector: imported ${describeCounts(report.counts)}. ` +
-					'Switch it on for a campaign in Tome to use it.',
-			);
-			return;
-		}
-
-		// The server explains itself - a plan ceiling, third-party content switched
-		// off, a licence it would not take - and those are things the person can act
-		// on, so they belong in the Notice rather than the console.
-		new Notice(`Tome connector: ${result.message ?? `import failed (${result.status})`}`);
-	} catch (error) {
-		notice.hide();
-		console.error('Tome Connector: content import failed', error);
-		new Notice(`Tome connector: ${error instanceof Error ? error.message : String(error)}`);
+		return;
 	}
+	if (outcome.thrown !== undefined) console.error('Tome Connector: content import failed', outcome.thrown);
+	new Notice(`Tome connector: ${outcome.message}`);
 }
+

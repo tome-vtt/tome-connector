@@ -23,7 +23,7 @@ import { mapToNpcPayload, type NpcPayload } from './recognizers/statblockCreatur
 import { TOME_ROUTES, type TomeRoute } from './routes';
 import { embedImages, type TomeImageKind } from './tomeImageDownscale';
 import type { SendResult, TomeTarget } from './tomeHttp';
-import { existingTomeId } from './tomeIdWriteBack';
+import { existingTomeId, writeTomeIdIntoNote, type TomeBlockKind } from './tomeIdWriteBack';
 import { stripMarkdown } from './tomeMarkdownSanitizer';
 import { parsePcSheet } from './tomePcSheetParser';
 
@@ -40,6 +40,10 @@ export interface SendPorts {
 	postJson(target: TomeTarget, payload: string): Promise<SendResult>;
 	/** Sets one frontmatter property on the note at `path`, leaving the rest alone. */
 	setFrontmatter(path: string, key: string, value: string): Promise<void>;
+	/** The note's parsed frontmatter and its whole text; a cached read, as the text is only parsed. */
+	readNote(path: string): Promise<{ frontmatter: Record<string, unknown>; content: string }>;
+	/** Rewrites the note at `path` in one atomic edit of its current text. */
+	editNote(path: string, edit: (content: string) => string): Promise<void>;
 }
 
 /** Who a send is from and where it goes; the module adds the route. */
@@ -199,11 +203,50 @@ async function itemImage(
 	return imagePath ? readImage(ports, imagePath, sourcePath, 'token') : undefined;
 }
 
-/** A D&D Beyond character note: Obsidian's parsed frontmatter, and the whole text the sheet is parsed from. */
-export interface CharacterNote {
-	path: string;
-	frontmatter: Record<string, unknown>;
-	content: string;
+/** Where a code block sits in its note: the 0-based lines of its two fences. */
+export interface BlockLines {
+	lineStart: number;
+	lineEnd: number;
+}
+
+/** The block a send came from, so its id can be written back into it. */
+export interface SourceBlock {
+	kind: TomeBlockKind;
+	/** Called after the send returns, so an edit made during the send cannot shift the id; null when the block is gone. */
+	lines(): BlockLines | null;
+}
+
+/** The failure every id write-back reports: the thing is in Tome by now, so say so, or a retry looks like the fix. */
+async function writeIdBack(path: string, write: () => Promise<void>): Promise<void> {
+	try {
+		await write();
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+		throw new Error(`Sent to Tome, but its id could not be written to ${path}: ${reason}`);
+	}
+}
+
+/**
+ * Sends one block from a code-block button and, on success, writes Tome's id into the
+ * block so a re-send updates rather than duplicates. Only the id line changes
+ * ({@link writeTomeIdIntoNote}). Throws when the send landed but the id could not be written.
+ */
+export async function sendBlockToTome(
+	ports: SendPorts,
+	sendable: ModuleSendable,
+	destination: Destination,
+	block: SourceBlock,
+): Promise<SendResult> {
+	const result = await sendToTome(ports, sendable, destination);
+	if (!result.ok || result.id === null) return result;
+	const { id } = result;
+	await writeIdBack(sendable.path, () =>
+		ports.editNote(sendable.path, (content) => {
+			const lines = block.lines();
+			return lines ? writeTomeIdIntoNote(content, lines.lineStart, lines.lineEnd, block.kind, id) : content;
+		}),
+	);
+	return result;
 }
 
 /**
@@ -217,23 +260,18 @@ export interface CharacterNote {
  */
 export async function sendCharacterToTome(
 	ports: SendPorts,
-	note: CharacterNote,
+	path: string,
 	sender: Omit<Destination, 'campaignId'>,
 	destination: CharacterDestination,
 ): Promise<SendResult> {
 	const request = requestFor(destination);
+	const note = { path, ...(await ports.readNote(path)) };
 	const result = await ports.postJson(
 		{ ...sender, path: request.route, campaignId: request.campaignId },
 		JSON.stringify(await characterBody(ports, note)),
 	);
 	if (!result.ok || result.id === null) return result;
-	try {
-		await ports.setFrontmatter(note.path, request.frontmatterKey, result.id);
-	} catch (error) {
-		// The character is in Tome by now; say so, or a retry looks like the fix.
-		const reason = error instanceof Error ? error.message : String(error);
-		throw new Error(`Sent to Tome, but its id could not be written to ${note.path}: ${reason}`);
-	}
+	await writeIdBack(path, () => ports.setFrontmatter(path, request.frontmatterKey, result.id as string));
 	return result;
 }
 
@@ -241,7 +279,10 @@ export async function sendCharacterToTome(
  * Only the properties the body mapper reads go on - anything else in the frontmatter could
  * only trip the image walk or the markdown flattening. The sheet is parsed from the note text.
  */
-async function characterBody(ports: SendPorts, note: CharacterNote): Promise<PlayerCharacterBody> {
+async function characterBody(
+	ports: SendPorts,
+	note: { path: string; frontmatter: Record<string, unknown>; content: string },
+): Promise<PlayerCharacterBody> {
 	const filtered: Record<string, unknown> = {};
 	for (const key of PLAYER_CHARACTER_PROPERTIES) {
 		if (key in note.frontmatter) filtered[key] = note.frontmatter[key];
