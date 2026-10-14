@@ -1,5 +1,5 @@
 import { sceneHeadingLines, withSceneIdMarker } from './adventureParser';
-import type { ImportedSceneResultBody } from './adventurePlan';
+import type { AdventurePlan, ImportedChapterResultBody, ImportedSceneResultBody } from './adventurePlan';
 
 /**
  * Builds the pure text edit that writes each scene's id onto its own heading
@@ -31,4 +31,14 @@ export function sceneMarkerEdit(
 
 		return parts.join('');
 	};
+}
+
+/** One scene-marker edit per planned chapter, in plan order. */
+export function sceneMarkerEdits(
+	plan: AdventurePlan,
+	chapterResults: ImportedChapterResultBody[],
+): ((content: string) => string)[] {
+	return plan.chapters.map((chapter, index) =>
+		sceneMarkerEdit(chapter.promoteRooms, chapterResults[index]?.scenes ?? []),
+	);
 }

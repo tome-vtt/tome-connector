@@ -16,7 +16,7 @@ import { AdventureReviewModal } from './adventureReviewModal';
 import { buildAdventurePlan } from './adventureVault';
 import { renderBlockText, type ResolvedEntityLink } from './adventureLinkRewrite';
 import { writeAdventureIdsToVault } from './writeAdventureIdsToVault';
-import { sceneMarkerEdit } from './sceneMarkerEdit';
+import { sceneMarkerEdits } from './sceneMarkerEdit';
 import type {
 	AdventurePlan,
 	ImportedChapterResultBody,
@@ -349,10 +349,7 @@ export async function runAdventureImport(
 	// than before this existed, so nothing here is allowed to turn a successful import
 	// into a failed one.
 	try {
-		const sceneEdits = plan.chapters.map((chapter, index) =>
-			sceneMarkerEdit(chapter.promoteRooms, response.chapters[index]?.scenes ?? []),
-		);
-		await writeAdventureIdsToVault(plugin.app, plan, response.chapters, sceneEdits);
+		await writeAdventureIdsToVault(plugin.app, plan, response.chapters, sceneMarkerEdits(plan, response.chapters));
 	} catch (error) {
 		console.warn('Tome Connector: could not write ids back into the vault.', error);
 	}
