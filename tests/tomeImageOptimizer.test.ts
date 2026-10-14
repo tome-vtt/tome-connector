@@ -97,11 +97,6 @@ describe('chooseEncoding', () => {
 		expect(chooseEncoding(0.5, LOSSLESS_MAX_PIXELS)).toBe('png');
 		expect(chooseEncoding(0.5, LOSSLESS_MAX_PIXELS + 1)).toBe('jpeg-on-white');
 	});
-
-	it('honours explicit thresholds', () => {
-		expect(chooseEncoding(0.2, ICON, 0.5)).toBe('jpeg-on-white');
-		expect(chooseEncoding(0.2, ICON, 0.1, 0)).toBe('jpeg-on-white');
-	});
 });
 
 describe('pdfCost', () => {

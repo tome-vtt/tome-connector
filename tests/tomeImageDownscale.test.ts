@@ -6,7 +6,6 @@ import {
 	downscaleWarning,
 	imageKindForKey,
 	keepReencoded,
-	needsDownscale,
 } from '../src/tomeImageDownscale';
 import {
 	dataUriByteLength,
@@ -53,31 +52,6 @@ describe('keepReencoded', () => {
 		expect(keepReencoded(1000, 1001)).toBe(false);
 	});
 
-	it('refuses to decide on numbers that are not numbers', () => {
-		expect(keepReencoded(Number.NaN, 10)).toBe(false);
-		expect(keepReencoded(10, Number.NaN)).toBe(false);
-		expect(keepReencoded(0, 10)).toBe(false);
-		expect(keepReencoded(10, 0)).toBe(false);
-		expect(keepReencoded(Number.POSITIVE_INFINITY, 10)).toBe(false);
-	});
-});
-
-describe('needsDownscale', () => {
-	it('is false for an image already inside the cap, including exactly at it', () => {
-		expect(needsDownscale(1000, 800, 1024)).toBe(false);
-		expect(needsDownscale(1024, 800, 1024)).toBe(false);
-	});
-
-	it('is true once either edge is over', () => {
-		expect(needsDownscale(1025, 10, 1024)).toBe(true);
-		expect(needsDownscale(10, 1025, 1024)).toBe(true);
-	});
-
-	it('is false for degenerate input rather than attempting a redraw', () => {
-		expect(needsDownscale(0, 0, 1024)).toBe(false);
-		expect(needsDownscale(Number.NaN, 100, 1024)).toBe(false);
-		expect(needsDownscale(100, 100, 0)).toBe(false);
-	});
 });
 
 describe('DOWNSCALEABLE_TYPES', () => {

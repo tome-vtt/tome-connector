@@ -20,13 +20,12 @@ const MAX_HEADING_LEVEL = 6;
  * node. So each heading's *true depth in the note's own tree* is recovered
  * with a stack first, and that is what gets offset.
  *
- * Levels beyond `maxLevel` are clamped rather than dropped, which flattens
+ * Levels beyond `MAX_HEADING_LEVEL` are clamped rather than dropped, which flattens
  * the tail of a deeply nested outline instead of losing those entries.
  */
 export function planHeadingLevels(
 	sourceLevels: readonly number[],
 	chapterLevel: number,
-	maxLevel: number = MAX_HEADING_LEVEL,
 ): number[] {
 	const openLevels: number[] = [];
 
@@ -40,6 +39,6 @@ export function planHeadingLevels(
 			openLevels.pop();
 		}
 		openLevels.push(level);
-		return Math.min(maxLevel, chapterLevel + openLevels.length);
+		return Math.min(MAX_HEADING_LEVEL, chapterLevel + openLevels.length);
 	});
 }
