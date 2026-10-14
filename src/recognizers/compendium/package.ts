@@ -226,8 +226,7 @@ function describeAll(entries: ParsedSubclass[]): string[] {
  * a class it does not recognise, so sending one would be a silent loss where the
  * report is a stated one.
  */
-function toPatches(subclasses: ParsedSubclass[], options: AssembleOptions): ClassPatch[] {
-	const attachable = subclasses.filter(hasShippedClass);
+function toPatches(attachable: ParsedSubclass[], options: AssembleOptions): ClassPatch[] {
 	return toClassPatches(
 		options.raiseEarlySubclassFeatures === true ? attachable.map(raiseEarlyFeatures) : attachable,
 	);
@@ -250,13 +249,14 @@ export function assemblePackage(
 
 	const subclasses = of<ParsedSubclass>('subclass');
 	const attachable = subclasses.filter(hasShippedClass);
-	const classes = toPatches(subclasses, options);
+	const classes = toPatches(attachable, options);
+	const license = suggestedLicense(sources);
 
 	return {
 		package: {
 			formatVersion: 1,
 			documentKey,
-			license: suggestedLicense(sources),
+			license,
 			// Not a URL: the server's `Source` is "the exact source revision, so a
 			// snapshot can always be reproduced", and for a vault import the honest
 			// answer is which books it was generated from.
@@ -285,7 +285,7 @@ export function assemblePackage(
 		),
 		sources,
 		suggested: {
-			license: suggestedLicense(sources),
+			license,
 			attribution: suggestedAttribution(sources),
 		},
 	};
@@ -314,7 +314,6 @@ const TYPE_NOUNS: Record<string, [string, string]> = {
 	vehicle: ['vehicle', 'vehicles'],
 	item: ['item', 'items'],
 	class: ['class', 'classes'],
-	subclass: ['subclass', 'subclasses'],
 	'optional-feature': ['optional feature', 'optional features'],
 };
 

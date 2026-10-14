@@ -13,11 +13,11 @@ import {
 import type { Note } from './recognizers/note';
 import {
 	buildImportRequest,
-	IMPORT_PATH,
 	validateManifest,
 	type ImportManifest,
 } from './recognizers/compendium/importRequest';
 import { oneAtATime } from './oneAtATime';
+import { TOME_ROUTES } from './routes';
 import { describeScope, readScope, type SyncScope } from './scopeReader';
 import { createMultipartBoundary } from './tomeMultipartBody';
 import { postMultipartToTome } from './tomeApiClient';
@@ -386,7 +386,7 @@ async function upload(
 
 		const result = await postMultipartToTome(
 			plugin.settings.baseUrl,
-			IMPORT_PATH,
+			TOME_ROUTES.importContentSource,
 			body.body,
 			body.contentType,
 			getApiKey(plugin),
