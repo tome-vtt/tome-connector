@@ -173,3 +173,12 @@ export interface AdventurePlan {
 	 */
 	coverKey: string | null;
 }
+
+export interface ImportedSceneResultBody {
+	id: string;
+}
+
+export interface ImportedChapterResultBody {
+	id: string;
+	scenes: ImportedSceneResultBody[];
+}
