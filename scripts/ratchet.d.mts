@@ -21,19 +21,7 @@ export interface RatchetOptions {
 	noun: string;
 	/** The command that re-records, quoted back to the reader on failure. */
 	updateCommand: string;
-	/**
-	 * True when the measurement only reports entries already over the limit, as
-	 * eslint does — so a baseline entry missing from `sizes` improved rather than
-	 * disappeared.
-	 */
-	measuresOnlyOverLimit?: boolean;
 }
 
 /** Complaints, in the order found. Empty when the ratchet holds. */
 export function compareToBaseline(options: RatchetOptions): string[];
-
-/** Everything over `limit`, sorted by key, ready to be written as a baseline. */
-export function recordBaseline(
-	sizes: Map<string, number>,
-	limit: number,
-): Record<string, number>;
