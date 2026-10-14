@@ -173,6 +173,22 @@ function equipmentItemFrom(note: Note): Sendable | null {
 	return { kind: 'equipmentItem', path: note.path, label: item.name, item };
 }
 
+/**
+ * The creature a statblock fence or frontmatter record describes, or null with neither stats nor a
+ * `monster:` reference. A bare `monster:` reference is included: it needs the bestiary, and
+ * whether that is available is the sender's problem to report per item rather than a reason to
+ * hide it from the count.
+ */
+function creatureSendable(record: Record<string, unknown>, note: Note): Sendable | null {
+	if (!hasInlineStats(record) && typeof record.monster !== 'string') return null;
+	return {
+		kind: 'creature',
+		path: note.path,
+		label: creatureLabel(record, noteName(note.path)),
+		block: record,
+	};
+}
+
 /** One recognised block, or null when this language or shape is not sendable. */
 function sendableFromBlock(
 	language: string,
@@ -181,16 +197,7 @@ function sendableFromBlock(
 ): Sendable | null {
 	switch (language) {
 		case 'statblock': {
-			// A bare `monster:` reference is included: it needs the bestiary, and
-			// whether that is available is the sender's problem to report per item
-			// rather than a reason to hide it from the count.
-			if (!hasInlineStats(record) && typeof record.monster !== 'string') return null;
-			return {
-				kind: 'creature',
-				path: note.path,
-				label: creatureLabel(record, noteName(note.path)),
-				block: record,
-			};
+			return creatureSendable(record, note);
 		}
 		case 'encounter': {
 			const encounter = mapToEncounterPayload(record);
@@ -218,15 +225,7 @@ function creatureFromFrontmatter(note: Note, sawStatblockFence: boolean): Sendab
 		return null;
 	}
 
-	const record = note.frontmatter;
-	if (!hasInlineStats(record) && typeof record.monster !== 'string') return null;
-
-	return {
-		kind: 'creature',
-		path: note.path,
-		label: creatureLabel(record, noteName(note.path)),
-		block: record,
-	};
+	return creatureSendable(note.frontmatter, note);
 }
 
 /** Counts by kind, for the preview. Kinds with nothing found are omitted. */

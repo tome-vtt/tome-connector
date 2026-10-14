@@ -52,7 +52,6 @@ export function extractFencedBlocks(markdown: string): FencedBlock[] {
 
 		const body: string[] = [];
 		index += 1;
-		let closed = false;
 		while (index < lines.length) {
 			const candidate = lines[index] ?? '';
 			const close = FENCE.exec(candidate);
@@ -62,7 +61,6 @@ export function extractFencedBlocks(markdown: string): FencedBlock[] {
 				(close[2] ?? '').length >= marker.length &&
 				(close[3] ?? '') === ''
 			) {
-				closed = true;
 				index += 1;
 				break;
 			}
@@ -73,7 +71,6 @@ export function extractFencedBlocks(markdown: string): FencedBlock[] {
 		// An unterminated fence runs to end of file, which is what a renderer does
 		// too. Dropping it instead would silently lose the last block in a note
 		// somebody forgot to close.
-		void closed;
 		blocks.push({ language, source: body.join('\n'), startLine });
 	}
 
