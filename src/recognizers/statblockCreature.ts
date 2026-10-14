@@ -28,6 +28,7 @@
 import { stripMarkdownFromString } from '../tomeMarkdownSanitizer';
 import { isPf2eCreature, mapToPf2eCreature, type Pf2eCreature } from './pf2eCreature';
 import { existingTomeId } from '../tomeIdWriteBack';
+import { capitalise } from './labelledMarkdown';
 
 /** The server's `NamedAbility`, in the casing its record pins. */
 export interface NamedAbility {
@@ -180,7 +181,7 @@ export function normalizeSaveEntry(entry: unknown): unknown {
 	if (typeof modifier !== 'number') return entry;
 
 	return {
-		name: ability.charAt(0).toUpperCase() + ability.slice(1),
+		name: capitalise(ability),
 		desc: modifier >= 0 ? `+${modifier}` : `${modifier}`,
 	};
 }

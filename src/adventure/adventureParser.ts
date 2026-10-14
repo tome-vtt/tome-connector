@@ -34,7 +34,7 @@ import { splitBlocks } from './adventureBlocks';
 import { looksLikeMap } from './adventureImages';
 import { pickDefaultCover } from './adventureCover';
 import { asRoomHeading } from './roomHeadings';
-import { preamble, sectionsAtLevel } from '../recognizers/labelledMarkdown';
+import { HEADING, preamble, sectionsAtLevel } from '../recognizers/labelledMarkdown';
 import type {
 	AdventurePlan,
 	EntityDestination,
@@ -87,8 +87,6 @@ interface RoomBlock {
 	body: string;
 	id: string | null;
 }
-
-const HEADING = /^(#{1,6})[ \t]+(.+?)[ \t]*$/;
 
 /**
  * `## The Village Square %%tome_scene_id: 3fa85f64-...%%` - a hidden Obsidian

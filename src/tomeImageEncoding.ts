@@ -76,6 +76,44 @@ export function fitWithin(
 }
 
 /**
+ * Decodes `bytes`, fits the bitmap inside `maxEdge` and draws it to a canvas,
+ * closing the bitmap either way. `scaled` is false when the image was already
+ * inside the cap. Null when the canvas has no 2D context. Throws if the bytes
+ * cannot be decoded.
+ */
+export async function drawScaled(
+	bytes: ArrayBuffer,
+	mimeType: string,
+	maxEdge: number,
+): Promise<{
+	canvas: HTMLCanvasElement;
+	context: CanvasRenderingContext2D;
+	width: number;
+	height: number;
+	scaled: boolean;
+} | null> {
+	const bitmap = await createImageBitmap(new Blob([bytes], { type: mimeType }));
+	try {
+		const target = fitWithin(bitmap.width, bitmap.height, maxEdge);
+		const canvas = createEl('canvas');
+		canvas.width = target.width;
+		canvas.height = target.height;
+		const context = canvas.getContext('2d');
+		if (!context) return null;
+		context.imageSmoothingQuality = 'high';
+		context.drawImage(bitmap, 0, 0, target.width, target.height);
+		return {
+			canvas,
+			context,
+			...target,
+			scaled: target.width !== bitmap.width || target.height !== bitmap.height,
+		};
+	} finally {
+		bitmap.close();
+	}
+}
+
+/**
  * Splits a base64 data URI back into its bytes, or null if it isn't one -
  * a plain-text `data:image/svg+xml,<svg…>` URI has nothing to re-encode.
  */

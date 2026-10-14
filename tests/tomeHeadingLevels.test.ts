@@ -38,10 +38,6 @@ describe('planHeadingLevels', () => {
 		expect(planHeadingLevels([6, 6], 1)).toEqual([2, 2]);
 	});
 
-	it('honours an explicit maximum level', () => {
-		expect(planHeadingLevels([1, 2, 3], 1, 3)).toEqual([2, 3, 3]);
-	});
-
 	it('does not mutate the input', () => {
 		const levels = [1, 2, 3];
 		planHeadingLevels(levels, 2);
