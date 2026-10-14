@@ -20,6 +20,8 @@ export interface InMemoryVault {
 	bestiary?: Record<string, Record<string, unknown>> | null;
 	/** What the server answers every request with; 201 and an id unless a test says otherwise. */
 	status?: number;
+	/** Notes by path, as `readNote` and `editNote` see them. */
+	notes?: Record<string, { frontmatter?: Record<string, unknown>; content: string }>;
 }
 
 /**
@@ -35,7 +37,7 @@ function resolveLink(files: Record<string, string>, linkpath: string, sourcePath
 	return [linkpath, folder + linkpath, ...elsewhere].find((path) => path in files);
 }
 
-export function inMemorySendPorts({ files = {}, bestiary = null, status = 201 }: InMemoryVault = {}) {
+export function inMemorySendPorts({ files = {}, bestiary = null, status = 201, notes = {} }: InMemoryVault = {}) {
 	const sent: TomeRequest[] = [];
 	/** Frontmatter written back, by note path. */
 	const frontmatter: Record<string, Record<string, string>> = {};
@@ -56,9 +58,19 @@ export function inMemorySendPorts({ files = {}, bestiary = null, status = 201 }:
 		setFrontmatter: async (path, key, value) => {
 			frontmatter[path] = { ...frontmatter[path], [key]: value };
 		},
+		readNote: async (path) => {
+			const note = notes[path];
+			if (!note) throw new Error(`No note at ${path}`);
+			return { frontmatter: note.frontmatter ?? {}, content: note.content };
+		},
+		editNote: async (path, edit) => {
+			const note = notes[path];
+			if (!note) throw new Error(`No note at ${path}`);
+			note.content = edit(note.content);
+		},
 	};
 
-	return { ports, sent, frontmatter };
+	return { ports, sent, frontmatter, notes };
 }
 
 /** The body of a recorded request, as the server would parse it. */

@@ -114,13 +114,7 @@ async function sendCharacter(plugin: TomeConnectorPlugin, file: TFile): Promise<
 
 	const result = await sendCharacterToTome(
 		obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),
-		{
-			path: file.path,
-			frontmatter: plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? {},
-			// `cachedRead` rather than `read`: the body is only being parsed, and
-			// the cache is already warm for the note the user is looking at.
-			content: await plugin.app.vault.cachedRead(file),
-		},
+		file.path,
 		{ baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin) },
 		destination,
 	);
