@@ -272,11 +272,11 @@ this.registerInterval(
 
 ### Issue tracker
 
-Issues live in Linear, team **Tome Connector** (`TC`), project **TC**, via the `linear-agent` MCP tools. See `docs/agents/issue-tracker.md`.
+Spider drives this repository (`silk.yml`). Issues live in the Spider tracker (prefix `TC`), used through the Spider plugin's tracker tools. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-The five default triage labels, as Linear issue labels. See `docs/agents/triage-labels.md`.
+Triage roles map to Spider states, not labels. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 

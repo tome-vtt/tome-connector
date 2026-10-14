@@ -1,17 +1,13 @@
 # Triage Labels
 
-The skills speak in terms of five canonical triage roles. This file maps those roles to the actual label strings used in this repo's issue tracker.
+The skills speak in terms of five canonical triage roles. Spider tracks workflow with ticket states, so in this repo each role maps to a Spider **state**, not a label.
 
-| Label in mattpocock/skills | Label in our tracker | Meaning                                  |
-| -------------------------- | -------------------- | ---------------------------------------- |
-| `needs-triage`             | `needs-triage`       | Maintainer needs to evaluate this issue  |
-| `needs-info`               | `needs-info`         | Waiting on reporter for more information |
-| `ready-for-agent`          | `ready-for-agent`    | Fully specified, ready for an AFK agent  |
-| `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
-| `wontfix`                  | `wontfix`            | Will not be actioned                     |
+| Role in mattpocock/skills | Spider state  | Meaning                                  |
+| ------------------------- | ------------- | ---------------------------------------- |
+| `needs-triage`            | `Unsorted`    | Bart needs to evaluate this ticket       |
+| `needs-info`              | `Stuck`       | Waiting on a person for more information |
+| `ready-for-agent`         | `Backlog`     | Fully specified; Bart promotes it        |
+| `ready-for-human`         | `Stuck`       | Requires human implementation            |
+| `wontfix`                 | `Wont-Do`     | Will not be actioned                     |
 
-These are Linear issue labels on the Tome Connector team. If one doesn't exist yet, create it with `create_issue_label` the first time it's needed.
-
-When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
-
-Edit the right-hand column to match whatever vocabulary you actually use.
+When a skill says to apply a role, move the ticket to the matching state with `transition`. Do not add a label of that name. `needs-info` and `ready-for-human` share `Stuck`; say which one applies in a comment.
