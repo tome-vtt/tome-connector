@@ -1,8 +1,8 @@
 import {
-	arrayBufferToBase64,
 	dataUriByteLength,
-	fitWithin,
+	drawScaled,
 	parseDataUri,
+	toDataUri,
 } from './tomeImageEncoding';
 
 /**
@@ -74,7 +74,7 @@ export function pdfCost(byteLength: number, isJpeg: boolean): number {
 	return isJpeg ? byteLength : byteLength * PDF_LOSSLESS_EXPANSION;
 }
 
-export type ImageEncoding = 'jpeg' | 'jpeg-on-white' | 'png';
+type ImageEncoding = 'jpeg' | 'jpeg-on-white' | 'png';
 
 /**
  * Picks an encoding from how transparent the image is and how big it is.
@@ -83,14 +83,12 @@ export type ImageEncoding = 'jpeg' | 'jpeg-on-white' | 'png';
 export function chooseEncoding(
 	nonOpaqueFraction: number,
 	pixelCount: number,
-	threshold: number = NEAR_OPAQUE_MAX_ALPHA_FRACTION,
-	losslessMaxPixels: number = LOSSLESS_MAX_PIXELS,
 ): ImageEncoding {
 	if (nonOpaqueFraction <= 0) return 'jpeg';
 	// Anti-aliased edges on otherwise solid artwork: not real transparency.
-	if (nonOpaqueFraction < threshold) return 'jpeg-on-white';
+	if (nonOpaqueFraction < NEAR_OPAQUE_MAX_ALPHA_FRACTION) return 'jpeg-on-white';
 	// Real transparency, but only affordable while the image is small.
-	if (pixelCount <= losslessMaxPixels) return 'png';
+	if (pixelCount <= LOSSLESS_MAX_PIXELS) return 'png';
 	return 'jpeg-on-white';
 }
 
@@ -107,7 +105,7 @@ const RASTER_TYPES = new Set([
 	'image/bmp',
 ]);
 
-export interface OptimizedImage {
+interface OptimizedImage {
 	dataUri: string;
 	/** Size of the file as it sits in the vault. */
 	sourceBytes: number;
@@ -120,14 +118,11 @@ export interface OptimizedImage {
  * itself, or a canvas snapshot. These bypass the vault-reading path entirely,
  * and were the reason some images reached the PDF at full resolution.
  */
-export async function optimizeDataUri(
-	dataUri: string,
-	maxEdge: number = MAX_IMAGE_EDGE_PX,
-): Promise<string> {
+export async function optimizeDataUri(dataUri: string): Promise<string> {
 	const parsed = parseDataUri(dataUri);
 	if (!parsed) return dataUri;
 
-	const optimized = await optimizeImage(parsed.bytes, parsed.mimeType, maxEdge);
+	const optimized = await optimizeImage(parsed.bytes, parsed.mimeType);
 	return optimized.dataUri.length < dataUri.length ? optimized.dataUri : dataUri;
 }
 
@@ -144,9 +139,8 @@ export async function optimizeDataUri(
 export async function optimizeImage(
 	bytes: ArrayBuffer,
 	mimeType: string,
-	maxEdge: number = MAX_IMAGE_EDGE_PX,
 ): Promise<OptimizedImage> {
-	const original = `data:${mimeType};base64,${arrayBufferToBase64(bytes)}`;
+	const original = toDataUri(bytes, mimeType);
 	const unchanged: OptimizedImage = {
 		dataUri: original,
 		sourceBytes: bytes.byteLength,
@@ -155,17 +149,10 @@ export async function optimizeImage(
 
 	if (!RASTER_TYPES.has(mimeType)) return unchanged;
 
-	let bitmap: ImageBitmap | null = null;
 	try {
-		bitmap = await createImageBitmap(new Blob([bytes], { type: mimeType }));
-		const target = fitWithin(bitmap.width, bitmap.height, maxEdge);
-
-		const canvas = createEl('canvas');
-		canvas.width = target.width;
-		canvas.height = target.height;
-		const context = canvas.getContext('2d');
-		if (!context) return unchanged;
-		context.drawImage(bitmap, 0, 0, target.width, target.height);
+		const target = await drawScaled(bytes, mimeType, MAX_IMAGE_EDGE_PX);
+		if (!target) return unchanged;
+		const { canvas, context } = target;
 
 		// A JPEG source cannot carry alpha, so skip reading back the pixels.
 		const encoding =
@@ -207,8 +194,6 @@ export async function optimizeImage(
 	} catch (error) {
 		console.warn('Tome Connector: could not optimize an image', error);
 		return unchanged;
-	} finally {
-		bitmap?.close();
 	}
 }
 
