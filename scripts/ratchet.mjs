@@ -1,10 +1,6 @@
 /**
- * The comparison behind both size ratchets.
- *
- * `verify-file-sizes.mjs` and `verify-function-sizes.mjs` differ only in what they measure - lines
- * in a file, lines in a function - and in whether being under the limit means "not tracked" or "not
- * reported at all". The rule they apply is the same one, so it lives here once and is tested
- * directly, rather than being proved by hand twice and then trusted.
+ * The comparison behind the function-size ratchet (`verify-function-sizes.mjs`), kept here so it is
+ * tested directly rather than proved by hand and then trusted.
  *
  * Pure: it takes two maps and returns a list of complaints. No filesystem, no eslint, no process.
  */
@@ -17,10 +13,6 @@
  * @param {number} options.slack how far something may shrink before the baseline must be re-recorded
  * @param {string} options.noun what one entry is called, e.g. `'file'`
  * @param {string} options.updateCommand what to run to re-record
- * @param {boolean} [options.measuresOnlyOverLimit]
- *   True when the measurement itself only reports things over the limit, as eslint does - so an
- *   entry missing from `sizes` means it improved, not that it vanished. False when everything is
- *   measured and a missing entry means the file is gone.
  * @returns {string[]} failures, empty when everything holds
  */
 export function compareToBaseline({
@@ -29,8 +21,7 @@ export function compareToBaseline({
 	limit,
 	slack,
 	noun,
-	updateCommand,
-	measuresOnlyOverLimit = false
+	updateCommand
 }) {
 	const failures = [];
 
@@ -39,11 +30,8 @@ export function compareToBaseline({
 
 		if (actual === undefined) {
 			failures.push(
-				measuresOnlyOverLimit
-					? `${key} is in the baseline but is no longer over ${limit} lines (or was renamed). ` +
-						`Re-record with ${updateCommand} so the win is locked in.`
-					: `${key} is in the baseline but no longer exists (renamed, or deleted). ` +
-						`Re-record with ${updateCommand}.`
+				`${key} is in the baseline but is no longer over ${limit} lines (or was renamed). ` +
+					`Re-record with ${updateCommand} so the win is locked in.`
 			);
 			continue;
 		}
@@ -75,11 +63,4 @@ export function compareToBaseline({
 	}
 
 	return failures;
-}
-
-/** Everything over the limit, sorted, ready to be written as a baseline. */
-export function recordBaseline(sizes, limit) {
-	return Object.fromEntries(
-		[...sizes].filter(([, lines]) => lines > limit).sort(([a], [b]) => a.localeCompare(b))
-	);
 }

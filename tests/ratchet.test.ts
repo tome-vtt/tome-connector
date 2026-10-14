@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 // Plain ESM with a hand-written `.d.ts` beside it: the scripts run under bare
 // node from an npm script, and the module must not live in `src`, which esbuild
 // bundles into the shipped `main.js`.
-import { compareToBaseline, recordBaseline } from '../scripts/ratchet.mjs';
+import { compareToBaseline } from '../scripts/ratchet.mjs';
 
 /**
- * The size ratchets are the only guardrails in this repo that enforce a policy
- * nothing else states — eslint cannot compare against a checked-in baseline. They
- * were proved by hand once, which does not survive the next person changing them,
+ * The function-size ratchet is the only guardrail in this repo that enforces a policy
+ * nothing else states — eslint cannot compare against a checked-in baseline. It
+ * was proved by hand once, which does not survive the next person changing it,
  * so the comparison lives in its own module and is pinned here.
  *
  * Both directions matter. Blocking growth is the obvious half; refusing to let a
@@ -79,50 +79,11 @@ describe('compareToBaseline', () => {
 		expect(failures).toHaveLength(2);
 	});
 
-	describe('when a baseline entry is no longer measured', () => {
-		/**
-		 * The two callers mean different things by absence. The file script measures
-		 * everything, so a missing entry is a deleted file. The function script only
-		 * ever hears about things over the limit, so a missing entry is a success.
-		 */
-		it('reads it as deleted when everything is measured', () => {
-			const failures = check([], { 'gone.ts': 900 });
+	/** eslint only reports functions over the limit, so absence means it improved. */
+	it('reads a baseline entry that is no longer measured as improved', () => {
+		const failures = check([], { 'a.ts::f': 61 });
 
-			expect(failures[0]).toContain('no longer exists');
-		});
-
-		it('reads it as improved when only over-limit entries are measured', () => {
-			const failures = check([], { 'a.ts::f': 61 }, { measuresOnlyOverLimit: true });
-
-			expect(failures[0]).toContain('no longer over 50 lines');
-			expect(failures[0]).toContain('locked in');
-		});
-	});
-});
-
-describe('recordBaseline', () => {
-	it('records only what is over the limit', () => {
-		const recorded = recordBaseline(
-			new Map([
-				['b.ts', 80],
-				['a.ts', 10]
-			]),
-			50
-		);
-
-		expect(recorded).toEqual({ 'b.ts': 80 });
-	});
-
-	/** Sorted so re-recording produces a reviewable diff rather than a reshuffle. */
-	it('sorts by key', () => {
-		const recorded = recordBaseline(
-			new Map([
-				['z.ts', 80],
-				['a.ts', 90]
-			]),
-			50
-		);
-
-		expect(Object.keys(recorded)).toEqual(['a.ts', 'z.ts']);
+		expect(failures[0]).toContain('no longer over 50 lines');
+		expect(failures[0]).toContain('locked in');
 	});
 });
