@@ -27,6 +27,7 @@
 import { toIntSafe, toNamedAbilityList, toStringSafe, type NamedAbility } from './statblockCreature';
 import { stripMarkdownFromString } from '../tomeMarkdownSanitizer';
 import { capitalise, slug } from './labelledMarkdown';
+import { asRecord } from '../shared';
 
 /** The `Pf2eCreature` bag, in the casing its `JsonPropertyName` attributes pin. */
 export interface Pf2eAttributes {
@@ -161,15 +162,13 @@ function toKeyedValues(value: unknown): Record<string, string> {
 
 	if (Array.isArray(value)) {
 		for (const entry of value) {
-			if (typeof entry === 'object' && entry !== null && !Array.isArray(entry)) {
-				absorb(entry as Record<string, unknown>);
-			}
+			const record = asRecord(entry);
+			if (record) absorb(record);
 		}
 		return out;
 	}
-	if (typeof value === 'object' && value !== null) {
-		absorb(value as Record<string, unknown>);
-	}
+	const record = asRecord(value);
+	if (record) absorb(record);
 	return out;
 }
 

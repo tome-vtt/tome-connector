@@ -9,6 +9,8 @@
  * going to reproduce by hand.
  */
 
+import { describeError } from './shared';
+
 /**
  * Milliseconds between items, for every bulk run: the vault sync and the
  * adventure import's upload passes.
@@ -28,8 +30,11 @@
  */
 export const THROTTLE_MS = 200;
 
-/** A 429 is still handled rather than assumed away; this is how many tries it gets. */
-export const MAX_ATTEMPTS = 4;
+/** Delay before the first retry; doubles each time. */
+const BASE_DELAY_MS = 1_000;
+
+/** Ceiling on the backoff, so a long run cannot stall for minutes. */
+const MAX_DELAY_MS = 30_000;
 
 /** Why an item did not go. */
 export type FailureReason = 'refused' | 'unresolvable' | 'exhausted';
@@ -84,18 +89,12 @@ export interface BulkSendOptions<T> {
 	isCancelled?: () => boolean;
 	/** Attempts per item, including the first. */
 	maxAttempts?: number;
-	/** Delay before the first retry; doubles each time. */
-	baseDelayMs?: number;
-	/** Ceiling on the backoff, so a long run cannot stall for minutes. */
-	maxDelayMs?: number;
 	/** Pause between items, to stay under the server's limiter. */
 	throttleMs?: number;
 }
 
 const DEFAULTS = {
 	maxAttempts: 4,
-	baseDelayMs: 1_000,
-	maxDelayMs: 30_000,
 	throttleMs: 0,
 };
 
@@ -104,19 +103,15 @@ const DEFAULTS = {
  * retry).
  *
  * The server's `Retry-After` wins when it sends one: it knows when its window
- * rolls over and we are guessing. Otherwise exponential from `baseDelayMs`,
+ * rolls over and we are guessing. Otherwise exponential from `BASE_DELAY_MS`,
  * capped - a 709-item run that backed off to four minutes would look hung.
  */
-export function backoffDelay(
-	attempt: number,
-	options: { baseDelayMs: number; maxDelayMs: number },
-	retryAfterSeconds?: number,
-): number {
+export function backoffDelay(attempt: number, retryAfterSeconds?: number): number {
 	if (retryAfterSeconds !== undefined && retryAfterSeconds >= 0) {
-		return Math.min(retryAfterSeconds * 1_000, options.maxDelayMs);
+		return Math.min(retryAfterSeconds * 1_000, MAX_DELAY_MS);
 	}
-	const exponential = options.baseDelayMs * 2 ** Math.max(0, attempt - 2);
-	return Math.min(exponential, options.maxDelayMs);
+	const exponential = BASE_DELAY_MS * 2 ** Math.max(0, attempt - 2);
+	return Math.min(exponential, MAX_DELAY_MS);
 }
 
 /**
@@ -172,7 +167,7 @@ async function sendOne<T>(
 				item,
 				ok: false,
 				id: null,
-				message: error instanceof Error ? error.message : String(error),
+				message: describeError(error),
 				reason: 'unresolvable',
 				attempts: attempts - 1,
 			};
@@ -195,7 +190,7 @@ async function sendOne<T>(
 		}
 
 		if (attempts < settings.maxAttempts) {
-			await settings.sleep(backoffDelay(attempts + 1, settings, result.retryAfterSeconds));
+			await settings.sleep(backoffDelay(attempts + 1, result.retryAfterSeconds));
 		}
 	}
 

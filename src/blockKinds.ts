@@ -9,6 +9,7 @@
 
 import { mapToEncounterPayload } from './recognizers/encounter';
 import { mapReferenceFrom } from './recognizers/map';
+import { asRecord } from './shared';
 import type { SendableParse } from './recognizers/noteScan';
 import type { TomeBlockKind } from './tomeIdWriteBack';
 
@@ -32,10 +33,6 @@ export interface BlockKind {
 	titleAndImagePreview?: true;
 }
 
-function isMapping(parsed: unknown): parsed is Record<string, unknown> {
-	return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
-}
-
 // No image, nothing to send: a Leaflet block that only sets up coordinates, or a zoommap block still being written.
 function mapSendable(parsed: unknown): BlockSendable | null {
 	const map = mapReferenceFrom(parsed);
@@ -46,7 +43,10 @@ export const BLOCK_KINDS: readonly BlockKind[] = [
 	// Whether a `monster:` reference resolves is the send's to report, not a reason to hide the button.
 	{
 		language: 'statblock',
-		sendable: (parsed) => (isMapping(parsed) ? { kind: 'creature', block: parsed } : null),
+		sendable: (parsed) => {
+			const block = asRecord(parsed);
+			return block ? { kind: 'creature', block } : null;
+		},
 		writeBack: 'creature',
 	},
 	{
@@ -62,10 +62,10 @@ export const BLOCK_KINDS: readonly BlockKind[] = [
 	{ language: 'zoommap', sendable: mapSendable, writeBack: 'zoommap' },
 	{
 		language: 'prop',
-		sendable: (parsed) =>
-			isMapping(parsed) && typeof parsed.title === 'string' && parsed.title.trim() !== ''
-				? { kind: 'prop', block: parsed }
-				: null,
+		sendable: (parsed) => {
+			const block = asRecord(parsed);
+			return typeof block?.title === 'string' && block.title.trim() !== '' ? { kind: 'prop', block } : null;
+		},
 		writeBack: 'prop',
 		titleAndImagePreview: true,
 	},

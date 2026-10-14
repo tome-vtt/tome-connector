@@ -4,6 +4,7 @@ import type TomeConnectorPlugin from '../main';
 import type { BulkReport } from '../bulkSend';
 import { obsidianSendPorts } from '../obsidianSendPorts';
 import { oneAtATime } from '../oneAtATime';
+import { describeError } from '../shared';
 import { tomeHttp } from '../tomeApiClient';
 import { loadCampaignChoice, rememberCampaign } from '../tomeCampaigns';
 import { getApiKey } from '../tomeConnectorSettings';
@@ -38,12 +39,6 @@ import type {
  * is different - creatures and maps landed but there is no book to find them
  * from - and that is reported as its own case.
  */
-
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => window.setTimeout(resolve, ms));
-
-function describeError(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
 
 function chunk<T>(items: T[], size: number): T[][] {
 	const chunks: T[][] = [];

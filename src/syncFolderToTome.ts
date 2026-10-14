@@ -17,6 +17,7 @@ import { formatBytes, uploadReferencePdf } from './tomeReferenceUpload';
 import { TomeProgressNotice } from './tomeProgressNotice';
 import { oneAtATime } from './oneAtATime';
 import { chooseCampaign } from './tomeCampaigns';
+import { describeError } from './shared';
 
 const MENU_TITLE = 'Import as a Tome Reference';
 const MENU_ICON = 'upload-cloud';
@@ -153,7 +154,7 @@ const runFolderExport = oneAtATime(
 		} catch (error) {
 			progress.hide();
 			console.error('Tome Connector: failed to export folder', error);
-			const message = error instanceof Error ? error.message : String(error);
+			const message = describeError(error);
 			new Notice(`Tome connector: ${message}`);
 		} finally {
 			// The component owns every child renderer the post-processors created,

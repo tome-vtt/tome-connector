@@ -55,9 +55,7 @@ export function destinationOptions(
 
 /** Reads a dropdown value back into the destination it names. */
 export function parseDestination(value: string): CharacterDestination {
-	return value === VAULT_DESTINATION_VALUE
-		? { kind: 'vault' }
-		: { kind: 'campaign', campaignId: value };
+	return recallDestination({ destination: value, campaignId: value });
 }
 
 /**

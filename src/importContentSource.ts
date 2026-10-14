@@ -245,37 +245,22 @@ class ConfirmImportModal extends Modal {
 	}
 
 	private renderFields(contentEl: HTMLElement): void {
-		const field = (
-			name: string,
-			description: string,
-			get: () => string,
-			set: (value: string) => void,
-		): void => {
+		const fields = [
+			['key', 'Key', 'Re-importing the same key replaces this source.'],
+			['name', 'Name', 'What it is called in the content list.'],
+			['license', 'Licence', 'CC-BY-4.0 for SRD content, or own-work if it is yours.'],
+			['attribution', 'Attribution', 'Who to credit.'],
+			['version', 'Version', 'Your own version for this package.'],
+			['publisher', 'Publisher', 'Optional.'],
+		] as const;
+
+		for (const [property, name, description] of fields) {
 			new Setting(contentEl).setName(name).setDesc(description).addText((text) =>
-				text.setValue(get()).onChange((value) => {
-					set(value);
+				text.setValue(this.manifest[property] ?? '').onChange((value) => {
+					this.manifest[property] = value;
 				}),
 			);
-		};
-
-		field('Key', 'Re-importing the same key replaces this source.', () => this.manifest.key, (v) => {
-			this.manifest.key = v;
-		});
-		field('Name', 'What it is called in the content list.', () => this.manifest.name, (v) => {
-			this.manifest.name = v;
-		});
-		field('Licence', 'CC-BY-4.0 for SRD content, or own-work if it is yours.', () => this.manifest.license, (v) => {
-			this.manifest.license = v;
-		});
-		field('Attribution', 'Who to credit.', () => this.manifest.attribution ?? '', (v) => {
-			this.manifest.attribution = v;
-		});
-		field('Version', 'Your own version for this package.', () => this.manifest.version ?? '', (v) => {
-			this.manifest.version = v;
-		});
-		field('Publisher', 'Optional.', () => this.manifest.publisher ?? '', (v) => {
-			this.manifest.publisher = v;
-		});
+		}
 	}
 
 	private addButtons(contentEl: HTMLElement, canImport: boolean): void {

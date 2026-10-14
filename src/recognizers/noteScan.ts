@@ -13,6 +13,7 @@
  */
 
 import { extractFencedBlocks } from './markdownBlocks';
+import { asRecord } from '../shared';
 import type { SpellNote } from '../libraryItemBody';
 import { cliNoteType } from './compendium/cliNote';
 import { parseEquipmentItem, type EquipmentItem } from './compendium/equipmentItem';
@@ -70,12 +71,6 @@ export function declaresStatblock(frontmatter: Record<string, unknown> | null): 
 	if (typeof value === 'boolean') return value;
 	if (typeof value === 'string') return value.trim().toLowerCase() !== 'false';
 	return true;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: null;
 }
 
 function creatureLabel(record: Record<string, unknown>, fallback: string): string {

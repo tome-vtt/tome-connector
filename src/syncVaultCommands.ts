@@ -1,4 +1,4 @@
-import { Notice, TFolder } from 'obsidian';
+import { TFolder } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
 import { runAdventureFolderImport } from './adventure/sendAdventureToTome';
@@ -22,6 +22,29 @@ export function registerSyncCommands(plugin: TomeConnectorPlugin): void {
 	registerFolderMenu(plugin);
 }
 
+/**
+ * A command on the active note's folder. `checkCallback` so the command hides itself
+ * when there is no active note to take a folder from, rather than appearing and then
+ * complaining.
+ */
+function folderCommand(
+	plugin: TomeConnectorPlugin,
+	id: string,
+	name: string,
+	run: (folder: TFolder) => Promise<void>,
+): void {
+	plugin.addCommand({
+		id,
+		name,
+		checkCallback: (checking: boolean) => {
+			const folder = plugin.app.workspace.getActiveFile()?.parent;
+			if (!folder) return false;
+			if (!checking) void run(folder);
+			return true;
+		},
+	});
+}
+
 /** Sending notes to the libraries: one request per creature, encounter or map. */
 function registerSendCommands(plugin: TomeConnectorPlugin): void {
 	plugin.addCommand({
@@ -32,18 +55,9 @@ function registerSendCommands(plugin: TomeConnectorPlugin): void {
 		},
 	});
 
-	plugin.addCommand({
-		id: 'send-folder-to-tome',
-		name: 'Send the current note’s folder to Tome',
-		// `checkCallback` so the command hides itself when there is no active note
-		// to take a folder from, rather than appearing and then complaining.
-		checkCallback: (checking: boolean) => {
-			const folder = plugin.app.workspace.getActiveFile()?.parent;
-			if (!folder) return false;
-			if (!checking) void runVaultSync(plugin, { kind: 'folder', folder });
-			return true;
-		},
-	});
+	folderCommand(plugin, 'send-folder-to-tome', 'Send the current note’s folder to Tome', (folder) =>
+		runVaultSync(plugin, { kind: 'folder', folder }),
+	);
 
 	plugin.addCommand({
 		id: 'send-tagged-to-tome',
@@ -59,16 +73,12 @@ function registerSendCommands(plugin: TomeConnectorPlugin): void {
 
 /** Importing a compendium as a ruleset: one request for the lot. */
 function registerImportCommands(plugin: TomeConnectorPlugin): void {
-	plugin.addCommand({
-		id: 'import-content-source-from-folder',
-		name: 'Import the current note’s folder as a content source',
-		checkCallback: (checking: boolean) => {
-			const folder = plugin.app.workspace.getActiveFile()?.parent;
-			if (!folder) return false;
-			if (!checking) void runContentImport(plugin, { kind: 'folder', folder });
-			return true;
-		},
-	});
+	folderCommand(
+		plugin,
+		'import-content-source-from-folder',
+		'Import the current note’s folder as a content source',
+		(folder) => runContentImport(plugin, { kind: 'folder', folder }),
+	);
 
 	plugin.addCommand({
 		id: 'import-content-source-from-vault',
@@ -78,16 +88,12 @@ function registerImportCommands(plugin: TomeConnectorPlugin): void {
 		},
 	});
 
-	plugin.addCommand({
-		id: 'import-adventure-from-folder',
-		name: 'Import the current note’s folder as a Storybook adventure',
-		checkCallback: (checking: boolean) => {
-			const folder = plugin.app.workspace.getActiveFile()?.parent;
-			if (!folder) return false;
-			if (!checking) void runAdventureFolderImport(plugin, folder);
-			return true;
-		},
-	});
+	folderCommand(
+		plugin,
+		'import-adventure-from-folder',
+		'Import the current note’s folder as a Storybook adventure',
+		(folder) => runAdventureFolderImport(plugin, folder),
+	);
 }
 
 function registerFolderMenu(plugin: TomeConnectorPlugin): void {
@@ -102,41 +108,16 @@ function registerFolderMenu(plugin: TomeConnectorPlugin): void {
 		plugin.app.workspace.on('file-menu', (menu, file) => {
 			if (!(file instanceof TFolder)) return;
 
-			menu.addItem((item) => {
-				item
-					.setTitle('Import Library items to Tome')
-					.setIcon('upload-cloud')
-					.onClick(() => {
-						void runVaultSync(plugin, { kind: 'folder', folder: file });
-					});
-			});
-
-			menu.addItem((item) => {
-				item
-					.setTitle('Import as a Tome content source')
-					.setIcon('book-open')
-					.onClick(() => {
-						void runContentImport(plugin, { kind: 'folder', folder: file });
-					});
-			});
-
-			menu.addItem((item) => {
-				item
-					.setTitle('Import as a Tome Storybook adventure')
-					.setIcon('book-marked')
-					.onClick(() => {
-						void runAdventureFolderImport(plugin, file);
-					});
-			});
+			const entries: [string, string, (folder: TFolder) => Promise<void>][] = [
+				['Import Library items to Tome', 'upload-cloud', (folder) => runVaultSync(plugin, { kind: 'folder', folder })],
+				['Import as a Tome content source', 'book-open', (folder) => runContentImport(plugin, { kind: 'folder', folder })],
+				['Import as a Tome Storybook adventure', 'book-marked', (folder) => runAdventureFolderImport(plugin, folder)],
+			];
+			for (const [title, icon, run] of entries) {
+				menu.addItem((item) => {
+					item.setTitle(title).setIcon(icon).onClick(() => void run(file));
+				});
+			}
 		}),
 	);
-}
-
-/** Warns once when a command is invoked with nothing configured. */
-export function warnIfUnconfigured(plugin: TomeConnectorPlugin): boolean {
-	if (plugin.settings.baseUrl.trim() === '') {
-		new Notice('Tome connector: set a base URL in the plugin settings first.');
-		return true;
-	}
-	return false;
 }

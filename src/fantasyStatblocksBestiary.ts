@@ -24,11 +24,7 @@ export function getStatblockBestiaryApi(): StatblockBestiaryApi | null {
 	const globalWindow = window as unknown as {
 		FantasyStatblocks?: StatblockBestiaryApi;
 	};
-	try {
-		return globalWindow.FantasyStatblocks ?? null;
-	} catch {
-		return null;
-	}
+	return globalWindow.FantasyStatblocks ?? null;
 }
 
 /**

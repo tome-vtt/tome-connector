@@ -26,6 +26,7 @@ import type { SendResult, TomeTarget } from './tomeHttp';
 import { existingTomeId, writeTomeIdIntoNote, type TomeBlockKind } from './tomeIdWriteBack';
 import { stripMarkdown } from './tomeMarkdownSanitizer';
 import { parsePcSheet } from './tomePcSheetParser';
+import { describeError } from './shared';
 
 export interface SendPorts {
 	/**
@@ -221,7 +222,7 @@ async function writeIdBack(path: string, write: () => Promise<void>): Promise<vo
 	try {
 		await write();
 	} catch (error) {
-		const reason = error instanceof Error ? error.message : String(error);
+		const reason = describeError(error);
 		throw new Error(`Sent to Tome, but its id could not be written to ${path}: ${reason}`);
 	}
 }

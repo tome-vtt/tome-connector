@@ -131,10 +131,7 @@ export async function chooseCampaign(
 		new CampaignSelectModal(plugin.app, choice, action, resolve).open();
 	});
 
-	if (campaignId !== null && campaignId !== plugin.settings.campaignId) {
-		plugin.settings.campaignId = campaignId;
-		await plugin.saveSettings();
-	}
+	if (campaignId !== null) await rememberCampaign(plugin, campaignId);
 
 	return campaignId;
 }
