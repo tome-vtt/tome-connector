@@ -1,122 +1,46 @@
 import { describe, expect, it } from 'vitest';
-import {
-	buildMultipartBody,
-	createMultipartBoundary,
-	sanitizeUploadFilename,
-} from '../src/tomeMultipartBody';
+import { encodeForm, sanitizeUploadFilename } from '../src/tomeMultipartBody';
 
-/** Reads the body back byte-for-byte, so CRLFs and raw bytes stay visible. */
-function asLatin1(body: ArrayBuffer): string {
-	return new TextDecoder('latin1').decode(body);
+/** Reads the encoded body back the way a server would. */
+function decode(encoded: { body: ArrayBuffer; contentType: string }): Promise<FormData> {
+	return new Response(encoded.body, { headers: { 'Content-Type': encoded.contentType } }).formData();
 }
 
-function sequentialRandom(...values: number[]): () => number {
-	let index = 0;
-	return () => values[index++ % values.length]!;
-}
+describe('encodeForm', () => {
+	it('round-trips a field and a file, with a content type naming the boundary', async () => {
+		const form = new FormData();
+		form.append('title', 'Sunless Citadel');
+		form.append('file', new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])], { type: 'application/pdf' }), 'a.pdf');
 
-describe('createMultipartBoundary', () => {
-	it('produces an unquoted ASCII boundary', () => {
-		const boundary = createMultipartBoundary(sequentialRandom(0.123456789));
+		const encoded = await encodeForm(form);
+		const parsed = await decode(encoded);
 
-		expect(boundary).toMatch(/^----TomeConnector[a-z0-9]+$/);
-		expect(boundary.length).toBeLessThanOrEqual(70);
+		expect(encoded.contentType).toMatch(/^multipart\/form-data; boundary=\S+$/);
+		expect(parsed.get('title')).toBe('Sunless Citadel');
+		const file = parsed.get('file') as File;
+		expect([file.name, file.type]).toEqual(['a.pdf', 'application/pdf']);
 	});
 
-	it('differs between calls', () => {
-		const a = createMultipartBoundary(sequentialRandom(0.111111111));
-		const b = createMultipartBoundary(sequentialRandom(0.999999999));
-
-		expect(a).not.toBe(b);
-	});
-});
-
-describe('buildMultipartBody', () => {
-	const boundary = '----TomeConnectorTEST';
-
-	it('lays out a field and a file with CRLF delimiters', () => {
-		const { body } = buildMultipartBody(
-			[{ name: 'title', value: 'Sunless Citadel' }],
-			[
-				{
-					name: 'file',
-					filename: 'Sunless Citadel.pdf',
-					contentType: 'application/pdf',
-					bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
-				},
-			],
-			boundary,
-		);
-
-		expect(asLatin1(body)).toBe(
-			`--${boundary}\r\n` +
-				'Content-Disposition: form-data; name="title"\r\n' +
-				'Content-Type: text/plain; charset=utf-8\r\n' +
-				'\r\n' +
-				'Sunless Citadel\r\n' +
-				`--${boundary}\r\n` +
-				'Content-Disposition: form-data; name="file"; ' +
-				'filename="Sunless Citadel.pdf"\r\n' +
-				'Content-Type: application/pdf\r\n' +
-				'\r\n' +
-				'%PDF\r\n' +
-				`--${boundary}--\r\n`,
-		);
-	});
-
-	it('reports a content type carrying the boundary', () => {
-		const { contentType } = buildMultipartBody([], [], boundary);
-
-		expect(contentType).toBe(`multipart/form-data; boundary=${boundary}`);
-	});
-
-	it('preserves binary file bytes exactly', () => {
-		// The bytes a string-concatenation implementation would corrupt: NUL,
-		// a bare CR and LF, and two values above 0x7F.
+	it('preserves binary file bytes exactly', async () => {
+		// NUL, a bare CR and LF, and two values above 0x7F: what string concatenation corrupts.
 		const bytes = new Uint8Array([0x00, 0x0d, 0x0a, 0x25, 0xff, 0x80]);
-		const { body } = buildMultipartBody(
-			[],
-			[
-				{
-					name: 'file',
-					filename: 'x.pdf',
-					contentType: 'application/pdf',
-					bytes,
-				},
-			],
-			boundary,
-		);
+		const form = new FormData();
+		form.append('file', new Blob([bytes]), 'x.bin');
 
-		const header =
-			`--${boundary}\r\n` +
-			'Content-Disposition: form-data; name="file"; filename="x.pdf"\r\n' +
-			'Content-Type: application/pdf\r\n' +
-			'\r\n';
-		const offset = new TextEncoder().encode(header).byteLength;
+		const file = (await decode(await encodeForm(form))).get('file') as File;
 
-		expect(Array.from(new Uint8Array(body, offset, bytes.byteLength))).toEqual(
-			Array.from(bytes),
-		);
+		expect(Array.from(new Uint8Array(await file.arrayBuffer()))).toEqual(Array.from(bytes));
 	});
 
-	it('encodes a non-ASCII field value as UTF-8 bytes', () => {
-		const { body } = buildMultipartBody(
-			[{ name: 'title', value: 'Ördögök' }],
-			[],
-			boundary,
-		);
+	/** The title is the server's upsert key: a mangled one would create a second reference. */
+	it('encodes a non-ASCII field value as UTF-8', async () => {
+		const form = new FormData();
+		form.append('title', 'Ördögök');
 
-		// 7 characters, but the three umlauts are two bytes each in UTF-8.
-		expect(asLatin1(body)).toContain(
-			new TextDecoder('latin1').decode(new TextEncoder().encode('Ördögök')),
-		);
-		expect(new TextEncoder().encode('Ördögök').byteLength).toBe(10);
-	});
+		const encoded = await encodeForm(form);
 
-	it('emits only the closing boundary when there are no parts', () => {
-		const { body } = buildMultipartBody([], [], boundary);
-
-		expect(asLatin1(body)).toBe(`--${boundary}--\r\n`);
+		expect(new TextDecoder('utf-8').decode(encoded.body)).toContain('Ördögök');
+		expect((await decode(encoded)).get('title')).toBe('Ördögök');
 	});
 });
 

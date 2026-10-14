@@ -4,7 +4,7 @@ import type TomeConnectorPlugin from '../main';
 import type { BulkReport } from '../bulkSend';
 import { obsidianSendPorts } from '../obsidianSendPorts';
 import { oneAtATime } from '../oneAtATime';
-import { postJsonAndReadFromTome } from '../tomeApiClient';
+import { tomeHttp } from '../tomeApiClient';
 import { loadCampaignChoice, rememberCampaign } from '../tomeCampaigns';
 import { getApiKey } from '../tomeConnectorSettings';
 import { readImageAsDataUri } from '../tomeImageEmbedding';
@@ -58,7 +58,7 @@ async function postJson<TResponse>(
 	apiKey: string,
 	campaignId: string,
 ): Promise<TResponse> {
-	const result = await postJsonAndReadFromTome<TResponse>(baseUrl, path, JSON.stringify(body), apiKey, campaignId);
+	const result = await tomeHttp.postJsonAndRead<TResponse>({ baseUrl, path, apiKey, campaignId }, JSON.stringify(body));
 	if (!result.ok) throw new Error(result.message);
 	return result.value;
 }

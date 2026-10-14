@@ -3,7 +3,7 @@ import type { App } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
 import { TOME_ROUTES } from './routes';
-import { getJsonFromTome } from './tomeApiClient';
+import { tomeHttp } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 
 export interface TomeCampaign {
@@ -36,7 +36,11 @@ function isCampaign(value: unknown): value is TomeCampaign {
 export async function loadCampaigns(
 	plugin: TomeConnectorPlugin,
 ): Promise<TomeCampaign[] | null> {
-	const result = await getJsonFromTome<unknown>(plugin.settings.baseUrl, TOME_ROUTES.campaigns, getApiKey(plugin));
+	const result = await tomeHttp.getJson<unknown>({
+		baseUrl: plugin.settings.baseUrl,
+		path: TOME_ROUTES.campaigns,
+		apiKey: getApiKey(plugin),
+	});
 	if (!result.ok) {
 		new Notice(`Tome connector: could not load campaigns. ${result.message}`);
 		return null;
