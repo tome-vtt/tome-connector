@@ -18,9 +18,9 @@
  * Pure and `obsidian`-free.
  */
 
-import { parseSections, preamble } from '../labelledMarkdown';
+import { asStrings } from './cliNote';
+import { parseSections, proseBody, slug, titleCase, titleOf } from '../labelledMarkdown';
 import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
-import { slug } from './species';
 
 /** Mirrors the server's `Srd2024SubclassFeature`. */
 export interface SubclassFeature {
@@ -113,14 +113,6 @@ const SUBCLASS_TAG = /^ttrpg-cli\/subclass\/([^/]+)\//;
 /** `### Vitality of the Tree (Level 3)` - the name and the level, in one heading. */
 const FEATURE_HEADING = /^(.*?)\s*\(Level\s+(\d+)\)\s*$/i;
 
-/** Frontmatter values arrive as a list, a bare string, or missing. */
-function tagsOf(frontmatter: Record<string, unknown> | null): string[] {
-	const raw = frontmatter?.['tags'];
-	if (typeof raw === 'string') return [raw];
-	if (Array.isArray(raw)) return raw.filter((tag): tag is string => typeof tag === 'string');
-	return [];
-}
-
 /**
  * The parent class, from `ttrpg-cli/subclass/<class>/<subclass>`.
  *
@@ -129,7 +121,7 @@ function tagsOf(frontmatter: Record<string, unknown> | null): string[] {
  * prose that happens to contain a link.
  */
 export function parentClassSlug(frontmatter: Record<string, unknown> | null): string | null {
-	for (const tag of tagsOf(frontmatter)) {
+	for (const tag of asStrings(frontmatter?.['tags'])) {
 		const match = SUBCLASS_TAG.exec(tag);
 		if (match?.[1]) return match[1];
 	}
@@ -201,14 +193,6 @@ export function raiseEarlyFeatures(parsed: ParsedSubclass): ParsedSubclass {
 	};
 }
 
-/** `barbarian` -> `Barbarian`, for reporting rather than for matching. */
-function titleCase(value: string): string {
-	return value
-		.split('-')
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-		.join(' ');
-}
-
 /**
  * The description: the tagline and prose between the progression table and the
  * features.
@@ -217,22 +201,13 @@ function titleCase(value: string): string {
  * which is what makes dropping it a one-line filter rather than an HTML parse.
  */
 export function readDescription(markdown: string): string {
-	const sections = parseSections(markdown);
-	const body = sections.length > 0 ? preamble(markdown) : markdown;
-
-	const lines = body
-		.split(/\r?\n/)
+	return proseBody(markdown, [
 		// The callout holding the progression table, and its block anchor.
-		.filter((line) => !/^\s*>/.test(line))
-		.filter((line) => !/^\s*\^/.test(line))
-		.filter((line) => !/^\s*\*Source:/.test(line))
-		.filter((line) => !/^\s*!\[/.test(line))
+		/^\s*>/,
+		/^\s*\^/,
 		// `*[Barbarian](...): Barbarian Subclass*` - the parent, which the tag states.
-		.filter((line) => !/^\s*\*\[[^\]]+\]\([^)]*\):/.test(line));
-
-	return stripMarkdownFromString(lines.join('\n'))
-		.replace(/\n{3,}/g, '\n\n')
-		.trim();
+		/^\s*\*\[[^\]]+\]\([^)]*\):/,
+	]);
 }
 
 /**
@@ -312,14 +287,13 @@ export function parseSubclass(
 	const entries = readFeatures(markdown, key);
 	if (entries.length === 0) return null;
 
-	const title = parseSections(markdown).find((section) => section.level === 1)?.title;
 
 	return {
 		classKey: parentClassKey(classSlug),
 		className: titleCase(classSlug),
 		subclass: {
 			key,
-			name: title?.trim() || fallbackName,
+			name: titleOf(markdown, fallbackName),
 			desc: readDescription(markdown),
 			features: entries.map((entry) => entry.feature),
 			levels: readLevels(entries),
