@@ -9,6 +9,8 @@
  * Pure and `obsidian`-free.
  */
 
+import { stem } from './adventurePaths';
+
 /** Exported so anything else deciding "is this file a picture" uses the same list. */
 export const IMAGE_EXTENSION = /\.(webp|png|jpe?g|gif)$/i;
 
@@ -22,8 +24,10 @@ export interface ImageMention {
 	end: number;
 }
 
-const MARKDOWN_IMAGE = /!\[([^\]]*)\]\(([^)]+)\)/g;
-const WIKI_IMAGE = /!\[\[([^\]|#]+)(?:#([^\]|]*))?(?:\|([^\]]*))?\]\]/g;
+/** `![alt](path)`: groups are alt, path. Shared with `adventureLinks.ts`. */
+export const MARKDOWN_IMAGE = /!\[([^\]]*)\]\(([^)]+)\)/g;
+/** `![[path#fragment|alt]]`: groups are path, fragment, alt. Shared with `adventureLinks.ts`. */
+export const WIKI_IMAGE = /!\[\[([^\]|#]+)(?:#([^\]|]*))?(?:\|([^\]]*))?\]\]/g;
 
 function toMention(
 	altText: string,
@@ -46,23 +50,15 @@ function toMention(
 
 /** Every image embed in `markdown`, `![]()` and `![[]]` alike, in document order. */
 export function findImages(markdown: string): ImageMention[] {
-	const found: ImageMention[] = [];
-
-	const markdownPattern = new RegExp(MARKDOWN_IMAGE.source, MARKDOWN_IMAGE.flags);
-	let match: RegExpExecArray | null;
-	while ((match = markdownPattern.exec(markdown)) !== null) {
-		const mention = toMention(match[1] ?? '', match[2] ?? '', match.index, match[0].length);
-		if (mention) found.push(mention);
-	}
-
-	const wikiPattern = new RegExp(WIKI_IMAGE.source, WIKI_IMAGE.flags);
-	while ((match = wikiPattern.exec(markdown)) !== null) {
-		const target = `${match[1] ?? ''}${match[2] ? `#${match[2]}` : ''}`;
-		const mention = toMention(match[3] ?? '', target, match.index, match[0].length);
-		if (mention) found.push(mention);
-	}
-
-	return found.sort((a, b) => a.start - b.start);
+	const markdownImages = [...markdown.matchAll(MARKDOWN_IMAGE)].map((m) =>
+		toMention(m[1] ?? '', m[2] ?? '', m.index, m[0].length),
+	);
+	const wikiImages = [...markdown.matchAll(WIKI_IMAGE)].map((m) =>
+		toMention(m[3] ?? '', `${m[1] ?? ''}${m[2] ? `#${m[2]}` : ''}`, m.index, m[0].length),
+	);
+	return [...markdownImages, ...wikiImages]
+		.filter((mention): mention is ImageMention => mention !== null)
+		.sort((a, b) => a.start - b.start);
 }
 
 /**
@@ -77,8 +73,7 @@ export function isPlayerVersion(altText: string, path: string): boolean {
 	const alt = altText.trim().toLowerCase();
 	if (alt === 'player version' || alt === 'without tokens') return true;
 
-	const stem = (path.split('/').pop() ?? '').replace(/\.[a-z0-9]+$/i, '');
-	return /-(player|pc)$/i.test(stem);
+	return /-(player|pc)$/i.test(stem(path));
 }
 
 /**
@@ -111,12 +106,11 @@ const MAP_SIDE_CAPTION = /\b(?:dm|player)\s*version\b/i;
 const MAP_SIDE_FILENAME = /[-_](?:dm|players?|pc)$/i;
 
 export function looksLikeMap(altText: string, path: string): boolean {
-	const stem = (path.split('/').pop() ?? '').replace(/\.[a-z0-9]+$/i, '');
 	return (
 		MAP_KEYWORD.test(altText) ||
 		MAP_KEYWORD.test(path) ||
 		MAP_SIDE_CAPTION.test(altText) ||
-		MAP_SIDE_FILENAME.test(stem)
+		MAP_SIDE_FILENAME.test(stem(path))
 	);
 }
 

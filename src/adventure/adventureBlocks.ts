@@ -11,6 +11,7 @@
  */
 
 import { findImages, pairGallery, type ImageMention } from './adventureImages';
+import { stem } from './adventurePaths';
 import { findLinks, findWikiLinks } from './adventureLinks';
 import type { BlockAudience, BlockKind } from './adventurePlan';
 
@@ -294,8 +295,7 @@ function forcedEntityBlock(callout: CalloutSegment, to: ForcedEntityKind): RawFo
 	const images = findImages(body);
 	const image = images[0];
 	if (images.length !== 1 || !image || !spansWhole(body, image.start, image.end)) return null;
-	const filename = image.path.split('/').pop() ?? image.path;
-	const label = image.altText || filename.replace(/\.[^./]+$/, '');
+	const label = image.altText || stem(image.path);
 	return { type: 'forced-entity', to, key: image.path, label };
 }
 

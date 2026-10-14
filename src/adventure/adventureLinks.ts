@@ -31,6 +31,7 @@
  * Pure and `obsidian`-free.
  */
 
+import { MARKDOWN_IMAGE, WIKI_IMAGE } from './adventureImages';
 import type { BlockRef, ImageRef } from './adventurePlan';
 
 export type LinkClass = { kind: 'bestiary' } | { kind: 'item' } | { kind: 'unknown' } | { kind: 'none' };
@@ -65,18 +66,7 @@ export interface ProseLink {
 const LINK = /(?<!!)\[([^\]]*)\]\(([^)]+)\)/g;
 
 export function findLinks(markdown: string): ProseLink[] {
-	const links: ProseLink[] = [];
-	const pattern = new RegExp(LINK.source, LINK.flags);
-	let match: RegExpExecArray | null;
-	while ((match = pattern.exec(markdown)) !== null) {
-		links.push({
-			text: match[1] ?? '',
-			path: match[2] ?? '',
-			start: match.index,
-			end: match.index + match[0].length,
-		});
-	}
-	return links;
+	return collect(markdown, LINK, (match) => ({ text: match[1] ?? '', path: match[2] ?? '', ...span(match) }));
 }
 
 /**
@@ -113,9 +103,6 @@ interface Token {
 	end: number;
 }
 
-const MARKDOWN_IMAGE = /!\[([^\]]*)\]\(([^)]+)\)/g;
-const WIKI_IMAGE = /!\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]*))?\]\]/g;
-
 /**
  * `[[Goblin Boss]]`, `[[Goblin Boss|the boss]]`, `[[Goblin Boss#Lair]]` -
  * never `![[...]]`, which `WIKI_IMAGE` already owns. Shared with
@@ -136,57 +123,49 @@ export interface WikiLinkMention {
 
 /** Every plain wikilink in `markdown`, in document order. Pure - resolving `target` needs the vault. */
 export function findWikiLinks(markdown: string): WikiLinkMention[] {
-	const found: WikiLinkMention[] = [];
-	const pattern = new RegExp(WIKI_LINK.source, WIKI_LINK.flags);
-	let match: RegExpExecArray | null;
-	while ((match = pattern.exec(markdown)) !== null) {
+	return collect(markdown, WIKI_LINK, (match) => {
 		const target = (match[1] ?? '').trim();
-		const display = (match[2] ?? '').trim() || target;
-		found.push({ target, display, start: match.index, end: match.index + match[0].length });
-	}
-	return found;
+		return { target, display: (match[2] ?? '').trim() || target, ...span(match) };
+	});
 }
 
-function collect(markdown: string, pattern: RegExp, build: (match: RegExpExecArray) => Token): Token[] {
-	const tokens: Token[] = [];
-	const scanner = new RegExp(pattern.source, pattern.flags);
-	let match: RegExpExecArray | null;
-	while ((match = scanner.exec(markdown)) !== null) tokens.push(build(match));
-	return tokens;
+function span(match: RegExpMatchArray): { start: number; end: number } {
+	const start = match.index ?? 0;
+	return { start, end: start + match[0].length };
+}
+
+function collect<T>(markdown: string, pattern: RegExp, build: (match: RegExpMatchArray) => T): T[] {
+	return [...markdown.matchAll(pattern)].map(build);
 }
 
 /** Every link and embed, in document order. The two never overlap: `LINK` excludes `!`-prefixed. */
 function tokenize(markdown: string): Token[] {
 	return [
-		...collect(markdown, MARKDOWN_IMAGE, (match) => ({
+		...collect<Token>(markdown, MARKDOWN_IMAGE, (match) => ({
 			kind: 'image',
 			text: match[1] ?? '',
 			target: match[2] ?? '',
-			start: match.index,
-			end: match.index + match[0].length,
+			...span(match),
 		})),
-		...collect(markdown, WIKI_IMAGE, (match) => ({
+		...collect<Token>(markdown, WIKI_IMAGE, (match) => ({
 			kind: 'image',
 			// `![[maps/room.png|Room 1]]` captions as "Room 1"; with no alias there is
 			// nothing to caption it with but the filename, which is not prose.
-			text: match[2] ?? '',
+			text: match[3] ?? '',
 			target: match[1] ?? '',
-			start: match.index,
-			end: match.index + match[0].length,
+			...span(match),
 		})),
-		...collect(markdown, WIKI_LINK, (match) => ({
+		...collect<Token>(markdown, WIKI_LINK, (match) => ({
 			kind: 'wikilink',
 			text: (match[2] ?? '').trim() || (match[1] ?? '').trim(),
 			target: match[1] ?? '',
-			start: match.index,
-			end: match.index + match[0].length,
+			...span(match),
 		})),
-		...collect(markdown, LINK, (match) => ({
+		...collect<Token>(markdown, LINK, (match) => ({
 			kind: 'link',
 			text: match[1] ?? '',
 			target: match[2] ?? '',
-			start: match.index,
-			end: match.index + match[0].length,
+			...span(match),
 		})),
 	].sort((a, b) => a.start - b.start);
 }

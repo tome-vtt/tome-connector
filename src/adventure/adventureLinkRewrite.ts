@@ -20,28 +20,6 @@ export interface ResolvedEntityLink {
 	id: string;
 }
 
-/**
- * Applied right-to-left by `start`, so splicing one ref never invalidates the
- * offsets recorded for the ones still to come.
- */
-export function rewriteLinks(
-	text: string,
-	refs: BlockRef[],
-	resolved: Map<string, ResolvedEntityLink>,
-): string {
-	let result = text;
-
-	for (const ref of [...refs].sort((a, b) => b.start - a.start)) {
-		const link = resolved.get(ref.entity);
-		if (!link) continue;
-
-		const replacement = `[${ref.text}](tome:${link.libraryKind}/${link.id})`;
-		result = result.slice(0, ref.start) + replacement + result.slice(ref.end);
-	}
-
-	return result;
-}
-
 interface Edit {
 	start: number;
 	end: number;

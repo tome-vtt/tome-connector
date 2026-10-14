@@ -1,7 +1,7 @@
 import { type BulkItem, type BulkReport, MAX_ATTEMPTS, runBulkSend, THROTTLE_MS } from '../bulkSend';
 import type { Note } from '../recognizers/note';
 import { findSendables, type Sendable, type YamlParser } from '../recognizers/noteScan';
-import { sendToTome, type Destination, type SendPorts } from '../sendModule';
+import { sendToTome, type Destination, type ModuleSendable, type SendPorts } from '../sendModule';
 import type { AdventurePlan, PlannedEntity, PlannedImage } from './adventurePlan';
 
 /**
@@ -40,31 +40,52 @@ async function sendableForEntity(deps: PassDeps, entity: PlannedEntity): Promise
 	return found;
 }
 
-export function entitiesPass(
+/** The rows `entitiesPass` will try to send. Exported so the progress total counts the same rows. */
+export const isEntityTarget = (entity: PlannedEntity): boolean =>
+	entity.chosen.to !== 'skip' && entity.resolvedId === null;
+
+/** The rows `imagesPass` will try to send. */
+export const isImageTarget = (image: PlannedImage): boolean => image.chosen.to === 'Map' || image.chosen.to === 'Prop';
+
+/** Sends each target through the send module, writing the new id back onto its row. */
+function runPass<T extends { resolvedId: string | null }>(
 	deps: PassDeps,
-	plan: AdventurePlan,
+	targets: T[],
+	describe: (row: T) => { label: string; path: string },
+	sendableFor: (row: T) => Promise<ModuleSendable>,
 	destination: Destination,
 	onProgress?: (done: number) => void,
-): Promise<BulkReport<PlannedEntity>> {
-	const targets = plan.entities.filter((entity) => entity.chosen.to !== 'skip' && entity.resolvedId === null);
-	const items: BulkItem<PlannedEntity>[] = targets.map((entity) => ({
-		label: entity.tomeName,
-		path: entity.key,
-		value: entity,
-	}));
+): Promise<BulkReport<T>> {
+	const items: BulkItem<T>[] = targets.map((row) => ({ ...describe(row), value: row }));
 
-	return runBulkSend<PlannedEntity>({
+	return runBulkSend<T>({
 		items,
 		sleep: deps.sleep,
 		throttleMs: THROTTLE_MS,
 		maxAttempts: MAX_ATTEMPTS,
 		onProgress,
 		send: async (item) => {
-			const result = await sendToTome(deps.ports, await sendableForEntity(deps, item.value), destination);
+			const result = await sendToTome(deps.ports, await sendableFor(item.value), destination);
 			if (result.ok && result.id) item.value.resolvedId = result.id;
 			return result;
 		},
 	});
+}
+
+export function entitiesPass(
+	deps: PassDeps,
+	plan: AdventurePlan,
+	destination: Destination,
+	onProgress?: (done: number) => void,
+): Promise<BulkReport<PlannedEntity>> {
+	return runPass(
+		deps,
+		plan.entities.filter(isEntityTarget),
+		(entity) => ({ label: entity.tomeName, path: entity.key }),
+		(entity) => sendableForEntity(deps, entity),
+		destination,
+		onProgress,
+	);
 }
 
 export function imagesPass(
@@ -73,27 +94,15 @@ export function imagesPass(
 	destination: Destination,
 	onProgress?: (done: number) => void,
 ): Promise<BulkReport<PlannedImage>> {
-	const targets = plan.images.filter((image) => image.chosen.to === 'Map' || image.chosen.to === 'Prop');
-	const items: BulkItem<PlannedImage>[] = targets.map((image) => ({
-		label: image.label,
-		path: image.dmPath,
-		value: image,
-	}));
-
-	return runBulkSend<PlannedImage>({
-		items,
-		sleep: deps.sleep,
-		throttleMs: THROTTLE_MS,
-		maxAttempts: MAX_ATTEMPTS,
+	return runPass(
+		deps,
+		plan.images.filter(isImageTarget),
+		(image) => ({ label: image.label, path: image.dmPath }),
+		// The GM's choice in the review dialog decides the route and how large the
+		// image may stay; the caption (or file name) the dialog shows is its title.
+		({ dmPath, label, chosen }) =>
+			Promise.resolve({ kind: 'image', path: dmPath, to: chosen.to === 'Map' ? 'map' : 'prop', title: label }),
+		destination,
 		onProgress,
-		send: async (item) => {
-			// The GM's choice in the review dialog decides the route and how large the
-			// image may stay; the caption (or file name) the dialog shows is its title.
-			const { dmPath, label, chosen } = item.value;
-			const to = chosen.to === 'Map' ? 'map' : 'prop';
-			const result = await sendToTome(deps.ports, { kind: 'image', path: dmPath, to, title: label }, destination);
-			if (result.ok && result.id) item.value.resolvedId = result.id;
-			return result;
-		},
-	});
+	);
 }
