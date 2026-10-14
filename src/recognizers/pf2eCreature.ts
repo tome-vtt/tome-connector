@@ -24,7 +24,7 @@
  * is, the only notes this can read are ones written against the plugin's own layout.
  */
 
-import { toIntSafe, toStringSafe, type NamedAbility } from './statblockCreature';
+import { toIntSafe, toNamedAbilityList, toStringSafe, type NamedAbility } from './statblockCreature';
 import { stripMarkdownFromString } from '../tomeMarkdownSanitizer';
 import { capitalise, slug } from './labelledMarkdown';
 
@@ -200,16 +200,6 @@ export function toAttributes(value: unknown): Pf2eAttributes | null {
 		: null;
 }
 
-/**
- * `Creature 1`, `1`, `-1` - the layout prints the word and a note may carry it.
- *
- * A creature with no readable level is level 0 rather than dropped: the level is the
- * library's sort axis, and a creature missing from the list is worse than one sorted low.
- */
-export function toLevel(value: unknown): number {
-	return toIntSafe(value) ?? 0;
-}
-
 /** `25 feet, fly 40 feet` into the speeds the server models, plus whatever is left as a note. */
 export function toSpeeds(value: unknown): { speeds: Pf2eSpeed[]; note: string | null } {
 	const speeds: Pf2eSpeed[] = [];
@@ -231,18 +221,9 @@ export function toSpeeds(value: unknown): { speeds: Pf2eSpeed[]; note: string | 
 	return { speeds, note: leftovers.length > 0 ? leftovers.join(', ') : null };
 }
 
-/** `[{name, desc}]`, which is what every `traits` block in the layout holds. */
+/** `[{name, desc}]`, which is what every `traits` block in the layout holds; names are trimmed. */
 function toEntries(value: unknown): NamedAbility[] {
-	if (!Array.isArray(value)) return [];
-	const out: NamedAbility[] = [];
-	for (const entry of value) {
-		if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) continue;
-		const record = entry as Record<string, unknown>;
-		const name = toStringSafe(record.name ?? record.Name);
-		if (name === undefined || name.trim() === '') continue;
-		out.push({ name: name.trim(), desc: toStringSafe(record.desc ?? record.Desc) ?? '' });
-	}
-	return out;
+	return toNamedAbilityList(value).map((entry) => ({ ...entry, name: entry.name.trim() }));
 }
 
 /**
@@ -332,7 +313,10 @@ export function mapToPf2eCreature(record: Record<string, unknown>): Pf2eCreature
 		key: slug(name),
 		name,
 		source: toStringSafe(record.sourcebook)?.trim() || null,
-		level: toLevel(record.level),
+		// `Creature 1`, `1`, `-1` - the layout prints the word and a note may carry it. No
+		// readable level is level 0 rather than dropped: the level is the library's sort
+		// axis, and a creature missing from the list is worse than one sorted low.
+		level: toIntSafe(record.level) ?? 0,
 		rarity: rarity ?? 'common',
 		// Capitalised, because the stat block prints it and the server stamps the board's
 		// neutral size column from it.

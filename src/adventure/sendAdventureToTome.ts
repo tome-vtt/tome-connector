@@ -16,7 +16,14 @@ import { AdventureReviewModal } from './adventureReviewModal';
 import { buildAdventurePlan } from './adventureVault';
 import { renderBlockText, type ResolvedEntityLink } from './adventureLinkRewrite';
 import { writeAdventureIdsToVault } from './writeAdventureIdsToVault';
-import type { AdventurePlan, PlannedBlock, PlannedEntity, PlannedImage } from './adventurePlan';
+import { sceneMarkerEdits } from './sceneMarkerEdit';
+import type {
+	AdventurePlan,
+	ImportedChapterResultBody,
+	PlannedBlock,
+	PlannedEntity,
+	PlannedImage,
+} from './adventurePlan';
 
 /**
  * The four passes that turn a reviewed {@link AdventurePlan} into a book in
@@ -206,15 +213,6 @@ async function buildImportRequest(
 	};
 }
 
-export interface ImportedSceneResultBody {
-	id: string;
-}
-
-export interface ImportedChapterResultBody {
-	id: string;
-	scenes: ImportedSceneResultBody[];
-}
-
 interface ImportAdventureResponseBody {
 	id: string;
 	created: boolean;
@@ -351,7 +349,7 @@ export async function runAdventureImport(
 	// than before this existed, so nothing here is allowed to turn a successful import
 	// into a failed one.
 	try {
-		await writeAdventureIdsToVault(plugin.app, plan, response.chapters);
+		await writeAdventureIdsToVault(plugin.app, plan, response.chapters, sceneMarkerEdits(plan, response.chapters));
 	} catch (error) {
 		console.warn('Tome Connector: could not write ids back into the vault.', error);
 	}

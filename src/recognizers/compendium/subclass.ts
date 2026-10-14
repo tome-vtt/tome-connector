@@ -19,6 +19,7 @@
  */
 
 import { asStrings } from './cliNote';
+import type { ClassPatch } from './package';
 import { parseSections, proseBody, slug, titleCase, titleOf } from '../labelledMarkdown';
 import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
 
@@ -309,10 +310,8 @@ export function parseSubclass(
  * rather than replacing it. Sending a fuller entry would replace a working Barbarian
  * with whatever this parser managed to read.
  */
-export function toClassPatches(
-	parsed: ParsedSubclass[],
-): { key: string; name: string; subclasses: Subclass[] }[] {
-	const byClass = new Map<string, { key: string; name: string; subclasses: Subclass[] }>();
+export function toClassPatches(parsed: ParsedSubclass[]): ClassPatch[] {
+	const byClass = new Map<string, ClassPatch>();
 
 	for (const entry of parsed) {
 		const patch = byClass.get(entry.classKey) ?? {

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	buildImportRequest,
-	IMPORT_PATH,
 	validateManifest,
 	type ImportManifest,
 } from '../src/recognizers/compendium/importRequest';
@@ -150,9 +149,4 @@ describe('buildImportRequest', () => {
 	});
 });
 
-describe('IMPORT_PATH', () => {
-	it('is the controller route', () => {
-		expect(IMPORT_PATH).toBe('/api/ContentSources/import');
-	});
-});
 

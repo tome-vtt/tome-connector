@@ -1,8 +1,6 @@
 import { App, TFile } from 'obsidian';
 
-import { sceneHeadingLines, withSceneIdMarker } from './adventureParser';
-import type { AdventurePlan, PlannedChapter } from './adventurePlan';
-import type { ImportedChapterResultBody, ImportedSceneResultBody } from './sendAdventureToTome';
+import type { AdventurePlan, ImportedChapterResultBody } from './adventurePlan';
 
 /**
  * Writes the ids a successful import returned back into the vault - a
@@ -22,17 +20,19 @@ export async function writeAdventureIdsToVault(
 	app: App,
 	plan: AdventurePlan,
 	chapterResults: ImportedChapterResultBody[],
+	sceneEdits: ((content: string) => string)[],
 ): Promise<void> {
 	for (const [index, chapter] of plan.chapters.entries()) {
 		const result = chapterResults[index];
-		if (!result || !chapter.notePath) continue;
+		const sceneEdit = sceneEdits[index];
+		if (!result || !sceneEdit || !chapter.notePath) continue;
 
 		const file = app.vault.getAbstractFileByPath(chapter.notePath);
 		if (!(file instanceof TFile)) continue;
 
 		try {
 			await writeChapterId(app, file, result.id);
-			await writeSceneIds(app, file, chapter, result.scenes);
+			await writeSceneIds(app, file, sceneEdit);
 		} catch (error) {
 			console.warn(`Tome Connector: could not write ids back into "${chapter.notePath}".`, error);
 		}
@@ -45,33 +45,6 @@ async function writeChapterId(app: App, file: TFile, id: string): Promise<void> 
 	});
 }
 
-/**
- * Rewrites only the heading lines `sceneHeadingLines` names, splicing into the
- * note's exact original text rather than splitting and rejoining on `\n` -
- * that would silently normalise every other line's ending too, turning one
- * marker write into a whole-file diff for a Windows-authored note.
- */
-async function writeSceneIds(
-	app: App,
-	file: TFile,
-	chapter: PlannedChapter,
-	sceneResults: ImportedSceneResultBody[],
-): Promise<void> {
-	await app.vault.process(file, (content) => {
-		const headingLines = sceneHeadingLines(content, chapter.promoteRooms);
-		// Odd indices are the line terminators themselves, kept so nothing but the
-		// targeted lines' own text changes.
-		const parts = content.split(/(\r?\n)/);
-
-		for (const [sceneIndex, lineIndex] of headingLines.entries()) {
-			if (lineIndex === null) continue;
-			const sceneResult = sceneResults[sceneIndex];
-			const partIndex = lineIndex * 2;
-			const line = parts[partIndex];
-			if (!sceneResult || line === undefined) continue;
-			parts[partIndex] = withSceneIdMarker(line, sceneResult.id);
-		}
-
-		return parts.join('');
-	});
+async function writeSceneIds(app: App, file: TFile, edit: (content: string) => string): Promise<void> {
+	await app.vault.process(file, edit);
 }
