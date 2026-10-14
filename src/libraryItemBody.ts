@@ -55,29 +55,7 @@ export interface Dnd5eEquipmentItem {
  * `level` is nullable here where the server's is an `int`: a note with no level tag is sent
  * as it reads and refused, rather than arriving as a cantrip nobody chose.
  */
-export interface Dnd5eSpell {
-	desc: string;
-	level: number | null;
-	school: string | null;
-	castingTime: string | null;
-	reactionCondition: string | null;
-	duration: string | null;
-	range: number | null;
-	rangeText: string | null;
-	rangeUnit: string | null;
-	concentration: boolean;
-	ritual: boolean;
-	verbal: boolean;
-	somatic: boolean;
-	material: boolean;
-	materialSpecified: string | null;
-	materialConsumed: boolean;
-	higherLevel: string | null;
-	shapeType: string | null;
-	shapeSize: number | null;
-	shapeSizeUnit: string | null;
-	classes: string[];
-}
+export type Dnd5eSpell = Omit<Spell, 'key' | 'name'>;
 
 /** `MagicItemInputDto`. */
 export interface MagicItemBody {
@@ -140,34 +118,6 @@ export function equipmentItemBody(item: EquipmentItem, image?: string): Equipmen
 }
 
 export function spellBody(spell: SpellNote, image?: string): SpellBody {
-	return withImage(
-		{
-			name: spell.name,
-			sourceKey: spell.sourceKey,
-			dnd5e: {
-				desc: spell.desc,
-				level: spell.level,
-				school: spell.school,
-				castingTime: spell.castingTime,
-				reactionCondition: spell.reactionCondition,
-				duration: spell.duration,
-				range: spell.range,
-				rangeText: spell.rangeText,
-				rangeUnit: spell.rangeUnit,
-				concentration: spell.concentration,
-				ritual: spell.ritual,
-				verbal: spell.verbal,
-				somatic: spell.somatic,
-				material: spell.material,
-				materialSpecified: spell.materialSpecified,
-				materialConsumed: spell.materialConsumed,
-				higherLevel: spell.higherLevel,
-				shapeType: spell.shapeType,
-				shapeSize: spell.shapeSize,
-				shapeSizeUnit: spell.shapeSizeUnit,
-				classes: spell.classes,
-			},
-		},
-		image,
-	);
+	const { name, sourceKey, imagePath: _imagePath, ...dnd5e } = spell;
+	return withImage({ name, sourceKey, dnd5e }, image);
 }

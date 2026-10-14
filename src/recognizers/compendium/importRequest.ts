@@ -9,7 +9,6 @@
  * Pure and `obsidian`-free: it builds bytes, and the caller sends them.
  */
 
-import { TOME_ROUTES } from '../../routes';
 import { buildMultipartBody, type MultipartBody } from '../../tomeMultipartBody';
 import type { ContentPackage } from './package';
 
@@ -33,19 +32,16 @@ export interface ImportManifest {
 	url?: string;
 }
 
-/** Why an import cannot be sent yet, in words the person can act on. */
-export type ImportRefusal = string;
-
 /**
- * Checks the manifest before anything is uploaded.
+ * Checks the manifest before anything is uploaded; each problem is in words the person can act on.
  *
  * The server validates all of this too and would refuse with a 400, but by then
  * a 391-spell package has crossed the wire - and on a Free account the plan
  * check refuses *after* the upload, which is a documented consequence of the
  * size limit being a compile-time constant. Catching it here costs nothing.
  */
-export function validateManifest(manifest: Partial<ImportManifest>): ImportRefusal[] {
-	const problems: ImportRefusal[] = [];
+export function validateManifest(manifest: Partial<ImportManifest>): string[] {
+	const problems: string[] = [];
 
 	if (!manifest.key?.trim()) problems.push('Give the package a key.');
 	else if (!/^[a-z0-9][a-z0-9-]*$/.test(manifest.key.trim())) {
@@ -127,12 +123,3 @@ export function buildImportRequest(
 		boundary,
 	);
 }
-
-/**
- * The endpoint path, relative to the configured base URL.
- *
- * Re-exported from {@link TOME_ROUTES} rather than spelled out again, so this stays one
- * value with one home; the name is kept because it reads better at the call site than
- * `TOME_ROUTES.importContentSource` does.
- */
-export const IMPORT_PATH = TOME_ROUTES.importContentSource;
