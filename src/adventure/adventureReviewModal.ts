@@ -1,6 +1,7 @@
 import { App, Modal, normalizePath } from 'obsidian';
 
-import { groupEntities, groupImages, setAllEntities, setAllImages, summariseImport } from './adventureReviewRows';
+import { basename } from './adventurePaths';
+import { ENTITY_LABELS, groupBy, IMAGE_LABELS, setAll, summariseImport } from './adventureReviewRows';
 import type {
 	AdventurePlan,
 	EntityDestination,
@@ -180,25 +181,25 @@ export class AdventureReviewModal extends Modal {
 		this.coverSection = contentEl.createDiv({ cls: 'tome-connector-adventure-cover' });
 		this.renderCover();
 
-		for (const group of groupEntities(this.plan.entities)) {
+		for (const group of groupBy(this.plan.entities, (entity) => entity.suggested.to, ENTITY_LABELS)) {
 			renderGroup(
 				contentEl,
 				group.label,
 				group.items.length,
 				ENTITY_OPTIONS,
 				group.key,
-				(to) => setAllEntities(group.items, { to }),
+				(to) => setAll<PlannedEntity, EntityDestination>(group.items, { to }),
 				(body) => this.renderEntityRows(body, group.items),
 			);
 		}
-		for (const group of groupImages(this.plan.images)) {
+		for (const group of groupBy(this.plan.images, (image) => image.suggested.to, IMAGE_LABELS)) {
 			renderGroup(
 				contentEl,
 				group.label,
 				group.items.length,
 				IMAGE_OPTIONS,
 				group.key,
-				(to) => setAllImages(group.items, { to }),
+				(to) => setAll<PlannedImage, ImageDestination>(group.items, { to }),
 				(body) => this.renderImageRows(body, group.items),
 			);
 		}
@@ -228,7 +229,7 @@ export class AdventureReviewModal extends Modal {
 			text.createDiv({ text: item.label });
 			// The filename is what distinguishes two images whose alt text is the
 			// same word, which in a gallery of room maps is most of them.
-			text.createDiv({ cls: 'tome-connector-adventure-sub', text: item.dmPath.split('/').pop() ?? item.dmPath });
+			text.createDiv({ cls: 'tome-connector-adventure-sub', text: basename(item.dmPath) });
 			if (item.playerPath) {
 				text.createDiv({ cls: 'tome-connector-adventure-sub', text: 'has a player version' });
 			}

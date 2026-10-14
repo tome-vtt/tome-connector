@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-	groupEntities,
-	groupImages,
-	setAllEntities,
-	setAllImages,
+	ENTITY_LABELS,
+	groupBy,
+	IMAGE_LABELS,
+	setAll,
 	summariseImport,
 } from '../src/adventure/adventureReviewRows';
 import type { AdventurePlan, PlannedEntity, PlannedImage } from '../src/adventure/adventurePlan';
@@ -35,7 +35,7 @@ function image(overrides: Partial<PlannedImage> = {}): PlannedImage {
 	};
 }
 
-describe('groupEntities', () => {
+describe('groupBy with the entity labels', () => {
 	it('groups by suggested destination, in creatures/items/equipment/unrecognised order', () => {
 		const goblin = entity();
 		const item = entity({
@@ -54,7 +54,7 @@ describe('groupEntities', () => {
 			chosen: { to: 'skip' },
 		});
 
-		const groups = groupEntities([rules, rope, item, goblin]);
+		const groups = groupBy([rules, rope, item, goblin], (e) => e.suggested.to, ENTITY_LABELS);
 
 		expect(groups.map((group) => group.key)).toEqual(['NonPlayerCharacter', 'MagicItem', 'EquipmentItem', 'skip']);
 		expect(groups[0]?.items).toEqual([goblin]);
@@ -63,39 +63,39 @@ describe('groupEntities', () => {
 	});
 
 	it('omits an empty group rather than showing it with a zero count', () => {
-		const groups = groupEntities([entity()]);
+		const groups = groupBy([entity()], (e) => e.suggested.to, ENTITY_LABELS);
 		expect(groups).toHaveLength(1);
 	});
 
 	it('groups by suggested even after chosen has been changed by the dialog', () => {
 		const goblin = entity({ chosen: { to: 'skip' } });
-		const groups = groupEntities([goblin]);
+		const groups = groupBy([goblin], (e) => e.suggested.to, ENTITY_LABELS);
 		expect(groups[0]?.key).toBe('NonPlayerCharacter');
 	});
 });
 
-describe('groupImages', () => {
+describe('groupBy with the image labels', () => {
 	it('groups battlemaps and illustrations separately', () => {
 		const map = image();
 		const illustration = image({ key: 'art/npc.png', suggested: { to: 'Prop' }, chosen: { to: 'Prop' } });
 
-		const groups = groupImages([illustration, map]);
+		const groups = groupBy([illustration, map], (i) => i.suggested.to, IMAGE_LABELS);
 		expect(groups.map((group) => group.key)).toEqual(['Map', 'Prop']);
 	});
 });
 
-describe('setAllEntities', () => {
+describe('setAll on entities', () => {
 	it('mutates every item in the group', () => {
 		const items = [entity({ key: 'a' }), entity({ key: 'b' })];
-		setAllEntities(items, { to: 'skip' });
+		setAll(items, { to: 'skip' });
 		expect(items.every((item) => item.chosen.to === 'skip')).toBe(true);
 	});
 });
 
-describe('setAllImages', () => {
+describe('setAll on images', () => {
 	it('mutates every item in the group', () => {
 		const items = [image({ key: 'a' }), image({ key: 'b' })];
-		setAllImages(items, { to: 'skip' });
+		setAll(items, { to: 'skip' });
 		expect(items.every((item) => item.chosen.to === 'skip')).toBe(true);
 	});
 });
