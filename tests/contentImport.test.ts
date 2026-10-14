@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { scanCompendium, uploadPackage, type ImportHttp } from '../src/contentImport';
+import { isEmpty } from '../src/recognizers/compendium/package';
 import type { NoteSource } from '../src/scopeReader';
 import type { SendResult } from '../src/tomeHttp';
 
@@ -39,7 +40,7 @@ describe('scanCompendium', () => {
 	it('reports what the scope holds, counting SRD content Tome already ships as left out', async () => {
 		const scan = await scanCompendium(vault(), scope);
 		const report = scan.assemble({});
-		expect(report.counts.feats + report.counts.species).toBe(0);
+		expect(isEmpty(report)).toBe(true);
 		expect(report.alreadyShipped).toBe(2);
 	});
 
