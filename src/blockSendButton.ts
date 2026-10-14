@@ -1,15 +1,14 @@
-import { Notice, TFile, parseYaml } from 'obsidian';
+import { Notice, parseYaml } from 'obsidian';
 import type { MarkdownPostProcessorContext } from 'obsidian';
 import { BLOCK_KINDS, recognizeBlock, type BlockKind } from './blockKinds';
 import type TomeConnectorPlugin from './main';
-import { sendWithNotice } from './obsidianSendPorts';
+import { sendBlockWithNotice } from './obsidianSendPorts';
 import { unwrapWikilink } from './recognizers/map';
 import { chooseCampaign } from './tomeCampaigns';
-import { writeTomeIdIntoNote } from './tomeIdWriteBack';
 
 /**
  * The one "Send to Tome" button frame every code block shares: busy state, the
- * campaign, the send, the id write-back and the error Notice live here once. Which
+ * campaign, the send and the error Notice live here once. Which
  * blocks get a button, and what they send as, is `blockKinds.ts`'s table.
  */
 
@@ -129,8 +128,11 @@ async function send(button: HTMLButtonElement, block: RenderedBlock): Promise<vo
 
 		const sendable = kind.sendable(parseYaml(block.source));
 		if (!sendable) throw new Error(`This ${kind.language} block is no longer one Tome can take.`);
-		const id = await sendWithNotice(plugin, { ...sendable, path: ctx.sourcePath }, campaignId);
-		if (id !== null) await writeIdBack(block, id);
+		// The block's lines are looked up once the send returns, so an edit made meanwhile cannot shift the id.
+		await sendBlockWithNotice(plugin, { ...sendable, path: ctx.sourcePath }, campaignId, {
+			kind: kind.writeBack,
+			lines: () => ctx.getSectionInfo(block.sectionEl),
+		});
 	} catch (error) {
 		console.error(`Tome Connector: failed to send ${kind.language} block`, error);
 		const message = error instanceof Error ? error.message : String(error);
@@ -139,21 +141,4 @@ async function send(button: HTMLButtonElement, block: RenderedBlock): Promise<vo
 		button.disabled = false;
 		button.setText(BUTTON_TEXT);
 	}
-}
-
-/**
- * Finds the block's lines in its note and writes Tome's id into it, so a re-send
- * updates rather than duplicates. Only the id line changes - a statblock keeps its
- * compact `monster:` reference. The text edit is `writeTomeIdIntoNote`'s.
- */
-async function writeIdBack({ plugin, kind, ctx, sectionEl }: RenderedBlock, id: string): Promise<void> {
-	const section = ctx.getSectionInfo(sectionEl);
-	if (!section) return;
-
-	const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
-	if (!(file instanceof TFile)) return;
-
-	await plugin.app.vault.process(file, (content) =>
-		writeTomeIdIntoNote(content, section.lineStart, section.lineEnd, kind.writeBack, id),
-	);
 }

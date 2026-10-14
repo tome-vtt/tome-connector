@@ -2,7 +2,7 @@ import { TFile, type App } from 'obsidian';
 
 import { getStatblockBestiaryApi } from './fantasyStatblocksBestiary';
 import type TomeConnectorPlugin from './main';
-import { sendToTome, type ModuleSendable, type SendPorts } from './sendModule';
+import { sendBlockToTome, sendToTome, type ModuleSendable, type SendPorts, type SourceBlock } from './sendModule';
 import { noticeResult, tomeHttp } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { readImageAsDataUri } from './tomeImageEmbedding';
@@ -30,13 +30,29 @@ export function obsidianSendPorts(app: App, downscale: boolean): SendPorts {
 		bestiary: getStatblockBestiaryApi,
 		postJson: tomeHttp.postJson,
 		setFrontmatter: async (path, key, value) => {
-			const file = app.vault.getAbstractFileByPath(path);
-			if (!(file instanceof TFile)) throw new Error(`${path} is no longer in the vault.`);
-			await app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
+			await app.fileManager.processFrontMatter(noteAt(app, path), (frontmatter: Record<string, unknown>) => {
 				frontmatter[key] = value;
 			});
 		},
+		readNote: async (path) => {
+			const file = noteAt(app, path);
+			return {
+				frontmatter: app.metadataCache.getFileCache(file)?.frontmatter ?? {},
+				// `cachedRead` rather than `read`: the body is only being parsed, and
+				// the cache is already warm for the note the user is looking at.
+				content: await app.vault.cachedRead(file),
+			};
+		},
+		editNote: async (path, edit) => {
+			await app.vault.process(noteAt(app, path), edit);
+		},
 	};
+}
+
+function noteAt(app: App, path: string): TFile {
+	const file = app.vault.getAbstractFileByPath(path);
+	if (!(file instanceof TFile)) throw new Error(`${path} is no longer in the vault.`);
+	return file;
 }
 
 /**
@@ -54,4 +70,20 @@ export async function sendWithNotice(
 		{ baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId },
 	);
 	return noticeResult(result);
+}
+
+/** {@link sendWithNotice} for a code block: Tome's id is written into `block` before the one Notice. */
+export async function sendBlockWithNotice(
+	plugin: TomeConnectorPlugin,
+	sendable: ModuleSendable,
+	campaignId: string,
+	block: SourceBlock,
+): Promise<void> {
+	const result = await sendBlockToTome(
+		obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),
+		sendable,
+		{ baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId },
+		block,
+	);
+	noticeResult(result);
 }
