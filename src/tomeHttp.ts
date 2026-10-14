@@ -82,8 +82,8 @@ export function createTomeHttp(transport: TomeTransport) {
 			(await send(transport, target, { body: payload, contentType: 'application/json' })).result,
 		/**
 		 * For the endpoints that take a file beside their fields. The caller builds the
-		 * body with `buildMultipartBody`, because `requestUrl` takes only
-		 * `string | ArrayBuffer` and `FormData` is not an option.
+		 * body with `encodeForm`, because `requestUrl` takes only
+		 * `string | ArrayBuffer`.
 		 */
 		postMultipart: async (target: TomeTarget, body: ArrayBuffer, contentType: string) =>
 			(await send(transport, target, { body, contentType })).result,

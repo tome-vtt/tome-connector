@@ -8,7 +8,6 @@ import { buildImportRequest, type ImportManifest } from './recognizers/compendiu
 import type { Note } from './recognizers/note';
 import { readScope, type NoteSource, type SyncScope } from './scopeReader';
 import { TOME_ROUTES } from './routes';
-import { createMultipartBoundary } from './tomeMultipartBody';
 import type { SendResult } from './tomeHttp';
 
 /**
@@ -60,11 +59,7 @@ export async function uploadPackage(
 		// The document key is the manifest's key: the person may have renamed it in
 		// the form, and the two disagreeing would file the package under one name and
 		// describe it under another.
-		const body = buildImportRequest(
-			manifest,
-			{ ...report.package, documentKey: manifest.key },
-			createMultipartBoundary(),
-		);
+		const body = await buildImportRequest(manifest, { ...report.package, documentKey: manifest.key });
 		const result = await http(TOME_ROUTES.importContentSource, body.body, body.contentType);
 		if (result.ok) return { ok: true };
 

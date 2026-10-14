@@ -28,8 +28,9 @@ const contentPackage: ContentPackage = {
 	classes: [],
 };
 
-function read(body: ArrayBuffer): string {
-	return new TextDecoder().decode(body);
+/** Reads the encoded body back the way a server would. */
+function parse(built: { body: ArrayBuffer; contentType: string }): Promise<FormData> {
+	return new Response(built.body, { headers: { 'Content-Type': built.contentType } }).formData();
 }
 
 describe('validateManifest', () => {
@@ -75,11 +76,11 @@ describe('validateManifest', () => {
 });
 
 describe('buildImportRequest', () => {
-	const built = buildImportRequest(manifest, contentPackage, 'BOUNDARY');
-	const text = read(built.body);
+	it('sends a multipart content type the server can read the parts from', async () => {
+		const built = await buildImportRequest(manifest, contentPackage);
 
-	it('names the boundary in the content type', () => {
-		expect(built.contentType).toBe('multipart/form-data; boundary=BOUNDARY');
+		expect(built.contentType).toMatch(/^multipart\/form-data; boundary=\S+$/);
+		expect((await parse(built)).get('key')).toBe('my-books');
 	});
 
 	/** Field for field with the server's `ContentSourceImportDto`. */
@@ -90,63 +91,59 @@ describe('buildImportRequest', () => {
 		['publisher', 'A Person'],
 		['license', 'own-work'],
 		['attribution', "Player's Handbook (2024)"],
-	])('sends %s', (field, value) => {
-		expect(text).toContain(`name="${field}"`);
-		expect(text).toContain(value);
+	])('sends %s', async (field, value) => {
+		const form = await parse(await buildImportRequest(manifest, contentPackage));
+
+		expect(form.get(field)).toBe(value);
 	});
 
 	/**
 	 * Omitted rather than sent empty: the server stores what it is given, and a
 	 * blank publisher is a publisher of "" in the registry listing.
 	 */
-	it('leaves out the fields that were not filled in', () => {
-		const sparse = read(
-			buildImportRequest(
-				{ key: 'k', name: 'N', license: 'own-work' },
-				contentPackage,
-				'B',
-			).body,
+	it('leaves out the fields that were not filled in', async () => {
+		const sparse = await parse(
+			await buildImportRequest({ key: 'k', name: 'N', license: 'own-work' }, contentPackage),
 		);
 
-		expect(sparse).not.toContain('name="publisher"');
-		expect(sparse).not.toContain('name="version"');
-		expect(sparse).not.toContain('name="url"');
-		expect(sparse).toContain('name="license"');
+		expect(sparse.has('publisher')).toBe(false);
+		expect(sparse.has('version')).toBe(false);
+		expect(sparse.has('url')).toBe(false);
+		expect(sparse.get('license')).toBe('own-work');
 	});
 
-	it('sends the package as a JSON file part', () => {
-		expect(text).toContain('name="file"; filename="my-books.json"');
-		expect(text).toContain('Content-Type: application/json');
-	});
+	it('sends the package as a JSON file part, unindented', async () => {
+		const file = (await parse(await buildImportRequest(manifest, contentPackage))).get('file') as File;
 
-	it('sends the package itself, parseable', () => {
-		const json = /\{"formatVersion[\s\S]*?\}\r\n--BOUNDARY--/.exec(text)?.[0];
-		const parsed: unknown = JSON.parse(json?.replace(/\r\n--BOUNDARY--$/, '') ?? '{}');
-
-		expect(parsed).toMatchObject({ formatVersion: 1, documentKey: 'my-books' });
-	});
-
-	/** It is a wire format; a 391-spell document gains a third in whitespace nobody reads. */
-	it('does not indent the package', () => {
+		expect(file.name).toBe('my-books.json');
+		expect(file.type).toBe('application/json');
+		const text = await file.text();
+		expect(JSON.parse(text)).toMatchObject({ formatVersion: 1, documentKey: 'my-books' });
+		// A wire format; a 391-spell document gains a third in whitespace nobody reads.
 		expect(text).not.toContain('\n  "documentKey"');
 	});
 
 	it.each([
 		['../etc/passwd', 'etc-passwd.json'],
 		['my books', 'my-books.json'],
-	])('makes %s a safe filename', (key, expected) => {
-		const built = read(buildImportRequest({ ...manifest, key }, contentPackage, 'B').body);
+	])('makes %s a safe filename', async (key, expected) => {
+		const form = await parse(await buildImportRequest({ ...manifest, key }, contentPackage));
 
-		expect(built).toContain(`filename="${expected}"`);
+		expect((form.get('file') as File).name).toBe(expected);
 	});
 
-	it('trims the fields', () => {
-		const padded = read(
-			buildImportRequest({ ...manifest, name: '  My Books  ' }, contentPackage, 'B').body,
+	it('trims the fields', async () => {
+		const form = await parse(
+			await buildImportRequest({ ...manifest, name: '  My Books  ' }, contentPackage),
 		);
 
-		expect(padded).toContain('\r\n\r\nMy Books\r\n');
+		expect(form.get('name')).toBe('My Books');
+	});
+
+	/** The title is an upsert key on the server, so it must survive the wire as UTF-8. */
+	it('keeps a non-ASCII name intact', async () => {
+		const form = await parse(await buildImportRequest({ ...manifest, name: 'Ördögök – 魔法' }, contentPackage));
+
+		expect(form.get('name')).toBe('Ördögök – 魔法');
 	});
 });
-
-

@@ -9,7 +9,7 @@
  * Pure and `obsidian`-free: it builds bytes, and the caller sends them.
  */
 
-import { buildMultipartBody, type MultipartBody } from '../../tomeMultipartBody';
+import { encodeForm } from '../../tomeMultipartBody';
 import type { ContentPackage } from './package';
 
 /**
@@ -83,21 +83,12 @@ function filenameFor(key: string): string {
  *
  * The package is serialised without indentation: it is a wire format, and a
  * 391-spell document gains about a third in size for whitespace nobody reads.
- *
- * @param boundary
- *   Injected rather than generated here so a test can assert the byte layout;
- *   callers pass `createMultipartBoundary()`.
  */
-export function buildImportRequest(
-	manifest: ImportManifest,
-	contentPackage: ContentPackage,
-	boundary: string,
-): MultipartBody {
-	const fields = [
-		{ name: 'key', value: manifest.key.trim() },
-		{ name: 'name', value: manifest.name.trim() },
-		{ name: 'license', value: manifest.license.trim() },
-	];
+export function buildImportRequest(manifest: ImportManifest, contentPackage: ContentPackage) {
+	const form = new FormData();
+	form.append('key', manifest.key.trim());
+	form.append('name', manifest.name.trim());
+	form.append('license', manifest.license.trim());
 
 	// Omitted rather than sent empty: the server stores what it is given, and a
 	// blank publisher is a publisher of "" in the registry listing.
@@ -107,19 +98,13 @@ export function buildImportRequest(
 		['attribution', manifest.attribution],
 		['url', manifest.url],
 	] as const) {
-		if (value?.trim()) fields.push({ name, value: value.trim() });
+		if (value?.trim()) form.append(name, value.trim());
 	}
 
-	return buildMultipartBody(
-		fields,
-		[
-			{
-				name: 'file',
-				filename: filenameFor(manifest.key),
-				contentType: 'application/json',
-				bytes: new TextEncoder().encode(JSON.stringify(contentPackage)),
-			},
-		],
-		boundary,
+	form.append(
+		'file',
+		new Blob([JSON.stringify(contentPackage)], { type: 'application/json' }),
+		filenameFor(manifest.key),
 	);
+	return encodeForm(form);
 }

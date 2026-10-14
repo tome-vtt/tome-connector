@@ -12,7 +12,7 @@ import {
 	type PackageReport,
 } from './recognizers/compendium/package';
 import { describeScope, type SyncScope } from './scopeReader';
-import { postMultipartToTome } from './tomeApiClient';
+import { tomeHttp } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { TomeProgressNotice } from './tomeProgressNotice';
 import { vaultNotes } from './vaultNotes';
@@ -357,7 +357,11 @@ async function upload(
 	const notice = new TomeProgressNotice('Tome connector: importing…');
 	const outcome = await uploadPackage(
 		(path, body, contentType) =>
-			postMultipartToTome(plugin.settings.baseUrl, path, body, contentType, getApiKey(plugin)),
+			tomeHttp.postMultipart(
+				{ baseUrl: plugin.settings.baseUrl, path, apiKey: getApiKey(plugin) },
+				body,
+				contentType,
+			),
 		manifest,
 		report,
 	);
