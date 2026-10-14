@@ -2,22 +2,16 @@ import { Modal, Notice, parseYaml } from 'obsidian';
 import type { App } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
-import {
-	describeReport,
-	MAX_ATTEMPTS,
-	runBulkSend,
-	THROTTLE_MS,
-	type BulkItem,
-	type BulkReport,
-} from './bulkSend';
+import { describeReport, type BulkReport } from './bulkSend';
 import { oneAtATime } from './oneAtATime';
-import { findSendables, summarise, type Sendable, type SendableKind } from './recognizers/noteScan';
-import { describeScope, readScope, type SyncScope } from './scopeReader';
-import { sendSendable } from './sendablePayload';
+import { summarise, type Sendable, type SendableKind } from './recognizers/noteScan';
+import { obsidianSendPorts } from './obsidianSendPorts';
+import { describeScope, type SyncScope } from './scopeReader';
 import { loadCampaignChoice, rememberCampaign, renderCampaignSelector, type CampaignChoice } from './tomeCampaigns';
 import { getApiKey } from './tomeConnectorSettings';
 import { TomeProgressNotice } from './tomeProgressNotice';
 import { vaultNotes } from './vaultNotes';
+import { scanScope, sendSendables } from './vaultSyncSteps';
 
 /**
  * Scanning a folder or the whole vault and sending everything found.
@@ -227,10 +221,9 @@ export const runVaultSync = oneAtATime(
 		const notice = new TomeProgressNotice('Tome connector: scanning…');
 		let sendables: Sendable[];
 		try {
-			const notes = await readScope(vaultNotes(plugin.app), scope, (done, total) =>
+			sendables = await scanScope(vaultNotes(plugin.app), scope, parseYaml, (done, total) =>
 				notice.setProgress(done, total),
 			);
-			sendables = notes.flatMap((note) => findSendables(note, parseYaml));
 		} finally {
 			notice.hide();
 		}
@@ -255,31 +248,14 @@ async function send(
 	const progress = new SyncProgressModal(plugin.app, sendables.length);
 	progress.open();
 
-	const apiKey = getApiKey(plugin);
-	const items: BulkItem<Sendable>[] = sendables.map((sendable) => ({
-		label: sendable.label,
-		path: sendable.path,
-		value: sendable,
-	}));
-
 	try {
-		const report = await runBulkSend<Sendable>({
-			items,
+		const report = await sendSendables({
+			sendables,
+			ports: obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),
+			destination: { baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId },
 			sleep,
-			throttleMs: THROTTLE_MS,
-			maxAttempts: MAX_ATTEMPTS,
 			isCancelled: () => progress.isCancelled(),
 			onProgress: (done, _total, latest) => progress.update(done, latest.item.label),
-			send: async (item) => {
-				// Throwing here is how `runBulkSend` learns an item is unresolvable
-				// rather than merely refused, so it does not retry it.
-				return sendSendable(
-					plugin.app,
-					item.value,
-					{ baseUrl: plugin.settings.baseUrl, apiKey, campaignId },
-					plugin.settings.downscaleImages,
-				);
-			},
 		});
 
 		progress.close();
