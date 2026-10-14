@@ -1,22 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
-import { rewriteLinks } from '../src/adventure/adventureLinkRewrite';
+import { renderBlockText } from '../src/adventure/adventureLinkRewrite';
 import type { BlockRef } from '../src/adventure/adventurePlan';
 
-describe('rewriteLinks', () => {
+describe('renderBlockText link rewriting', () => {
 	it('turns a resolved ref back into a Tome link', () => {
 		const text = 'A Goblin attacks.';
 		const refs: BlockRef[] = [{ entity: 'bestiary/goblin.md', text: 'Goblin', start: 2, end: 8 }];
 		const resolved = new Map([['bestiary/goblin.md', { libraryKind: 'NonPlayerCharacter', id: 'abc-123' }]]);
 
-		expect(rewriteLinks(text, refs, resolved)).toBe('A [Goblin](tome:NonPlayerCharacter/abc-123) attacks.');
+		expect(renderBlockText(text, refs, [], resolved, new Set())).toBe('A [Goblin](tome:NonPlayerCharacter/abc-123) attacks.');
 	});
 
 	it('leaves an unresolved ref as the flat text it already is', () => {
 		const text = 'A Goblin attacks.';
 		const refs: BlockRef[] = [{ entity: 'bestiary/goblin.md', text: 'Goblin', start: 2, end: 8 }];
 
-		expect(rewriteLinks(text, refs, new Map())).toBe(text);
+		expect(renderBlockText(text, refs, [], new Map(), new Set())).toBe(text);
 	});
 
 	it('rewrites several refs without letting an earlier splice invalidate a later offset', () => {
@@ -30,12 +30,12 @@ describe('rewriteLinks', () => {
 			['items/bag.md', { libraryKind: 'MagicItem', id: 'item-1' }],
 		]);
 
-		expect(rewriteLinks(text, refs, resolved)).toBe(
+		expect(renderBlockText(text, refs, [], resolved, new Set())).toBe(
 			'The [Goblin](tome:NonPlayerCharacter/npc-1) guards a [Bag of Holding](tome:MagicItem/item-1).',
 		);
 	});
 
 	it('leaves text with no refs untouched', () => {
-		expect(rewriteLinks('Nothing to rewrite.', [], new Map())).toBe('Nothing to rewrite.');
+		expect(renderBlockText('Nothing to rewrite.', [], [], new Map(), new Set())).toBe('Nothing to rewrite.');
 	});
 });

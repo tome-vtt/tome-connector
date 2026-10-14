@@ -11,7 +11,7 @@ import { readImageAsDataUri } from '../tomeImageEmbedding';
 import { TomeProgressNotice } from '../tomeProgressNotice';
 import { vaultNotes } from '../vaultNotes';
 import { TOME_ROUTES } from '../routes';
-import { entitiesPass, imagesPass, type PassDeps } from './adventurePasses';
+import { entitiesPass, imagesPass, isEntityTarget, isImageTarget, type PassDeps } from './adventurePasses';
 import { AdventureReviewModal } from './adventureReviewModal';
 import { buildAdventurePlan } from './adventureVault';
 import { renderBlockText, type ResolvedEntityLink } from './adventureLinkRewrite';
@@ -238,11 +238,11 @@ function reportImport(plan: AdventurePlan, response: ImportAdventureResponseBody
 	new Notice(`Tome connector: "${plan.title}" sent - ${parts.join(', ')}.${failureNote}`);
 }
 
-/** How many rows `entitiesPass`/`imagesPass` will actually try to send - the same filters each uses internally. */
+/** How many rows `entitiesPass`/`imagesPass` will actually try to send - the same filters each uses. */
 function countRemainingTargets(plan: AdventurePlan): { entities: number; images: number } {
 	return {
-		entities: plan.entities.filter((entity) => entity.chosen.to !== 'skip' && entity.resolvedId === null).length,
-		images: plan.images.filter((image) => image.chosen.to === 'Map' || image.chosen.to === 'Prop').length,
+		entities: plan.entities.filter(isEntityTarget).length,
+		images: plan.images.filter(isImageTarget).length,
 	};
 }
 
