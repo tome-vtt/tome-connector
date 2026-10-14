@@ -24,6 +24,7 @@
  */
 
 import { existingTomeId } from '../tomeIdWriteBack';
+import { titleCase } from './labelledMarkdown';
 
 export interface MapReference {
 	/** Vault-relative path or wikilink target. The send module resolves it relative to the note. */
@@ -70,9 +71,7 @@ export function titleFromImagePath(path: string): string {
 		.filter((word) => word !== '');
 
 	if (words.length === 0) return stem;
-	return words
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-		.join(' ');
+	return titleCase(words.join(' '), ' ');
 }
 
 function firstImageBasePath(value: unknown): string | null {

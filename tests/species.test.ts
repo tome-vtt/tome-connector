@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseSpecies, readSize, readSpeed, slug } from '../src/recognizers/compendium/species';
+import { parseSpecies, readSize, readSpeed } from '../src/recognizers/compendium/species';
+import { slug } from '../src/recognizers/labelledMarkdown';
 
 /** `races/aasimar-xphb.md`, trimmed but structurally exact. */
 const aasimar = `---

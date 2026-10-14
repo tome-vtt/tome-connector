@@ -69,7 +69,7 @@ const BY_CSS_CLASS: Record<string, CliNoteType> = {
 };
 
 /** Frontmatter values arrive as a list, a bare string, or missing. */
-function asStrings(value: unknown): string[] {
+export function asStrings(value: unknown): string[] {
 	if (typeof value === 'string') return [value];
 	if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string');
 	return [];
