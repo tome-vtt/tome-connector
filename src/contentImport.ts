@@ -9,6 +9,7 @@ import type { Note } from './recognizers/note';
 import { readScope, type NoteSource, type SyncScope } from './scopeReader';
 import { TOME_ROUTES } from './routes';
 import type { SendResult } from './tomeHttp';
+import { describeError } from './shared';
 
 /**
  * The work of importing a compendium as a content source, without Obsidian: scan the
@@ -67,6 +68,6 @@ export async function uploadPackage(
 		// off, a licence it would not take - and those are things the person can act on.
 		return { ok: false, message: result.message ?? `import failed (${result.status})` };
 	} catch (error) {
-		return { ok: false, message: error instanceof Error ? error.message : String(error), thrown: error };
+		return { ok: false, message: describeError(error), thrown: error };
 	}
 }

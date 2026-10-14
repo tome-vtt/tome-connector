@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import type { Sendable } from '../src/recognizers/noteScan';
 import type { NoteSource } from '../src/scopeReader';
-import { scanScope, sendSendables } from '../src/vaultSyncSteps';
+import { runBulkSend, THROTTLE_MS } from '../src/bulkSend';
+import { sendToTome, type Destination, type SendPorts } from '../src/sendModule';
+import { scanScope } from '../src/vaultSyncSteps';
 import { inMemorySendPorts } from './fixtures/inMemorySendPorts';
 
 const DESTINATION = { baseUrl: 'https://tome.example.com/', apiKey: 'key', campaignId: 'campaign-1' };
@@ -46,6 +48,24 @@ describe('scanScope', () => {
 		expect(progress).toEqual([[1, 1]]);
 	});
 });
+
+/** What the vault sync runs: each sendable through the ports, paced and retried by runBulkSend. */
+function sendSendables(options: {
+	sendables: Sendable[];
+	ports: SendPorts;
+	destination: Destination;
+	sleep: (ms: number) => Promise<void>;
+	onProgress?: Parameters<typeof runBulkSend<Sendable>>[0]['onProgress'];
+	isCancelled?: () => boolean;
+}) {
+	const { sendables, ports, destination, ...rest } = options;
+	return runBulkSend<Sendable>({
+		items: sendables.map((sendable) => ({ label: sendable.label, path: sendable.path, value: sendable })),
+		throttleMs: THROTTLE_MS,
+		send: (item) => sendToTome(ports, item.value, destination),
+		...rest,
+	});
+}
 
 describe('sendSendables', () => {
 	const sleep = () => Promise.resolve();

@@ -1,4 +1,4 @@
-import { type BulkItem, type BulkReport, MAX_ATTEMPTS, runBulkSend, THROTTLE_MS } from '../bulkSend';
+import { type BulkItem, type BulkReport, runBulkSend, THROTTLE_MS } from '../bulkSend';
 import type { Note } from '../recognizers/note';
 import { findSendables, type Sendable, type YamlParser } from '../recognizers/noteScan';
 import { sendToTome, type Destination, type ModuleSendable, type SendPorts } from '../sendModule';
@@ -62,7 +62,6 @@ function runPass<T extends { resolvedId: string | null }>(
 		items,
 		sleep: deps.sleep,
 		throttleMs: THROTTLE_MS,
-		maxAttempts: MAX_ATTEMPTS,
 		onProgress,
 		send: async (item) => {
 			const result = await sendToTome(deps.ports, await sendableFor(item.value), destination);

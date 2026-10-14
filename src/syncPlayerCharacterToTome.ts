@@ -5,6 +5,7 @@ import { sendCharacterToTome } from './sendModule';
 import { noticeResult } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { chooseCharacterDestination } from './chooseCharacterDestination';
+import { describeError } from './shared';
 
 // Frontmatter property that gates whether the button is shown at all. Its
 // presence is taken as confirmation that this note is a D&D Beyond character
@@ -82,10 +83,7 @@ function hasDndBeyondId(plugin: TomeConnectorPlugin, file: TFile): boolean {
 		plugin.app.metadataCache.getFileCache(file)?.frontmatter?.[
 			REQUIRED_PROPERTY
 		];
-	if (value === undefined || value === null) return false;
-	if (typeof value === 'string') return value.trim() !== '';
-	if (typeof value === 'number') return true;
-	return false;
+	return typeof value === 'number' || (typeof value === 'string' && value.trim() !== '');
 }
 
 function refreshView(plugin: TomeConnectorPlugin, view: MarkdownView): void {
@@ -126,7 +124,7 @@ async function handleMenuClick(plugin: TomeConnectorPlugin, file: TFile): Promis
 		await sendCharacter(plugin, file);
 	} catch (error) {
 		console.error('Tome Connector: failed to send character', error);
-		const message = error instanceof Error ? error.message : String(error);
+		const message = describeError(error);
 		new Notice(`Tome connector: ${message}`);
 	}
 }
@@ -144,11 +142,7 @@ async function handleClick(
 	button.setAttribute('aria-label', SENDING_TITLE);
 
 	try {
-		await sendCharacter(plugin, file);
-	} catch (error) {
-		console.error('Tome Connector: failed to send character', error);
-		const message = error instanceof Error ? error.message : String(error);
-		new Notice(`Tome connector: ${message}`);
+		await handleMenuClick(plugin, file);
 	} finally {
 		button.removeAttribute('aria-disabled');
 		setIcon(button, BUTTON_ICON);

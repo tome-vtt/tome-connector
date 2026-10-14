@@ -2,6 +2,7 @@ import { App, normalizePath } from 'obsidian';
 import { dataUriByteLength, getMimeType } from './tomeImageEncoding';
 import { optimizeDataUri, optimizeImage } from './tomeImageOptimizer';
 import { vaultPathFromResourceUrl } from './tomeResourcePath';
+import { describeError } from './shared';
 
 /**
  * Rewrites everything in a rendered note that points at a vault file so it
@@ -126,7 +127,7 @@ function inlineCanvases(
 			failures.push({
 				notePath,
 				reference: 'a generated image',
-				reason: error instanceof Error ? error.message : String(error),
+				reason: describeError(error),
 			});
 			canvas.replaceWith(missingAttachmentEl('a generated image'));
 		}

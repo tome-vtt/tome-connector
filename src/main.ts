@@ -26,8 +26,6 @@ export default class TomeConnectorPlugin extends Plugin {
 		registerImageContextMenu(this);
 	}
 
-	override onunload() {}
-
 	async loadSettings() {
 		const stored = (await this.loadData()) as
 			| (Partial<TomeConnectorSettings> & { apiKey?: string })

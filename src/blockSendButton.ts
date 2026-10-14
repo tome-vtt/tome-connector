@@ -5,6 +5,7 @@ import type TomeConnectorPlugin from './main';
 import { sendBlockWithNotice } from './obsidianSendPorts';
 import { unwrapWikilink } from './recognizers/map';
 import { chooseCampaign } from './tomeCampaigns';
+import { describeError } from './shared';
 
 /**
  * The one "Send to Tome" button frame every code block shares: busy state, the
@@ -135,7 +136,7 @@ async function send(button: HTMLButtonElement, block: RenderedBlock): Promise<vo
 		});
 	} catch (error) {
 		console.error(`Tome Connector: failed to send ${kind.language} block`, error);
-		const message = error instanceof Error ? error.message : String(error);
+		const message = describeError(error);
 		new Notice(`Tome connector: ${message}`);
 	} finally {
 		button.disabled = false;

@@ -7,6 +7,8 @@
  * and a fake in the tests.
  */
 
+import { describeError } from './shared';
+
 /** Header name the Tome server expects the API key under (see TomeVTT.Server.Auth.ApiKeyAuthenticationDefaults). */
 export const API_KEY_HEADER_NAME = 'X-Api-Key';
 export const CAMPAIGN_HEADER_NAME = 'X-Campaign-Id';
@@ -134,7 +136,7 @@ async function send(
 				ok: false,
 				status: 0,
 				id: null,
-				message: error instanceof Error ? error.message : String(error),
+				message: describeError(error),
 				// The request never arrived, so the server has not refused anything.
 				retryable: true,
 			},
