@@ -11,6 +11,7 @@
  */
 
 import { noteName, type Note } from '../note';
+import { slug, titleCase } from '../labelledMarkdown';
 import { cliNoteType, isImportable, type CliNoteType } from './cliNote';
 import { parseBackground, type Background } from './background';
 import { parseFeat, type Feat } from './feat';
@@ -133,11 +134,7 @@ export interface AssembleOptions {
 
 /** The title-cased name to fall back on when a note has no `# Title`. */
 function nameFor(key: string): string {
-	return key
-		.replace(/-[a-z]{3,5}$/, '')
-		.split('-')
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-		.join(' ');
+	return titleCase(key.replace(/-[a-z]{3,5}$/, ''));
 }
 
 interface Parsed {
@@ -339,10 +336,5 @@ export function describeCounts(counts: Record<string, number>): string {
  * called "CLI Output" would otherwise prefill a key the form immediately refuses.
  */
 export function packageKeyFrom(name: string): string {
-	return (
-		name
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, '-')
-			.replace(/^-+|-+$/g, '') || 'my-compendium'
-	);
+	return slug(name) || 'my-compendium';
 }
