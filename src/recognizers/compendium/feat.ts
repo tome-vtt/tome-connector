@@ -7,10 +7,8 @@
  * Pure and `obsidian`-free.
  */
 
-import { parseLabelledValues, parseSections, preamble } from '../labelledMarkdown';
-import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
+import { FIELD_LINE, parseLabelledValues, proseBody, slug, titleOf } from '../labelledMarkdown';
 import { readSourceLine } from './sourceLine';
-import { slug } from './species';
 
 /** Mirrors the server's `Srd2024Benefit`. */
 export interface Benefit {
@@ -112,13 +110,7 @@ export function readBenefits(markdown: string): Benefit[] {
  * benefits.", and the body of a feat that has no labelled benefits at all.
  */
 export function readDescription(markdown: string): string {
-	const lines = preamble(markdown)
-		.split(/\r?\n/)
-		.filter((line) => !/^[ \t]*(?:[-*+][ \t]+)?\*\*/.test(line))
-		.filter((line) => !/^\s*\*Source:/.test(line))
-		.filter((line) => !/^\s*!\[/.test(line));
-
-	return stripMarkdownFromString(lines.join('\n')).trim();
+	return proseBody(markdown, [FIELD_LINE]);
 }
 
 /**
@@ -142,11 +134,10 @@ export function parseFeat(markdown: string, key: string, fallbackName: string): 
 	const desc = readDescription(markdown);
 	if (desc === '' && benefits.length === 0) return null;
 
-	const title = parseSections(markdown).find((section) => section.level === 1)?.title;
 
 	return {
 		key,
-		name: title?.trim() || fallbackName,
+		name: titleOf(markdown, fallbackName),
 		desc,
 		// The source line dates the note: 2024 books print "(2024)" in the title and
 		// the 2014 ones print no year at all.

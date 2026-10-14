@@ -15,7 +15,8 @@
  * Pure and `obsidian`-free.
  */
 
-import { parseSections, preamble } from '../labelledMarkdown';
+import { FIELD_LINE, preamble, proseBody, titleOf } from '../labelledMarkdown';
+import { asStrings } from './cliNote';
 import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
 
 /** Mirrors the server's `MagicItemInputDto`, minus the fields a note cannot fill. */
@@ -47,14 +48,6 @@ const RARITY_TAG = /^ttrpg-cli\/item\/rarity\/(.+)$/;
  */
 export const SUBTITLE = /^\s*\*([^*]+)\*\s*$/m;
 
-/** Frontmatter values arrive as a list, a bare string, or missing. */
-function tagsOf(frontmatter: Record<string, unknown> | null): string[] {
-	const raw = frontmatter?.['tags'];
-	if (typeof raw === 'string') return [raw];
-	if (Array.isArray(raw)) return raw.filter((tag): tag is string => typeof tag === 'string');
-	return [];
-}
-
 /**
  * `uncommon`, `very-rare`, or null for a note with no rarity tag at all.
  *
@@ -63,7 +56,7 @@ function tagsOf(frontmatter: Record<string, unknown> | null): string[] {
  * tell them apart.
  */
 export function readRarity(frontmatter: Record<string, unknown> | null): string | null {
-	for (const tag of tagsOf(frontmatter)) {
+	for (const tag of asStrings(frontmatter?.['tags'])) {
 		const match = RARITY_TAG.exec(tag);
 		if (match?.[1]) return match[1];
 	}
@@ -165,22 +158,8 @@ export function readCategory(subtitle: string, rarity: string | null): string | 
  * item's rules are the reason it is in the library at all.
  */
 export function readDescription(markdown: string): string | null {
-	const sections = parseSections(markdown);
-	const body = sections.length > 0 ? preamble(markdown) : markdown;
-
-	const lines = body
-		.split(/\r?\n/)
-		.filter((line) => !/^[ \t]*(?:[-*+][ \t]+)?\*\*/.test(line))
-		.filter((line) => !/^\s*\*Source:/.test(line))
-		.filter((line) => !/^\s*!\[/.test(line))
-		// The subtitle, which is the category and rarity read separately above.
-		.filter((line) => !SUBTITLE.test(line));
-
-	const text = stripMarkdownFromString(lines.join('\n'))
-		.replace(/\n{3,}/g, '\n\n')
-		.trim();
-
-	return text === '' ? null : text;
+	// The subtitle is the category and rarity, read separately above.
+	return proseBody(markdown, [FIELD_LINE, SUBTITLE]) || null;
 }
 
 /**
@@ -212,12 +191,11 @@ export function parseMagicItem(
 ): MagicItem | null {
 	if (!isMagic(frontmatter)) return null;
 
-	const title = parseSections(markdown).find((section) => section.level === 1)?.title;
 	const subtitle = SUBTITLE.exec(preamble(markdown))?.[1] ?? '';
 	const rarity = readRarity(frontmatter);
 
 	return {
-		name: title?.trim() || fallbackName,
+		name: titleOf(markdown, fallbackName),
 		desc: readDescription(markdown),
 		rarity: rarity === null ? null : displayRarity(rarity),
 		category: readCategory(subtitle, rarity),

@@ -26,6 +26,7 @@
 
 import { toIntSafe, toStringSafe, type NamedAbility } from './statblockCreature';
 import { stripMarkdownFromString } from '../tomeMarkdownSanitizer';
+import { capitalise, slug } from './labelledMarkdown';
 
 /** The `Pf2eCreature` bag, in the casing its `JsonPropertyName` attributes pin. */
 export interface Pf2eAttributes {
@@ -294,7 +295,7 @@ export function toSkills(value: unknown): Pf2eSkill[] {
 	return Object.entries(toKeyedValues(value)).map(([name, mod]) => ({
 		// Title case, because the key is however the note's author typed it and this is
 		// printed on the stat block.
-		name: name.charAt(0).toUpperCase() + name.slice(1),
+		name: capitalise(name),
 		mod: toIntSafe(mod) ?? 0,
 		note: null,
 	}));
@@ -307,14 +308,6 @@ export function toSkills(value: unknown): Pf2eSkill[] {
 /** The size words Pathfinder prints, matched out of the traits line. */
 const SIZES = ['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'];
 const RARITIES = ['common', 'uncommon', 'rare', 'unique'];
-
-/** A stable key from the name, matching the snapshot's own slug shape. */
-export function toKey(name: string): string {
-	return name
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '');
-}
 
 /**
  * Maps a resolved Pathfinder creature onto the `pf2e` bag.
@@ -336,14 +329,14 @@ export function mapToPf2eCreature(record: Record<string, unknown>): Pf2eCreature
 	const { speeds, note: speedNote } = toSpeeds(record.speed);
 
 	return {
-		key: toKey(name),
+		key: slug(name),
 		name,
 		source: toStringSafe(record.sourcebook)?.trim() || null,
 		level: toLevel(record.level),
 		rarity: rarity ?? 'common',
 		// Capitalised, because the stat block prints it and the server stamps the board's
 		// neutral size column from it.
-		size: size ? size.charAt(0).toUpperCase() + size.slice(1) : 'Medium',
+		size: size ? capitalise(size) : 'Medium',
 		traits,
 		perception: toIntSafe(record.modifier) ?? 0,
 		perceptionNote: null,

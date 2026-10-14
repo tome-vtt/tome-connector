@@ -102,7 +102,7 @@ export interface Section {
 	body: string;
 }
 
-const HEADING = /^(#{1,6})[ \t]+(.+?)[ \t]*$/;
+export const HEADING =/^(#{1,6})[ \t]+(.+?)[ \t]*$/;
 
 /**
  * Splits on ATX headings.
@@ -180,4 +180,47 @@ export function preamble(markdown: string): string {
 	}
 
 	return out.join('\n').trim();
+}
+
+/** The note's first-level title, or the fallback (usually the file name) when it has none. */
+export function titleOf(markdown: string, fallback: string): string {
+	const title = parseSections(markdown).find((section) => section.level === 1)?.title;
+	return title?.trim() || fallback;
+}
+
+/** A bold-labelled field line, which is data rather than prose. */
+export const FIELD_LINE = /^[ \t]*(?:[-*+][ \t]+)?\*\*/;
+
+/**
+ * A note's prose: the preamble (or the whole note when it has no headings), minus
+ * the source lines and images, with runs of blank lines collapsed.
+ *
+ * `extraSkip` names the lines this note type also drops, such as its field lines.
+ */
+export function proseBody(markdown: string, extraSkip: RegExp[] = []): string {
+	const body = parseSections(markdown).length > 0 ? preamble(markdown) : markdown;
+	const skip = [/^\s*\*Source:/, /^\s*!\[/, ...extraSkip];
+
+	const lines = body.split(/\r?\n/).filter((line) => !skip.some((pattern) => pattern.test(line)));
+
+	return stripMarkdownFromString(lines.join('\n'))
+		.replace(/\n{3,}/g, '\n\n')
+		.trim();
+}
+
+/** Lower-case, hyphenated, safe as a lookup key and stable across imports. */
+export function slug(value: string): string {
+	return value
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '');
+}
+
+export function capitalise(word: string): string {
+	return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+/** Each word capitalised and rejoined with spaces: `dark-elf` -> `Dark Elf`. */
+export function titleCase(value: string, separator: string | RegExp = '-'): string {
+	return value.split(separator).map(capitalise).join(' ');
 }
