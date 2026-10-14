@@ -1,40 +1,24 @@
-# Issue tracker: Linear
+# Issue tracker: Spider
 
-Issues and specs for this repo live in Linear: team **Tome Connector** (key `TC`), project **TC** (https://linear.app/tomegaming/project/tc-0db69abd67d4). Use the `linear-agent` MCP tools (load via ToolSearch if deferred); never `gh issue`.
+Issues and specs for this repo live in the Spider tracker, not Linear or GitHub Issues. `silk.yml` sets `tracker: { type: spider, prefix: TC }`, so ticket ids look like `TC-S5-T1`. Hand-driven sessions use the Spider plugin's tracker tools (`mcp__plugin_spider_tracker__*`) with `repo: "tome-connector"`. A Spider job has none: its outcome marker carries what it finds.
 
-The team is this repo's own; every issue also belongs to the **TC** project. Filter on it when listing. Issues numbered `TVVT-…` were moved here and redirect to their `TC-…` ids.
+The old Linear team (`TC-123` ids) is no longer worked; its tickets were not imported.
+
+Spider groups tickets into **strands** (a feature, bug or chore). Every ticket belongs to one strand.
 
 ## Conventions
 
-- **Create an issue**: `save_issue` with `team: "Tome Connector"`, `project: "TC"`, markdown `description` (real newlines, no `\n` escapes).
-- **Read an issue**: `get_issue` with the identifier (`TC-123`), then `list_comments`.
-- **List issues**: `list_issues` with `project: "TC"`, plus state/label filters.
-- **Comment**: `save_comment`.
-- **Apply / remove labels**: `save_issue` with the issue id and the full new label set. Create a missing label with `create_issue_label` first.
-- **Close**: `save_comment` with the reason, then `save_issue` with a `state` of `Finished` (resolved), `Canceled` (wontfix) or `Duplicate`.
+- **Search before filing**: `search` (`query`, `openOnly: true`). Comment on an existing ticket instead of filing a duplicate.
+- **Create a strand**: `create_strand` (`kind`: `feature` | `bug` | `chore`, `title`, `description`).
+- **Create a ticket**: `file_ticket` (`strandId`, `title`, `description`, optional `blockerIds`, `labels`, `priority`). It lands in `Unsorted`. Pass `state: "Backlog"` only when Bart asked for the ticket.
+- **Descriptions**: markdown. Open with a non-empty `## In short` section of plain sentences, then the ticket layout.
+- **Read a ticket**: `read_ticket` (`id`).
+- **List a queue**: `list_queue` (`state`).
+- **Comment**: `comment`.
+- **Change state**: `transition` (`id`, `state`).
+- **Labels**: `add_label` / `remove_label` / `set_labels`.
+- **Blockers**: `add_blocker` / `remove_blocker` / `set_blockers`.
 
-The team's statuses: `Backlog`, `Ready`, `In-Progress`, `Needs-Review`, `Needs-Revision`, `Finished`, `Human-Review-Needed`, `Canceled`, `Duplicate`. The `ready`, `review` and `revision` skills in `.claude/skills/` move issues through them.
+## Dispatch queues
 
-Reference issues as `TC-123`. A GitHub PR that resolves one puts `Fixes TC-123` in its body.
-
-## Claiming as an agent app
-
-A computer with an agent identity installed reaches Linear as that OAuth app's agent user (`tome-agent-one`, `tome-agent-two`): see `.claude/hooks/linear-token.mjs`. An app can never be an issue's assignee — Linear turns that into a delegation — so an agent claims by delegation alone and never names a person:
-
-- **Claim**: `delegate: "me"` with `assignee: null`, in the same `save_issue` write as the state change. Read the answer back and check `delegateId` is the app before starting work.
-- **Release / hand back**: `assignee: null` and `delegate: null`.
-- **Queues**: drop every listed issue whose `delegate` is set. An issue with a delegate is claimed.
-
-A session signed in as a person claims with `assignee: "me"` instead. Use only `mcp__linear-agent__*`; a connector signed in as a person writes as that person, and `.claude/hooks/agent-token.mjs` refuses it.
-
-## Pull requests as a triage surface
-
-**PRs as a request surface: no.** PRs live on GitHub (`tome-vtt/tome-connector`) and aren't triaged.
-
-## When a skill says "publish to the issue tracker"
-
-Create a Linear issue in team Tome Connector, project TC.
-
-## When a skill says "fetch the relevant ticket"
-
-`get_issue` and `list_comments` for the `TC-<n>` identifier.
+Spider runs agent jobs on tickets in the `queue` states of `silk.yml`'s `stages`: `Needs-Build`, `Needs-Review`, `Needs-Revision`, `Needs-Triage`. Moving a ticket into one starts a job, so only Bart moves a ticket to `Needs-Build`. `Backlog` and `Unsorted` are never dispatched. `Stuck` and `Asked` wait on a person. `Landed` is done; `Wont-Do`, `Duplicate` and `Superseded` are dropped.

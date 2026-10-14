@@ -1,0 +1,148 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/tome-vtt/Spider/master/schema/silk.schema.json
+# Spider drives this repository. Every field is Spider's docs/spec/pipeline-config.md § 3's.
+# Spider reads this file from releaseBranch (main), so a change here takes effect once it reaches main.
+# A push to main runs release.yml, which publishes only when manifest.json's version is new.
+# No `plugin` key: jobs run the plugin of whatever Spider release the control plane runs.
+version: 1
+
+repo:
+  baseBranch: development
+  releaseBranch: main
+  workBranchPattern: spider/{ticket.id}
+  demoDir: docs/design
+  merge:
+    lander: node
+    check: { gate: true, timeoutSec: 1800 }
+    onConflict: { state: Needs-Revision }
+    onCheckFailed: { state: Needs-Revision }
+    onReverted: { state: Needs-Revision }
+    onParked: { state: Needs-Triage }
+
+tracker:
+  type: spider
+  prefix: TC
+
+# Any node, Linux or Windows: the build is plain Node and TypeScript.
+defaults:
+  maxTurns: 150
+  maxRuntimeMin: 90
+  maxRejections: 4
+
+prepare:
+  - files: ["package-lock.json"]
+    cmd: npm ci
+    cwd: .
+
+cleanup:
+  locks: [tests, merge]
+
+# lint.yml's own steps.
+gate:
+  - name: tests
+    paths: ["**"]
+    run:
+      - npm run build
+      - npm test
+      - npm run lint
+
+testLock:
+  commands:
+    - 'npm(?:\.cmd)?\b[^;&|\n]*?\s(?:test|t|run(?:-script)?\s+test[\w:-]*)(?=\s|$|[;&|)])'
+    - 'vitest\b'
+
+stages:
+  - name: revision
+    queue: { state: Needs-Revision }
+    whileRunning: In-Revision
+    prompt: |
+      /spider:revision {ticket.id}
+
+      The ticket:
+      {ticket.body}
+
+      The findings from the review that sent this back:
+      {prior.summary}
+
+      Every rejection since this ticket was last parked:
+      {prior.reviews}
+    maxTurns: 200
+    maxRuntimeMin: 120
+    merges: true
+    on:
+      done:
+        pass: { state: Needs-Review }
+      parked: { state: Needs-Triage }
+      nothing_to_do: { state: Needs-Triage }
+      stage_error: { state: Needs-Triage }
+
+  - name: review
+    queue: { state: Needs-Review }
+    whileRunning: In-Review
+    prompt: |
+      /spider:review {ticket.id}
+
+      The ticket:
+      {ticket.body}
+
+      The prior stage's self-review:
+      {prior.summary}
+
+      The range of the ticket's newest landing:
+      {prior.range}
+
+      This stage's own rejections since the ticket was last parked: {loop.rejections}, of a cap of
+      {loop.cap}.
+    maxTurns: 100
+    maxRuntimeMin: 45
+    on:
+      done:
+        pass: { state: Landed }
+        changes_requested: { state: Needs-Revision }
+      parked: { state: Needs-Triage }
+      nothing_to_do: { state: Needs-Triage }
+      stage_error: { state: Needs-Triage }
+
+  - name: build
+    queue: { state: Needs-Build }
+    whileRunning: In-Build
+    prompt: |
+      /spider:build {ticket.id}
+
+      The ticket:
+      {ticket.body}
+    maxTurns: 350
+    maxRuntimeMin: 180
+    merges: true
+    on:
+      done:
+        pass: { state: Needs-Review }
+      parked: { state: Needs-Triage }
+      nothing_to_do: { state: Needs-Triage }
+      stage_error: { state: Needs-Triage }
+
+  # Needs-Triage's own consumer. Its escape hatches go to a waiting state, not back to
+  # Needs-Triage, so a ticket triage can't decide on doesn't loop.
+  - name: triage
+    queue: { state: Needs-Triage }
+    whileRunning: In-Triage
+    prompt: |
+      /spider:triage {ticket.id}
+
+      The ticket:
+      {ticket.body}
+
+      This ticket's own lines from the control plane's log:
+      {ticket.log}
+    maxTurns: 100
+    maxRuntimeMin: 45
+    on:
+      done:
+        retry_build: { state: Needs-Build }
+        retry_revision: { state: Needs-Revision }
+        finish: { state: Landed }
+        split: { state: Split }
+        cancel: { state: Duplicate }
+        person: { state: Stuck }
+      parked: { state: Stuck }
+      nothing_to_do: { state: Stuck }
+      stage_error: { state: Stuck }
