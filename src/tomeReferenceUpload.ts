@@ -48,7 +48,7 @@ export async function uploadReferencePdf(
 
 	const form = new FormData();
 	form.append('title', title);
-	form.append('file', new Blob([pdf], { type: 'application/pdf' }), sanitizeUploadFilename(title));
+	form.append('file', new Blob([new Uint8Array(pdf)], { type: 'application/pdf' }), sanitizeUploadFilename(title));
 	const { body, contentType } = await encodeForm(form);
 
 	const result = await tomeHttp.postMultipart(
