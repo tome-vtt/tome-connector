@@ -29,10 +29,8 @@ import {
 export type TomeImageKind = 'map' | 'token' | 'cover';
 
 /**
- * The map cap, named separately from the table below so `verify-limits.mjs` can read
- * it - the Angular client declares the same number and nothing else links the two.
- * Written as a bare literal because that script's reader evaluates digits and `*`
- * and nothing else.
+ * The map cap, named separately from the table below. The Angular client declares
+ * the same number and nothing else links the two, so change them together.
  */
 const TOME_MAP_MAX_EDGE = 3072;
 
