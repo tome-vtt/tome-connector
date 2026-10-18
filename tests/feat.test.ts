@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseFeat, readBenefits, readType } from '../src/recognizers/compendium/feat';
+import { parseFeat, readBenefits, readDescription, readType } from '../src/recognizers/compendium/feat';
 
 /** `feats/alert-xphb.md`, verbatim. */
 const alert = `---
@@ -188,5 +188,24 @@ describe('parseFeat', () => {
 
 	it('returns null for a note with neither prose nor benefits', () => {
 		expect(parseFeat('# Feats\n', 'feats', 'Feats')).toBeNull();
+	});
+});
+
+/**
+ * `readDescription` goes through the shared `proseBody`. Blank-line runs collapse
+ * to one (wanted: it only tidies spacing), and a note with no headings is read
+ * whole, minus its frontmatter, as the pre-consolidation reader did.
+ */
+describe('readDescription', () => {
+	it('collapses three or more newlines to one blank line', () => {
+		expect(readDescription('# Odd\n\nFirst.\n\n\n\n\nSecond.')).toBe('First.\n\nSecond.');
+	});
+
+	it('reads the whole note, without frontmatter, when it has no headings', () => {
+		expect(
+			readDescription(
+				'---\ncssclasses: json5e-feat\n---\nYou are special.\n\n\n**Prerequisite**: None\n\nReally.',
+			),
+		).toBe('You are special.\n\nReally.');
 	});
 });

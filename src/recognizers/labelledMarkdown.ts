@@ -198,7 +198,7 @@ export const FIELD_LINE = /^[ \t]*(?:[-*+][ \t]+)?\*\*/;
  * `extraSkip` names the lines this note type also drops, such as its field lines.
  */
 export function proseBody(markdown: string, extraSkip: RegExp[] = []): string {
-	const body = parseSections(markdown).length > 0 ? preamble(markdown) : markdown;
+	const body = parseSections(markdown).length > 0 ? preamble(markdown) : withoutFrontmatter(markdown);
 	const skip = [/^\s*\*Source:/, /^\s*!\[/, ...extraSkip];
 
 	const lines = body.split(/\r?\n/).filter((line) => !skip.some((pattern) => pattern.test(line)));

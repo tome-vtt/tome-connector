@@ -4,6 +4,7 @@ import {
 	parseBackground,
 	readAbilities,
 	readEquipmentOptions,
+	readDescription,
 	readList,
 } from '../src/recognizers/compendium/background';
 
@@ -181,5 +182,24 @@ describe('parseBackground', () => {
 		expect(parseBackground('- **Ability Scores.** Strength', 'k', 'Fallback')?.name).toBe(
 			'Fallback',
 		);
+	});
+});
+
+/**
+ * `readDescription` goes through the shared `proseBody`. Blank-line runs collapse
+ * to one (wanted: it only tidies spacing), and a note with no headings is read
+ * whole, minus its frontmatter, as the pre-consolidation reader did.
+ */
+describe('readDescription', () => {
+	it('collapses three or more newlines to one blank line', () => {
+		expect(readDescription('# Odd\n\nFirst.\n\n\n\n\nSecond.')).toBe('First.\n\nSecond.');
+	});
+
+	it('reads the whole note, without frontmatter, when it has no headings', () => {
+		expect(
+			readDescription(
+				'---\ncssclasses: json5e-background\n---\n- **Ability Scores.** Strength\n\n\nYou began training for war.',
+			),
+		).toBe('You began training for war.');
 	});
 });
