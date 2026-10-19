@@ -253,7 +253,7 @@ export class TomeConnectorSettingTab extends PluginSettingTab {
 			new SecretComponent(this.app, el)
 				.setValue(this.plugin.settings.apiKeySecretName)
 				.onChange(async (value) => {
-					this.plugin.settings.apiKeySecretName = value;
+					this.plugin.settings.apiKeySecretName = value ?? '';
 					await this.plugin.saveSettings();
 				}),
 		);
