@@ -13,6 +13,8 @@ export default defineConfig(
 		'scripts',
 		// Agent hooks and skills: Node scripts with their own self-tests.
 		'.claude',
+		// Guidance and design demos for people: no check covers docs/.
+		'docs',
 		'versions.json',
 		'main.js',
 		'package.json',
