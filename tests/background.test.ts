@@ -187,8 +187,9 @@ describe('parseBackground', () => {
 
 /**
  * `readDescription` goes through the shared `proseBody`. Blank-line runs collapse
- * to one (wanted: it only tidies spacing), and a note with no headings is read
- * whole, minus its frontmatter, as the pre-consolidation reader did.
+ * to one, as they did before the readers were shared: `stripMarkdownFromString`
+ * collapses them either way. A note with no headings is read whole, minus its
+ * frontmatter, as the pre-consolidation reader did.
  */
 describe('readDescription', () => {
 	it('collapses three or more newlines to one blank line', () => {
