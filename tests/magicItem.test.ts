@@ -296,4 +296,15 @@ describe('parseMagicItem', () => {
 
 		expect(untitled?.name).toBe('Fallback');
 	});
+
+	it('drops the frontmatter from the description of a note with no headings', () => {
+		const untitled = parseMagicItem(
+			'---\ncssclasses: json5e-item\n---\n*Wondrous item, rare*\n\nProse.',
+			magicFrontmatter,
+			'k',
+			'Fallback',
+		);
+
+		expect(untitled?.desc).toBe('Prose.');
+	});
 });

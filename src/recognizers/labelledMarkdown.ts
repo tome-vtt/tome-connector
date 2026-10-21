@@ -192,8 +192,9 @@ export function titleOf(markdown: string, fallback: string): string {
 export const FIELD_LINE = /^[ \t]*(?:[-*+][ \t]+)?\*\*/;
 
 /**
- * A note's prose: the preamble (or the whole note when it has no headings), minus
- * the source lines and images, with runs of blank lines collapsed.
+ * A note's prose: the preamble (or, when it has no headings, the whole note minus
+ * its frontmatter), minus the source lines and images, with runs of blank lines
+ * collapsed by `stripMarkdownFromString`.
  *
  * `extraSkip` names the lines this note type also drops, such as its field lines.
  */
@@ -203,9 +204,7 @@ export function proseBody(markdown: string, extraSkip: RegExp[] = []): string {
 
 	const lines = body.split(/\r?\n/).filter((line) => !skip.some((pattern) => pattern.test(line)));
 
-	return stripMarkdownFromString(lines.join('\n'))
-		.replace(/\n{3,}/g, '\n\n')
-		.trim();
+	return stripMarkdownFromString(lines.join('\n'));
 }
 
 /** Lower-case, hyphenated, safe as a lookup key and stable across imports. */

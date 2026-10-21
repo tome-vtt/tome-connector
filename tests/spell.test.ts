@@ -296,6 +296,17 @@ describe('parseSpell', () => {
 		expect(bolt?.higherLevel).toBe('The damage increases at level 5.');
 	});
 
+	it('drops the frontmatter from the description of a note with no headings', () => {
+		const untitled = parseSpell(
+			'---\ncssclasses: json5e-spell\n---\n- **Casting time:** 1 Action\n- **Duration:** Instantaneous\n\nYou hurl a mote.',
+			null,
+			'k',
+			'Fallback',
+		);
+
+		expect(untitled?.desc).toBe('You hurl a mote.');
+	});
+
 	it('returns null for a note that states no spell fields', () => {
 		expect(parseSpell('# Spells\n\nA list.', null, 'spells', 'Spells')).toBeNull();
 	});
