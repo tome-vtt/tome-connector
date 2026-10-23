@@ -4,6 +4,9 @@
 	"description": "Send note content from Obsidian to a Tome server via a configurable HTTP endpoint.",
 	"main": "main.js",
 	"type": "module",
+	"engines": {
+		"node": "^22.13.0 || ^24.0.0 || >=26.0.0"
+	},
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
@@ -25,7 +28,7 @@
 		"obsidian": "^1.14.4",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.71.1",
-		"vitest": "^4.1.11",
+		"vitest": "5.0.5",
 		"yaml": "^2.9.1"
 	}
 }

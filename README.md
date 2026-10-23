@@ -223,6 +223,9 @@ responses may be logged to help diagnose API errors.
 
 ## Development
 
+Use Node.js 22.13 or later in the 22.x series, 24.x, or 26 and later.
+Vitest 5 no longer supports Node.js 20.
+
 Install dependencies and run the checks from this directory:
 
 ```bash
