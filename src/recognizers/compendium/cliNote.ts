@@ -118,6 +118,9 @@ export function cliNoteType(frontmatter: Record<string, unknown> | null): CliNot
  * adds is the subclasses the SRD does not license. So a subclass is imported as a
  * patch to its parent class and the class note itself is never read - which also
  * means never parsing the malformed progression table. See `subclass.ts`.
+ *
+ * **`item` means gear only.** A content source has no place for magic items, so
+ * the package leaves out the ones `magicItem.ts`'s `isMagic` picks. See `package.ts`.
  */
 const IMPORTABLE = new Set<CliNoteType>([
 	'species',
@@ -125,6 +128,7 @@ const IMPORTABLE = new Set<CliNoteType>([
 	'feat',
 	'spell',
 	'subclass',
+	'item',
 ]);
 
 /**
