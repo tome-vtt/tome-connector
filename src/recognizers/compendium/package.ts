@@ -324,10 +324,7 @@ export function assemblePackage(
 			attachable.filter((entry) => unreachableFeatures(entry).length > 0),
 		),
 		sources,
-		suggested: {
-			license,
-			attribution: suggestedAttribution(sources),
-		},
+		suggested: { license, attribution: suggestedAttribution(sources) },
 	};
 }
 
