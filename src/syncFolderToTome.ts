@@ -18,6 +18,7 @@ import { TomeProgressNotice } from './tomeProgressNotice';
 import { oneAtATime } from './oneAtATime';
 import { chooseCampaign } from './tomeCampaigns';
 import { describeError } from './shared';
+import { sentTo } from './tomeHttp';
 
 const MENU_TITLE = 'Import as a Tome Reference';
 const MENU_ICON = 'upload-cloud';
@@ -107,8 +108,8 @@ function warnUninlinedResources(bodyHtml: string): void {
 const runFolderExport = oneAtATime(
 	async (plugin: TomeConnectorPlugin, folder: TFolder): Promise<void> => {
 		if (!canStartFolderExport(plugin)) return;
-		const campaignId = await chooseCampaign(plugin, 'Import');
-		if (campaignId === null) return;
+		const campaign = await chooseCampaign(plugin, 'Import');
+		if (campaign === null) return;
 
 		// A vault-root folder has an empty name; use the vault's name.
 		const title = folder.name || plugin.app.vault.getName();
@@ -146,11 +147,11 @@ const runFolderExport = oneAtATime(
 
 			progress.setMessage(`Tome connector: uploading "${title}" (${formatBytes(pdf.byteLength)})…`);
 			progress.setProgress(total + 1, totalSteps);
-			await uploadReferencePdf(plugin, pdf, title, campaignId);
+			await uploadReferencePdf(plugin, pdf, title, campaign.id);
 			progress.setProgress(totalSteps, totalSteps);
 
 			progress.hide();
-			reportSuccess(title, total, built);
+			reportSuccess(title, total, built, campaign.name);
 		} catch (error) {
 			progress.hide();
 			console.error('Tome Connector: failed to export folder', error);
@@ -170,9 +171,10 @@ function reportSuccess(
 	title: string,
 	total: number,
 	built: BuiltDocument,
+	campaignName: string,
 ): void {
 	const { failures, skipped } = built;
-	const noteCount = `${total} note${total === 1 ? '' : 's'}`;
+	const sent = sentTo(`"${title}" (${total} note${total === 1 ? '' : 's'})`, campaignName);
 	// Only worth saying when the optimizer actually shrank something, which is
 	// also the answer to "why is this export so much smaller than the vault".
 	const saved =
@@ -194,11 +196,11 @@ function reportSuccess(
 		}
 		const problems = failures.length + skipped.length;
 		new Notice(
-			`Sent "${title}" (${noteCount}) to Tome.${saved} ${problems} item${problems === 1 ? '' : 's'} could not be included — see the console.`,
+			`Tome connector: ${sent}.${saved} ${problems} item${problems === 1 ? '' : 's'} could not be included — see the console.`,
 			10000,
 		);
 		return;
 	}
 
-	new Notice(`Sent "${title}" (${noteCount}) to Tome.${saved}`);
+	new Notice(`Tome connector: ${sent}.${saved}`);
 }

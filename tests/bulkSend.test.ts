@@ -229,11 +229,11 @@ describe('runBulkSend', () => {
 
 describe('describeReport', () => {
 	it.each([
-		[{ sent: [1], failed: [], cancelled: false }, '1 sent'],
-		[{ sent: [1, 2], failed: [3], cancelled: false }, '2 sent, 1 failed'],
-		[{ sent: [1], failed: [], cancelled: true }, '1 sent, stopped early'],
-		[{ sent: [], failed: [], cancelled: false }, '0 sent']
+		[{ sent: [1], failed: [], cancelled: false }, '1 sent to Test 2'],
+		[{ sent: [1, 2], failed: [3], cancelled: false }, '2 sent to Test 2, 1 failed'],
+		[{ sent: [1], failed: [], cancelled: true }, '1 sent to Test 2, stopped early'],
+		[{ sent: [], failed: [], cancelled: false }, '0 sent to Test 2']
 	])('%o -> %s', (report, expected) => {
-		expect(describeReport(report as never)).toBe(expected);
+		expect(describeReport(report as never, 'Test 2')).toBe(expected);
 	});
 });

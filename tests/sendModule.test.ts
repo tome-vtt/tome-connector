@@ -7,6 +7,7 @@ import {
 	sendBlockToTome as sendBlock,
 	sendCharacterToTome as sendCharacter,
 	sendToTome as send,
+	sendableName,
 	type ModuleSendable,
 } from '../src/sendModule';
 import { TINY_PNG, bodyOf, inMemorySendPorts } from './fixtures/inMemorySendPorts';
@@ -289,6 +290,18 @@ describe('sending a bare image', () => {
 
 		expect(sent[0]?.url).toBe(url);
 		expect(bodyOf(sent[0])).toEqual({ title: 'Old Keep', image: TINY_PNG });
+	});
+});
+
+describe('naming what was sent', () => {
+	it.each([
+		[{ kind: 'image', path: 'Art/Old Keep.png', to: 'prop' }, 'Old Keep'],
+		[{ kind: 'prop', path: 'Keep.md', block: { title: 'Simple Chest' } }, 'Simple Chest'],
+		[creature(INLINE_GOBLIN), 'Goblin'],
+		[creature({ monster: 'Goblin Boss' }), 'Goblin Boss'],
+		[creature({ hp: 7 }, 'Bestiary/Cave Rat.md'), 'Cave Rat'],
+	] as [ModuleSendable, string][])('%o -> %s', (sendable, expected) => {
+		expect(sendableName(sendable)).toBe(expected);
 	});
 });
 

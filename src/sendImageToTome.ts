@@ -39,10 +39,10 @@ async function sendImage(
 	to: 'map' | 'prop',
 ): Promise<void> {
 	try {
-		const campaignId = await chooseCampaign(plugin, 'Import');
-		if (campaignId === null) return;
+		const campaign = await chooseCampaign(plugin, 'Import');
+		if (campaign === null) return;
 
-		await sendWithNotice(plugin, { kind: 'image', path: file.path, to }, campaignId);
+		await sendWithNotice(plugin, { kind: 'image', path: file.path, to }, campaign);
 	} catch (error) {
 		console.error('Tome Connector: failed to send image', error);
 		const message = describeError(error);

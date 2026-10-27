@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+	destinationLabel,
 	destinationOptions,
 	encodeDestination,
 	initialDestinationValue,
@@ -158,4 +159,14 @@ describe('remembered destination', () => {
 			});
 		},
 	);
+});
+
+describe('destinationLabel', () => {
+	it('names the vault My Characters', () => {
+		expect(destinationLabel(CAMPAIGNS, { kind: 'vault' })).toBe('My Characters');
+	});
+
+	it('names a campaign by its name', () => {
+		expect(destinationLabel(CAMPAIGNS, { kind: 'campaign', campaignId: CAMPAIGNS[1]!.id })).toBe('The Long Winter');
+	});
 });

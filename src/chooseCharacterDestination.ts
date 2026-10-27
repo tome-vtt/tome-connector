@@ -4,6 +4,7 @@ import type { App } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { loadCampaigns, rememberCampaign, type TomeCampaign } from './tomeCampaigns';
 import {
+	destinationLabel,
 	destinationOptions,
 	encodeDestination,
 	initialDestinationValue,
@@ -70,7 +71,8 @@ class CharacterDestinationModal extends Modal {
 }
 
 /**
- * Asks where the character should go, and remembers the answer.
+ * Asks where the character should go, and remembers the answer. `label` is what the result
+ * calls it: My Characters, or the campaign's name.
  *
  * Returns null when the user cancelled, or when the campaign list could not be fetched at all -
  * which `loadCampaigns` has already explained. An *empty* list is not a refusal: it means the
@@ -79,7 +81,7 @@ class CharacterDestinationModal extends Modal {
  */
 export async function chooseCharacterDestination(
 	plugin: TomeConnectorPlugin,
-): Promise<CharacterDestination | null> {
+): Promise<{ destination: CharacterDestination; label: string } | null> {
 	const campaigns = await loadCampaigns(plugin);
 	if (campaigns === null) return null;
 
@@ -95,7 +97,7 @@ export async function chooseCharacterDestination(
 
 	const destination = parseDestination(value);
 	await rememberDestination(plugin, destination);
-	return destination;
+	return { destination, label: destinationLabel(campaigns, destination) };
 }
 
 /**

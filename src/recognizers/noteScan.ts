@@ -73,7 +73,7 @@ export function declaresStatblock(frontmatter: Record<string, unknown> | null): 
 	return true;
 }
 
-function creatureLabel(record: Record<string, unknown>, fallback: string): string {
+export function creatureLabel(record: Record<string, unknown>, fallback: string): string {
 	const name = record.name ?? record.monster;
 	return typeof name === 'string' && name.trim() !== '' ? name.trim() : fallback;
 }

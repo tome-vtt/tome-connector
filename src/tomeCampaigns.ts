@@ -119,21 +119,29 @@ class CampaignSelectModal extends Modal {
 	}
 }
 
-/** Opens the compact selector used by actions that did not already have a review modal. */
+/**
+ * Opens the compact selector used by actions that did not already have a review modal.
+ * Returns the campaign itself, so the result can name where the send went.
+ */
 export async function chooseCampaign(
 	plugin: TomeConnectorPlugin,
 	action = 'Send',
-): Promise<string | null> {
+): Promise<TomeCampaign | null> {
 	const choice = await loadCampaignChoice(plugin);
 	if (choice === null) return null;
 
 	const campaignId = await new Promise<string | null>((resolve) => {
 		new CampaignSelectModal(plugin.app, choice, action, resolve).open();
 	});
+	if (campaignId === null) return null;
 
-	if (campaignId !== null) await rememberCampaign(plugin, campaignId);
+	await rememberCampaign(plugin, campaignId);
+	return chosenCampaign(choice, campaignId);
+}
 
-	return campaignId;
+/** The campaign `campaignId` names in `choice`; its id stands in for a name the list lacks. */
+export function chosenCampaign(choice: CampaignChoice, campaignId: string): TomeCampaign {
+	return choice.campaigns.find((campaign) => campaign.id === campaignId) ?? { id: campaignId, name: campaignId };
 }
 
 export async function rememberCampaign(

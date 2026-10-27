@@ -78,6 +78,25 @@ export function describeFailure(result: SendResult): string {
 	return result.message ?? `The server responded with status ${result.status}.`;
 }
 
+/**
+ * The one wording every send result uses: what went, and the campaign (or My Characters) it
+ * went to. A send that names neither reads as success while the items sit in a campaign the
+ * user is not looking at.
+ */
+export function sentTo(what: string, where: string): string {
+	return `${what} sent to ${where}`;
+}
+
+/** The Notice for one send: what went where on success, the server's reason otherwise. */
+export function describeResult(result: SendResult, name: string, where: string): string {
+	if (result.ok) return `Tome connector: ${sentTo(`"${name}"`, where)}.`;
+	// The server explains itself - a duplicated character name, a plan limit, a
+	// title already taken - and those are things the person syncing can fix.
+	return result.message
+		? `Tome connector: ${result.message}`
+		: `Tome connector: server responded with status ${result.status}. Check the console for the response body.`;
+}
+
 export function createTomeHttp(transport: TomeTransport) {
 	return {
 		postJson: async (target: TomeTarget, payload: string) =>

@@ -10,6 +10,7 @@
  */
 
 import { describeError } from './shared';
+import { sentTo } from './tomeHttp';
 
 /**
  * Milliseconds between items, for every bulk run: the vault sync and the
@@ -204,9 +205,9 @@ async function sendOne<T>(
 	};
 }
 
-/** One line summarising a finished run, for a Notice. */
-export function describeReport<T>(report: BulkReport<T>): string {
-	const parts = [`${report.sent.length} sent`];
+/** One line summarising a finished run to `where`: the results dialog's title. */
+export function describeReport<T>(report: BulkReport<T>, where: string): string {
+	const parts = [sentTo(`${report.sent.length}`, where)];
 	if (report.failed.length > 0) parts.push(`${report.failed.length} failed`);
 	if (report.cancelled) parts.push('stopped early');
 	return parts.join(', ');

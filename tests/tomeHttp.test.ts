@@ -6,6 +6,7 @@ import {
 	NOT_CONFIGURED,
 	createTomeHttp,
 	describeFailure,
+	describeResult,
 	type TomeRequest,
 	type TomeResponse,
 	type TomeTransport,
@@ -281,6 +282,18 @@ describe('describeFailure', () => {
 		expect(describeFailure({ ok: false, status: 500, id: null, message: null, retryable: true })).toBe(
 			'The server responded with status 500.',
 		);
+	});
+});
+
+describe('describeResult', () => {
+	it('names the item and the campaign it went to', () => {
+		const result = { ok: true, status: 200, id: 'abc', message: null, retryable: false };
+		expect(describeResult(result, 'Old Keep', 'Test 2')).toBe('Tome connector: "Old Keep" sent to Test 2.');
+	});
+
+	it("gives a refusal the server's own message", () => {
+		const result = { ok: false, status: 409, id: null, message: 'That name is taken.', retryable: false };
+		expect(describeResult(result, 'Old Keep', 'Test 2')).toBe('Tome connector: That name is taken.');
 	});
 });
 

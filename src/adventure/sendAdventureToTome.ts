@@ -6,7 +6,8 @@ import { obsidianSendPorts } from '../obsidianSendPorts';
 import { oneAtATime } from '../oneAtATime';
 import { describeError } from '../shared';
 import { tomeHttp } from '../tomeApiClient';
-import { loadCampaignChoice, rememberCampaign } from '../tomeCampaigns';
+import { sentTo } from '../tomeHttp';
+import { chosenCampaign, loadCampaignChoice, rememberCampaign, type TomeCampaign } from '../tomeCampaigns';
 import { getApiKey } from '../tomeConnectorSettings';
 import { readImageAsDataUri } from '../tomeImageEmbedding';
 import { TomeProgressNotice } from '../tomeProgressNotice';
@@ -221,14 +222,19 @@ interface ImportAdventureResponseBody {
 	chapters: ImportedChapterResultBody[];
 }
 
-function reportImport(plan: AdventurePlan, response: ImportAdventureResponseBody, failures: number): void {
+function reportImport(
+	plan: AdventurePlan,
+	response: ImportAdventureResponseBody,
+	failures: number,
+	campaignName: string,
+): void {
 	const parts = [
 		`${response.chaptersCreated + response.chaptersMatched} chapters`,
 		`${response.scenesCreated + response.scenesMatched} scenes`,
 		`${response.blocksWritten} blocks`,
 	];
 	const failureNote = failures > 0 ? ` ${failures} item${failures === 1 ? '' : 's'} failed - see the console.` : '';
-	new Notice(`Tome connector: "${plan.title}" sent - ${parts.join(', ')}.${failureNote}`);
+	new Notice(`Tome connector: ${sentTo(`"${plan.title}"`, campaignName)} - ${parts.join(', ')}.${failureNote}`);
 }
 
 /** How many rows `entitiesPass`/`imagesPass` will actually try to send - the same filters each uses. */
@@ -295,7 +301,7 @@ function passDeps(plugin: TomeConnectorPlugin): PassDeps {
 export async function runAdventureImport(
 	plugin: TomeConnectorPlugin,
 	plan: AdventurePlan,
-	campaignId: string,
+	{ id: campaignId, name: campaignName }: TomeCampaign,
 ): Promise<void> {
 	const apiKey = getApiKey(plugin);
 	const baseUrl = plugin.settings.baseUrl;
@@ -349,7 +355,7 @@ export async function runAdventureImport(
 		console.warn('Tome Connector: could not write ids back into the vault.', error);
 	}
 
-	reportImport(plan, response, failureCount);
+	reportImport(plan, response, failureCount, campaignName);
 }
 
 /**
@@ -380,7 +386,7 @@ export const runAdventureFolderImport = oneAtATime(
 		if (campaignId === null) return;
 
 		void rememberCampaign(plugin, campaignId);
-		await runAdventureImport(plugin, plan, campaignId);
+		await runAdventureImport(plugin, plan, chosenCampaign(choice, campaignId));
 	},
 	() => new Notice('Tome connector: an adventure import is already running.'),
 );
