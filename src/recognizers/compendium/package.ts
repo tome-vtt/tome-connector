@@ -238,6 +238,15 @@ function toPatches(attachable: ParsedSubclass[], options: AssembleOptions): Clas
 	);
 }
 
+function subclassAvailability(subclasses: ParsedSubclass[], attachable: ParsedSubclass[]) {
+	return {
+		orphanedSubclasses: describeAll(subclasses.filter((entry) => !hasShippedClass(entry))),
+		unreachableSubclasses: describeAll(
+			attachable.filter((entry) => unreachableFeatures(entry).length > 0),
+		),
+	};
+}
+
 export function assemblePackage(
 	notes: Note[],
 	documentKey: string,
@@ -287,10 +296,7 @@ export function assemblePackage(
 		alreadyShipped,
 		unavailableFeats: feats.filter((feat) => feat.type === null).length,
 		legacyFeats: parsed.filter((entry) => entry.type === 'feat' && entry.source.year !== 2024).length,
-		orphanedSubclasses: describeAll(subclasses.filter((entry) => !hasShippedClass(entry))),
-		unreachableSubclasses: describeAll(
-			attachable.filter((entry) => unreachableFeatures(entry).length > 0),
-		),
+		...subclassAvailability(subclasses, attachable),
 		sources,
 		suggested: {
 			license,
