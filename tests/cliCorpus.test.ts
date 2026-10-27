@@ -538,14 +538,18 @@ describe.skipIf(!present)('ttrpg-convert-cli corpus', () => {
 		expect(count(report, 'subclasses') + report.orphanedSubclasses.length).toBe(
 			notesOfType('subclass').length,
 		);
+		// Items split: the gear goes in, the magic items are reported as not included.
+		expect(count(report, 'items') + (report.unsupported['magic-item'] ?? 0)).toBe(
+			notesOfType('item').length,
+		);
 
-		// Recognised, no parser yet. Counted rather than dropped, so the preview can
-		// say so - and so this fails the day one of them gets a parser.
+		// Recognised, not imported. Counted rather than dropped, so the preview can
+		// say so - and so this fails the day one of them is imported.
 		expect(Object.keys(report.unsupported).sort()).toEqual([
 			'class',
 			'creature',
-			'item',
 			'legendary-group',
+			'magic-item',
 			'object',
 			'optional-feature',
 			'vehicle',
