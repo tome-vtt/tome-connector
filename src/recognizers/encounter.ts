@@ -11,6 +11,7 @@
  */
 
 import { existingTomeId } from '../tomeIdWriteBack';
+import type { Warn } from './note';
 
 /** The server's `Encounter` shape, which is camelCase unlike the NPC endpoint's. */
 export interface EncounterPayload {
@@ -23,11 +24,6 @@ export interface EncounterEntry {
 	name: string;
 	count: number;
 }
-
-/** Says what a reader skipped or changed, so the send results can list it. */
-export type Warn = (message: string) => void;
-
-const ignore: Warn = () => {};
 
 /**
  * Initiative Tracker writes a creature four ways, and the count-prefixed form is
@@ -47,11 +43,12 @@ const ignore: Warn = () => {};
  * importing one they can duplicate. That, dropped overrides and an entry that
  * names no creature are each passed to `warn`.
  */
-export function parseCreatureEntry(entry: unknown, warn: Warn = ignore): EncounterEntry | null {
+export function parseCreatureEntry(entry: unknown, warn: Warn = () => {}): EncounterEntry | null {
 	const unread = (): null => {
 		warn(`creature entry ${JSON.stringify(entry) ?? String(entry)} skipped: it names no creature.`);
 		return null;
 	};
+	const dropOverrides = (name: string) => warn(`${name} sent without its overrides, which Tome does not keep.`);
 
 	if (typeof entry === 'string') {
 		const name = entry.trim();
@@ -68,6 +65,7 @@ export function parseCreatureEntry(entry: unknown, warn: Warn = ignore): Encount
 	const explicit = record.name ?? record.creature;
 	if (typeof explicit === 'string' && explicit.trim() !== '') {
 		const name = explicit.trim();
+		if (Object.keys(record).some((key) => !LONG_FORM_KEYS.has(key))) dropOverrides(name);
 		return { name, count: readCount(record.quantity ?? record.count, name, warn) };
 	}
 
@@ -97,12 +95,15 @@ export function parseCreatureEntry(entry: unknown, warn: Warn = ignore): Encount
 
 	const name = key.trim();
 	if (name === '') return unread();
-	if (value !== null && value !== undefined) warn(`${name} sent without its overrides, which Tome does not keep.`);
+	if (value !== null && value !== undefined) dropOverrides(name);
 	return { name, count: 1 };
 }
 
+/** The long form's own fields; anything else on the entry is an override. */
+const LONG_FORM_KEYS = new Set(['name', 'creature', 'quantity', 'count']);
+
 function readCount(value: unknown, name: string, warn: Warn): number {
-	if (value === undefined) return 1;
+	if (value === undefined || value === null) return 1;
 	if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
 		return Math.floor(value);
 	}
@@ -125,9 +126,8 @@ function readCount(value: unknown, name: string, warn: Warn): number {
  * groups — so entries are combined by name rather than deduplicated, which is
  * what the tracker itself shows.
  */
-export function mapToEncounterPayload(parsed: unknown, warn: Warn = ignore): EncounterPayload | null {
+export function mapToEncounterPayload(parsed: unknown, warn: Warn = () => {}): EncounterPayload | null {
 	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-		warn('Encounter block skipped: it is not a set of fields.');
 		return null;
 	}
 

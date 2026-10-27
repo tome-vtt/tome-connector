@@ -24,7 +24,7 @@
  */
 
 import { existingTomeId } from '../tomeIdWriteBack';
-import type { Warn } from './encounter';
+import type { Warn } from './note';
 import { titleCase } from './labelledMarkdown';
 
 export interface MapReference {
@@ -101,7 +101,6 @@ function firstImageBasePath(value: unknown): string | null {
  */
 export function mapReferenceFrom(parsed: unknown, warn: Warn = () => {}): MapReference | null {
 	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-		warn('Map block skipped: it is not a set of fields.');
 		return null;
 	}
 

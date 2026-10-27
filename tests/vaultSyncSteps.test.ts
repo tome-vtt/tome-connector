@@ -73,7 +73,7 @@ describe('scanScope', () => {
 			{ path: 'Swamp.md', message: 'Frogs: creature entry 42 skipped: it names no creature.' },
 			{ path: 'Swamp.md', message: 'Statblock block skipped: it has no stats and no monster: reference.' },
 			{ path: 'Swamp.md', message: 'Map block skipped: it names no image.' },
-			{ path: 'Swamp.md', message: 'Zoommap block skipped: its YAML could not be read.' },
+			{ path: 'Swamp.md', message: 'Map block skipped: its YAML could not be read.' },
 		]);
 	});
 });

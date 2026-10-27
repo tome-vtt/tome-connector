@@ -19,10 +19,10 @@ import { cliNoteType } from './compendium/cliNote';
 import { parseEquipmentItem, type EquipmentItem } from './compendium/equipmentItem';
 import { isMagic, parseMagicItem, readImagePath, type MagicItem } from './compendium/magicItem';
 import { parseSpell } from './compendium/spell';
-import { mapToEncounterPayload, type EncounterPayload, type Warn } from './encounter';
+import { mapToEncounterPayload, type EncounterPayload } from './encounter';
 import { mapReferenceFrom, type MapReference } from './map';
 import { hasInlineStats } from './statblockCreature';
-import { noteName, type Note } from './note';
+import { noteName, type Note, type Warn } from './note';
 
 /**
  * What was recognised, by kind, each carrying its own typed parse. A creature stays
@@ -59,8 +59,16 @@ export interface ScanWarning {
 	message: string;
 }
 
-/** The fences `sendableFromBlock` reads; any other fence is someone else's and skipped quietly. */
-const BLOCK_LANGUAGES = new Set(['statblock', 'encounter', 'leaflet', 'zoommap']);
+/**
+ * The fences `sendableFromBlock` reads, by what a warning calls them; any other
+ * fence is someone else's and skipped quietly.
+ */
+const BLOCK_NOUNS: Partial<Record<string, string>> = {
+	statblock: 'Statblock',
+	encounter: 'Encounter',
+	leaflet: 'Map',
+	zoommap: 'Map',
+};
 
 /** Injected so this module never imports `obsidian`. Returns null on bad YAML. */
 export type YamlParser = (source: string) => unknown;
@@ -106,10 +114,10 @@ export function findSendables(note: Note, parseYaml: YamlParser, warn: Warn = ()
 
 	for (const block of extractFencedBlocks(note.content)) {
 		if (block.language === 'statblock') sawStatblockFence = true;
-		if (!BLOCK_LANGUAGES.has(block.language)) continue;
+		const noun = BLOCK_NOUNS[block.language];
+		if (noun === undefined) continue;
 
-		const skipped = (reason: string) =>
-			warn(`${block.language.charAt(0).toUpperCase()}${block.language.slice(1)} block skipped: ${reason}.`);
+		const skipped = (reason: string) => warn(`${noun} block skipped: ${reason}.`);
 		let record: Record<string, unknown> | null;
 		try {
 			record = asRecord(parseYaml(block.source));

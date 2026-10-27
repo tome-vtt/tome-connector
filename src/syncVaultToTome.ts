@@ -40,7 +40,9 @@ function renderWarnings(contentEl: HTMLElement, warnings: ScanWarning[]): void {
 
 	const byNote = new Map<string, string[]>();
 	for (const { path, message } of warnings) {
-		byNote.set(path, [...(byNote.get(path) ?? []), message]);
+		const messages = byNote.get(path);
+		if (messages) messages.push(message);
+		else byNote.set(path, [message]);
 	}
 
 	contentEl.createEl('h4', { text: 'Not read in full' });
