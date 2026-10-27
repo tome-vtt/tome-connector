@@ -35,10 +35,7 @@ import { vaultNotes } from './vaultNotes';
 type TypedFields = Partial<ImportManifest>;
 
 /** Import on a yes, reassemble on a toggle, null on Cancel or Close. */
-type ImportAnswer =
-	| { manifest: ImportManifest }
-	| { options: AssembleOptions; typed: TypedFields }
-	| null;
+type ImportAnswer = { manifest: ImportManifest } | { options: AssembleOptions } | null;
 
 /**
  * Shows what was found, collects the manifest, and waits for a yes.
@@ -301,7 +298,7 @@ class ConfirmImportModal extends Modal {
 			this.confirmed
 				? { manifest: this.manifest }
 				: this.nextOptions !== null
-					? { options: this.nextOptions, typed: this.typed }
+					? { options: this.nextOptions }
 					: null,
 		);
 	}
@@ -327,7 +324,8 @@ export const runContentImport = oneAtATime(
 
 		// Awaited, not fired from a callback: the guard has to hold through the upload.
 		let options: AssembleOptions = {};
-		let typed: TypedFields = {};
+		// Shared by every reopen: each dialog writes what is typed straight into it.
+		const typed: TypedFields = {};
 		for (;;) {
 			const report = scan.assemble(options);
 			const answer = await new Promise<ImportAnswer>((resolve) => {
@@ -336,7 +334,6 @@ export const runContentImport = oneAtATime(
 			if (answer === null) return;
 			if ('options' in answer) {
 				options = answer.options;
-				typed = answer.typed;
 				continue;
 			}
 			await upload(plugin, report, answer.manifest);

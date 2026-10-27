@@ -242,6 +242,5 @@ describe('Import a content source', () => {
 		await reopened;
 		expect(shown.texts.join('\n')).toContain('1 feat');
 		expect(shown.texts.join('\n')).not.toContain('more are SRD content');
-
 	});
 });
