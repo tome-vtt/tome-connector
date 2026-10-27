@@ -26,6 +26,7 @@ const contentPackage: ContentPackage = {
 	feats: [],
 	spells: [],
 	classes: [],
+	items: [],
 };
 
 /** Reads the encoded body back the way a server would. */

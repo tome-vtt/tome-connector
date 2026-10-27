@@ -112,7 +112,7 @@ class ConfirmImportModal extends Modal {
 		if (skipped !== '') {
 			contentEl.createEl('p', {
 				cls: 'tome-connector-sync-hint',
-				text: `Not included: ${skipped}. Creatures go to the bestiary with "Send folder to Tome" instead.`,
+				text: `Not included: ${skipped}. Creatures and magic items go to a campaign with "Send folder to Tome" instead.`,
 			});
 		}
 
