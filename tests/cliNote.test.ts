@@ -107,7 +107,7 @@ describe('cliNoteType', () => {
 });
 
 describe('isImportable', () => {
-	it.each([['species'], ['background'], ['feat'], ['spell'], ['subclass']] as const)(
+	it.each([['species'], ['background'], ['feat'], ['spell'], ['subclass'], ['item']] as const)(
 		'%s has a parser',
 		(type) => {
 			expect(isImportable(type)).toBe(true);
@@ -122,13 +122,11 @@ describe('isImportable', () => {
 	 * arrives as a patch to its parent and the class note is never read - which is
 	 * also how the malformed progression table never gets parsed.
 	 *
-	 * Items are recognised but not yet parsed, and an optional feature never will be.
-	 * Keeping recognition and support apart is what lets a scan say "955 items, not
-	 * yet supported" - a preview that omits what it cannot handle reads as one that
-	 * did not find it.
+	 * An optional feature is recognised but never parsed. Keeping recognition and
+	 * support apart is what lets a scan say "955 creatures, not included" - a preview
+	 * that omits what it cannot handle reads as one that did not find it.
 	 */
 	it.each([
-		['item'],
 		['class'],
 		['index'],
 		['optional-feature'],
