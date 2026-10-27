@@ -8,6 +8,7 @@
  */
 
 import { FIELD_LINE, parseLabelledValues, proseBody, slug, titleOf } from '../labelledMarkdown';
+import { PrerequisiteRule, readPrerequisiteRule } from './prerequisiteRule';
 import { readSourceLine } from './sourceLine';
 
 /** Mirrors the server's `Srd2024Benefit`. */
@@ -26,6 +27,8 @@ export interface Feat {
 	/** `Origin`, `General`, `Fighting Style` or `Epic Boon` - see {@link readType}. */
 	type: string | null;
 	prerequisite: string | null;
+	/** What Tome checks; null when there is no prerequisite or it is one {@link readPrerequisiteRule} cannot read. */
+	prerequisiteRule: PrerequisiteRule | null;
 	benefits: Benefit[];
 }
 
@@ -143,6 +146,7 @@ export function parseFeat(markdown: string, key: string, fallbackName: string): 
 		// the 2014 ones print no year at all.
 		type: readType(prerequisite, readSourceLine(markdown).year === 2024),
 		prerequisite,
+		prerequisiteRule: readPrerequisiteRule(prerequisite),
 		benefits,
 	};
 }
