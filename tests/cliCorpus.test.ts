@@ -543,8 +543,8 @@ describe.skipIf(!present)('ttrpg-convert-cli corpus', () => {
 			notesOfType('item').length,
 		);
 
-		// Recognised, no parser yet. Counted rather than dropped, so the preview can
-		// say so - and so this fails the day one of them gets a parser.
+		// Recognised, not imported. Counted rather than dropped, so the preview can
+		// say so - and so this fails the day one of them is imported.
 		expect(Object.keys(report.unsupported).sort()).toEqual([
 			'class',
 			'creature',
