@@ -7,6 +7,7 @@ import { oneAtATime } from './oneAtATime';
 import { validateManifest, type ImportManifest } from './recognizers/compendium/importRequest';
 import {
 	describeCounts,
+	describeUnavailableFeats,
 	isEmpty,
 	type AssembleOptions,
 	type PackageReport,
@@ -89,6 +90,7 @@ class ConfirmImportModal extends Modal {
 		this.renderNotImported(contentEl);
 		this.renderLicenceNotice(contentEl);
 		this.renderToggles(contentEl);
+		this.renderLegacyFeats(contentEl);
 		this.renderFields(contentEl);
 		this.addButtons(contentEl, true);
 	}
@@ -263,6 +265,21 @@ class ConfirmImportModal extends Modal {
 		}
 	}
 
+	private renderLegacyFeats(contentEl: HTMLElement): void {
+		const warning = describeUnavailableFeats(this.report);
+		if (warning) contentEl.createEl('p', { cls: 'tome-connector-sync-hint', text: warning });
+		if (this.report.legacyFeats === 0) return;
+		new Setting(contentEl)
+			.setName('Offer older-book feats at level 4')
+			.setDesc('File older feats as General feats. Race and other prerequisites still need to be checked by the player.')
+			.addToggle((control) => control
+				.setValue(this.options.generalLegacyFeats === true)
+				.onChange((on) => {
+					this.nextOptions = { ...this.options, generalLegacyFeats: on };
+					this.close();
+				}));
+	}
+
 	private addButtons(contentEl: HTMLElement, canImport: boolean): void {
 		const buttons = contentEl.createDiv({ cls: 'tome-connector-sync-buttons' });
 		buttons
@@ -355,6 +372,7 @@ async function upload(
 	if (outcome.ok) {
 		new Notice(
 			`Tome connector: imported ${describeCounts(report.counts)}. ` +
+				`${describeUnavailableFeats(report)} ` +
 				'Switch it on for a campaign in Tome to use it.',
 		);
 		return;

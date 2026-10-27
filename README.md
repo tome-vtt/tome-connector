@@ -182,6 +182,19 @@ Two limitations worth knowing:
 - The PDF is always rendered in the light theme. A dark theme prints as either
   a solid black page or near-invisible text.
 
+### Older-book feats in a content-source import
+
+Select **Offer older-book feats at level 4** to file feats from pre-2024 books as
+General feats. This option is off by default. The confirmation and completed-import
+notice say how many imported feats have no category and will not be offered when
+levelling up.
+
+Unlabelled ability-increase bullets are imported as benefits, including the choice
+of abilities and the maximum score. Feats without another prerequisite receive a
+level-4 rule. Tome cannot yet check racial prerequisites automatically: those and
+other unparsed prerequisites remain visible for the player to check. The connector
+does not replace them with a rule that checks only level.
+
 ## Data And Privacy
 
 Tome Connector does not send data automatically. A send action transmits the

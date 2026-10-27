@@ -88,6 +88,10 @@ export interface PackageReport {
 	 * the builder can never grant. 2014 subclasses filed under a 2024 class.
 	 */
 	unreachableSubclasses: string[];
+	/** Included feats with no category, so level-up cannot offer them. */
+	unavailableFeats: number;
+	/** Included feats eligible for the older-book conversion option. */
+	legacyFeats: number;
 	sources: SourceSummary;
 	/** The manifest fields to prefill, from the source lines. */
 	suggested: { license: string | null; attribution: string | null };
@@ -130,6 +134,8 @@ export interface AssembleOptions {
 	 * library this affects 32 subclasses, all of them Cleric domains.
 	 */
 	raiseEarlySubclassFeatures?: boolean;
+	/** Opt in to offering older-book feats at level 4 rather than leaving them uncategorised. */
+	generalLegacyFeats?: boolean;
 }
 
 /** The title-cased name to fall back on when a note has no `# Title`. */
@@ -143,7 +149,7 @@ interface Parsed {
 	source: NoteSource;
 }
 
-function parseNote(note: Note, type: CliNoteType): Parsed | null {
+function parseNote(note: Note, type: CliNoteType, options: AssembleOptions): Parsed | null {
 	const key = noteName(note.path);
 	const name = nameFor(key);
 
@@ -153,7 +159,7 @@ function parseNote(note: Note, type: CliNoteType): Parsed | null {
 			: type === 'background'
 				? parseBackground(note.content, key, name)
 				: type === 'feat'
-					? parseFeat(note.content, key, name)
+					? parseFeat(note.content, key, name, options.generalLegacyFeats)
 					: type === 'spell'
 						? parseSpell(note.content, note.frontmatter, key, name)
 						: type === 'subclass'
@@ -195,7 +201,7 @@ function sortNotes(notes: Note[], options: AssembleOptions): Sorted {
 			continue;
 		}
 
-		const result = parseNote(note, type);
+		const result = parseNote(note, type, options);
 		if (result === null) {
 			out.failed.push(note.path);
 			continue;
@@ -279,6 +285,8 @@ export function assemblePackage(
 		unsupported,
 		failed,
 		alreadyShipped,
+		unavailableFeats: feats.filter((feat) => feat.type === null).length,
+		legacyFeats: parsed.filter((entry) => entry.type === 'feat' && entry.source.year !== 2024).length,
 		orphanedSubclasses: describeAll(subclasses.filter((entry) => !hasShippedClass(entry))),
 		unreachableSubclasses: describeAll(
 			attachable.filter((entry) => unreachableFeatures(entry).length > 0),
@@ -294,6 +302,14 @@ export function assemblePackage(
 /** Whether a package has anything in it. An empty import is a no-op worth refusing. */
 export function isEmpty(report: PackageReport): boolean {
 	return Object.values(report.counts).every((count) => count === 0);
+}
+
+/** Shared by the confirmation dialog and the completed-import notice. */
+export function describeUnavailableFeats(report: PackageReport): string {
+	const count = report.unavailableFeats;
+	if (count === 0) return '';
+	return `${count} ${count === 1 ? 'feat' : 'feats'} will not be offered when levelling up ` +
+		`because ${count === 1 ? 'it has' : 'they have'} no category.`;
 }
 
 /**

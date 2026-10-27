@@ -9,6 +9,7 @@
 
 import { FIELD_LINE, parseLabelledValues, proseBody, slug, titleOf } from '../labelledMarkdown';
 import { readSourceLine } from './sourceLine';
+import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
 
 /** Mirrors the server's `Srd2024Benefit`. */
 export interface Benefit {
@@ -26,6 +27,7 @@ export interface Feat {
 	/** `Origin`, `General`, `Fighting Style` or `Epic Boon` - see {@link readType}. */
 	type: string | null;
 	prerequisite: string | null;
+	prerequisiteRule?: { kind: 'level'; minimum: number };
 	benefits: Benefit[];
 }
 
@@ -65,9 +67,8 @@ const FIELD_LABELS = new Set(['prerequisite', 'prerequisites', 'source']);
  *   origin feats and offers them to a level 1 character. A vault built from the
  *   whole `ttrpg-convert-cli` source map holds both editions at once, so this is
  *   the ordinary case rather than an edge one. Anything not from 2024 gets no
- *   category, which means the builder does not offer it at all - the right answer
- *   for a 2014 feat in a 2024 character builder, and a visible absence rather
- *   than a silent misplacement.
+ *   category by default. The importer can explicitly opt in to filing older
+ *   feats as General instead; they must never be inferred to be Origin feats.
  */
 export function readType(prerequisite: string | null, is2024: boolean): string | null {
 	if (!is2024) return null;
@@ -89,7 +90,7 @@ export function readType(prerequisite: string | null, is2024: boolean): string |
  * the labelled lines are the content, and the two field labels are the exception.
  */
 export function readBenefits(markdown: string): Benefit[] {
-	return parseLabelledValues(markdown)
+	const benefits = parseLabelledValues(markdown)
 		.filter((entry) => !FIELD_LABELS.has(entry.label))
 		.filter((entry) => entry.value.trim() !== '')
 		.map((entry, index) => ({
@@ -103,6 +104,17 @@ export function readBenefits(markdown: string): Benefit[] {
 			desc: entry.value,
 			type: null,
 		}));
+	// Older books put the increase in an ordinary bullet, without a bold label.
+	for (const line of markdown.split(/\r?\n/)) {
+		if (FIELD_LINE.test(line)) continue;
+		const desc = stripMarkdownFromString(line).replace(/^\s*[-*+]\s+/, '').trim();
+		if (!/^Increase .+? by 1, to a maximum of \d+/i.test(desc)) continue;
+		benefits.push({
+			key: `${benefits.length + 1}-ability-score-increase`,
+			name: 'Ability Score Increase', desc, type: null,
+		});
+	}
+	return benefits;
 }
 
 /**
@@ -124,7 +136,7 @@ export function readDescription(markdown: string): string {
  *
  * @param key The stable handle, normally the note's filename stem.
  */
-export function parseFeat(markdown: string, key: string, fallbackName: string): Feat | null {
+export function parseFeat(markdown: string, key: string, fallbackName: string, generalLegacyFeats = false): Feat | null {
 	const prerequisite =
 		parseLabelledValues(markdown).find(
 			(entry) => entry.label === 'prerequisite' || entry.label === 'prerequisites',
@@ -133,7 +145,10 @@ export function parseFeat(markdown: string, key: string, fallbackName: string): 
 	const benefits = readBenefits(markdown);
 	const desc = readDescription(markdown);
 	if (desc === '' && benefits.length === 0) return null;
-
+	const convert = generalLegacyFeats && readSourceLine(markdown).year !== 2024;
+	// Do not replace an unparsed prerequisite with a partial rule: that would
+	// suppress Tome's "check this prerequisite yourself" warning.
+	const levelOnly = convert && (!prerequisite?.trim() || /^none\.?$/i.test(prerequisite.trim()));
 
 	return {
 		key,
@@ -141,8 +156,10 @@ export function parseFeat(markdown: string, key: string, fallbackName: string): 
 		desc,
 		// The source line dates the note: 2024 books print "(2024)" in the title and
 		// the 2014 ones print no year at all.
-		type: readType(prerequisite, readSourceLine(markdown).year === 2024),
-		prerequisite,
+		type: convert
+			? 'General' : readType(prerequisite, readSourceLine(markdown).year === 2024),
+		prerequisite: convert ? `Level 4+${levelOnly ? '' : `; ${prerequisite}`}` : prerequisite,
+		...(levelOnly ? { prerequisiteRule: { kind: 'level' as const, minimum: 4 } } : {}),
 		benefits,
 	};
 }
