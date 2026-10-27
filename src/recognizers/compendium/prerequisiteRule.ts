@@ -7,6 +7,8 @@
  * Pure and `obsidian`-free.
  */
 
+import { ABILITIES } from './background';
+
 /** Mirrors the server's `Srd2024PrerequisiteRule`; every key is written, as the SRD snapshot does. */
 export interface PrerequisiteRule {
 	kind: 'all' | 'any' | 'level' | 'ability' | 'feature';
@@ -21,9 +23,10 @@ export interface PrerequisiteRule {
 const ABILITY = '(?:Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)';
 const LEVEL_CLAUSE = /^(\d+)(?:st|nd|rd|th)(?:\s*[;,]\s*|$)/;
 const ABILITY_CLAUSE = new RegExp(`^(${ABILITY}(?:,? (?:or )?${ABILITY})*) (\\d+) or higher$`);
-// Letters and spaces only, so a long-form "When Gaining the Level 2 Paladin
-// "Fighting Style" Feature" is not read as a feature named after the sentence.
-const FEATURE_CLAUSE = /^([A-Za-z][A-Za-z ]*?) feature$/i;
+// Capitalised letters and spaces, as Tome names a feature, so a long-form "When
+// Gaining the Level 2 Paladin "Fighting Style" Feature" is not read as a feature
+// named after the sentence.
+const FEATURE_CLAUSE = /^([A-Z][A-Za-z ]*?) [Ff]eature$/;
 
 function node(kind: PrerequisiteRule['kind'], fields: Partial<PrerequisiteRule>): PrerequisiteRule {
 	return { kind, minimum: null, ability: null, feature: null, children: [], ...fields };
@@ -41,7 +44,7 @@ function readClause(clause: string): PrerequisiteRule | null {
 		const names = ability[1]!.match(new RegExp(ABILITY, 'g'))!;
 		return join(
 			'any',
-			names.map((name) => node('ability', { ability: name.slice(0, 3).toLowerCase(), minimum })),
+			names.map((name) => node('ability', { ability: ABILITIES[name.toLowerCase()]!, minimum })),
 		);
 	}
 	const feature = FEATURE_CLAUSE.exec(clause);
