@@ -125,6 +125,7 @@ const IMPORTABLE = new Set<CliNoteType>([
 	'feat',
 	'spell',
 	'subclass',
+	'item',
 ]);
 
 /**
