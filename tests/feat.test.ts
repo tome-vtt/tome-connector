@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseFeat, readBenefits, readDescription, readType } from '../src/recognizers/compendium/feat';
+import { readPrerequisiteRule } from '../src/recognizers/compendium/prerequisiteRule';
 
 /** `feats/alert-xphb.md`, verbatim. */
 const alert = `---
@@ -81,6 +82,51 @@ describe('readType', () => {
 	);
 });
 
+/** Nodes in the server's `Srd2024PrerequisiteRule` shape, every key written. */
+const level = (minimum: number) => ({ kind: 'level', minimum, ability: null, feature: null, children: [] });
+const ability = (key: string, minimum: number) => ({ kind: 'ability', minimum, ability: key, feature: null, children: [] });
+const feature = (name: string) => ({ kind: 'feature', minimum: null, ability: null, feature: name, children: [] });
+const all = (...children: unknown[]) => ({ kind: 'all', minimum: null, ability: null, feature: null, children });
+const any = (...children: unknown[]) => ({ kind: 'any', minimum: null, ability: null, feature: null, children });
+
+describe('readPrerequisiteRule', () => {
+	/**
+	 * The CLI's wording of the 2024 Player's Handbook prerequisites, turned into
+	 * the rule Tome's level-up checks. The SRD catalogue writes the same rules for
+	 * "Level 4+", "Fighting Style Feature" and "Level 4+, Strength or Dexterity 13+".
+	 */
+	it.each([
+		['4th', level(4)],
+		['19th', level(19)],
+		['Fighting Style Feature', feature('Fighting Style')],
+		['4th; Charisma 13 or higher', all(level(4), ability('cha', 13))],
+		['4th; Strength or Dexterity 13 or higher', all(level(4), any(ability('str', 13), ability('dex', 13)))],
+		[
+			'4th; Intelligence, Wisdom, or Charisma 13 or higher',
+			all(level(4), any(ability('int', 13), ability('wis', 13), ability('cha', 13))),
+		],
+		['4th; Spellcasting or Pact Magic feature', all(level(4), any(feature('Spellcasting'), feature('Pact Magic')))],
+		['19th; Spellcasting or Pact Magic feature', all(level(19), any(feature('Spellcasting'), feature('Pact Magic')))],
+		['Strength 13 or higher', ability('str', 13)],
+	])('%o', (prerequisite, expected) => {
+		expect(readPrerequisiteRule(prerequisite)).toEqual(expected);
+	});
+
+	/**
+	 * A clause the connector cannot read leaves the whole feat unruled: a rule that
+	 * dropped the clause would let a character who does not qualify take the feat.
+	 */
+	it.each([
+		[null],
+		[''],
+		['4th, Proficiency with heavy armor'],
+		['4th; Medium Armor Training'],
+		['When Gaining the Level 2 Paladin "Fighting Style" Feature'],
+	])('is null for a prerequisite it cannot read (%o)', (prerequisite) => {
+		expect(readPrerequisiteRule(prerequisite)).toBeNull();
+	});
+});
+
 describe('readBenefits', () => {
 	it('reads the bold-labelled paragraphs, links flattened', () => {
 		const benefits = readBenefits(alert);
@@ -127,6 +173,7 @@ describe('parseFeat', () => {
 			desc: 'You gain the following benefits.',
 			type: 'Origin',
 			prerequisite: null,
+			prerequisiteRule: null,
 			benefits: [
 				{
 					key: '1-initiative-proficiency',
@@ -158,6 +205,17 @@ describe('parseFeat', () => {
 		expect(parsedArchery?.desc).toBe(
 			'You gain a +2 bonus to attack rolls you make with Ranged weapons.',
 		);
+	});
+
+	it('sends a level 4, Charisma 13 prerequisite as a rule Tome checks', () => {
+		const actor = parseFeat(
+			"# Actor\n*Source: Player's Handbook (2024) p. 202*\n\n**Prerequisite**: 4th; Charisma 13 or higher\n\n**Impersonation.** You can mimic.",
+			'actor-xphb',
+			'Actor',
+		);
+
+		expect(actor?.prerequisite).toBe('4th; Charisma 13 or higher');
+		expect(actor?.prerequisiteRule).toEqual(all(level(4), ability('cha', 13)));
 	});
 
 	it('falls back to the given name when the note has no title', () => {
