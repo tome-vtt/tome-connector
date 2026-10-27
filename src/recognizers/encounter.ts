@@ -24,6 +24,11 @@ export interface EncounterEntry {
 	count: number;
 }
 
+/** Says what a reader skipped or changed, so the send results can list it. */
+export type Warn = (message: string) => void;
+
+const ignore: Warn = () => {};
+
 /**
  * Initiative Tracker writes a creature four ways, and the count-prefixed form is
  * the common one:
@@ -38,17 +43,23 @@ export interface EncounterEntry {
  *
  * A non-integer key (`1d4: Goblin`, which the plugin rolls) becomes a count of 1
  * rather than a guess: the connector cannot roll dice on the user's behalf and
- * silently importing four goblins because the die *might* say four would be
- * worse than importing one they can duplicate.
+ * importing four goblins because the die *might* say four would be worse than
+ * importing one they can duplicate. That, dropped overrides and an entry that
+ * names no creature are each passed to `warn`.
  */
-export function parseCreatureEntry(entry: unknown): EncounterEntry | null {
+export function parseCreatureEntry(entry: unknown, warn: Warn = ignore): EncounterEntry | null {
+	const unread = (): null => {
+		warn(`creature entry ${JSON.stringify(entry) ?? String(entry)} skipped: it names no creature.`);
+		return null;
+	};
+
 	if (typeof entry === 'string') {
 		const name = entry.trim();
-		return name === '' ? null : { name, count: 1 };
+		return name === '' ? unread() : { name, count: 1 };
 	}
 
 	if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
-		return null;
+		return unread();
 	}
 
 	const record = entry as Record<string, unknown>;
@@ -56,13 +67,14 @@ export function parseCreatureEntry(entry: unknown): EncounterEntry | null {
 	// The long form, and the shape Tome's own blocks used to use.
 	const explicit = record.name ?? record.creature;
 	if (typeof explicit === 'string' && explicit.trim() !== '') {
-		return { name: explicit.trim(), count: readCount(record.quantity ?? record.count) };
+		const name = explicit.trim();
+		return { name, count: readCount(record.quantity ?? record.count, name, warn) };
 	}
 
 	const keys = Object.keys(record);
-	if (keys.length !== 1) return null;
+	if (keys.length !== 1) return unread();
 	const key = keys[0];
-	if (key === undefined) return null;
+	if (key === undefined) return unread();
 
 	// Which side holds the name is decided by the *value*, not the key.
 	//
@@ -77,22 +89,27 @@ export function parseCreatureEntry(entry: unknown): EncounterEntry | null {
 	const value = record[key];
 	if (typeof value === 'string') {
 		const name = value.trim();
-		if (name === '') return null;
-		const count = /^\d+$/.test(key.trim()) ? Math.max(1, parseInt(key, 10)) : 1;
-		return { name, count };
+		if (name === '') return unread();
+		if (/^\d+$/.test(key.trim())) return { name, count: Math.max(1, parseInt(key, 10)) };
+		warn(`"${key}: ${name}" sent as 1 ${name}, since dice are not rolled.`);
+		return { name, count: 1 };
 	}
 
 	const name = key.trim();
-	return name === '' ? null : { name, count: 1 };
+	if (name === '') return unread();
+	if (value !== null && value !== undefined) warn(`${name} sent without its overrides, which Tome does not keep.`);
+	return { name, count: 1 };
 }
 
-function readCount(value: unknown): number {
+function readCount(value: unknown, name: string, warn: Warn): number {
+	if (value === undefined) return 1;
 	if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
 		return Math.floor(value);
 	}
 	if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
 		return Math.max(1, parseInt(value, 10));
 	}
+	warn(`${JSON.stringify(value)} ${name} sent as 1, since the count is not a whole number above 0.`);
 	return 1;
 }
 
@@ -108,19 +125,23 @@ function readCount(value: unknown): number {
  * groups — so entries are combined by name rather than deduplicated, which is
  * what the tracker itself shows.
  */
-export function mapToEncounterPayload(parsed: unknown): EncounterPayload | null {
+export function mapToEncounterPayload(parsed: unknown, warn: Warn = ignore): EncounterPayload | null {
 	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+		warn('Encounter block skipped: it is not a set of fields.');
 		return null;
 	}
 
 	const record = parsed as Record<string, unknown>;
 	const name = record.name;
-	if (typeof name !== 'string' || name.trim() === '') return null;
+	if (typeof name !== 'string' || name.trim() === '') {
+		warn('Encounter block skipped: it has no name.');
+		return null;
+	}
 
 	const combined = new Map<string, number>();
 	if (Array.isArray(record.creatures)) {
 		for (const raw of record.creatures) {
-			const entry = parseCreatureEntry(raw);
+			const entry = parseCreatureEntry(raw, (message) => warn(`${name.trim()}: ${message}`));
 			if (!entry) continue;
 			combined.set(entry.name, (combined.get(entry.name) ?? 0) + entry.count);
 		}

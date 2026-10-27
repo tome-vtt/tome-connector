@@ -95,6 +95,12 @@ describe('mapReferenceFrom', () => {
 		expect(mapReferenceFrom({ id: 'my-map', tome_id: id, image: 'Map.jpg' })?.id).toBe(id);
 	});
 
+	it('says when a layered map loses its other layers', () => {
+		const warnings: string[] = [];
+		mapReferenceFrom({ imageBases: ['Ground.jpg', 'Upper.jpg'] }, (message) => warnings.push(message));
+		expect(warnings).toEqual(['Map Ground.jpg: only its first layer is sent, since Tome holds one image per map.']);
+	});
+
 	it.each([[{}], [{ image: '   ' }], [{ imageBases: [] }], [null], [['a']]])(
 		'returns null for %o, which has no image to send',
 		(input) => {
