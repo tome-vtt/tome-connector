@@ -271,6 +271,19 @@ describe('raiseEarlyFeatures', () => {
 		);
 	});
 
+	it('names the real source level and handles an empty description', () => {
+		const two = parseSubclass(
+			'# X\n\n### One (Level 2)\n\n### Two (Level 6)\n\nB.',
+			{ tags: ['ttrpg-cli/subclass/cleric/x'] },
+			'x',
+			'X',
+		)!;
+
+		expect(raiseEarlyFeatures(two).subclass.features[0]?.desc).toBe(
+			'(Moved from level 2 to level 3 on import.)',
+		);
+	});
+
 	it('notes the move in the text of moved features only', () => {
 		const features = raised.subclass.features;
 		expect(features[0]?.desc).toBe('Two languages.\n\n(Moved from level 1 to level 3 on import.)');
