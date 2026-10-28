@@ -137,6 +137,8 @@ export function suggestedLicense(summary: SourceSummary): string | null {
 	return summary.allSrd ? SRD_LICENSE : null;
 }
 
+const ATTRIBUTION_BOOKS_SHOWN = 3;
+
 /**
  * The attribution line to prefill, naming the books the content came from.
  *
@@ -144,8 +146,6 @@ export function suggestedLicense(summary: SourceSummary): string | null {
  * condition the licence is granted on. A folder drawn from many books lists the
  * first few and counts the rest, so the field stays readable; the user can extend it.
  */
-const ATTRIBUTION_BOOKS_SHOWN = 3;
-
 export function suggestedAttribution(summary: SourceSummary): string | null {
 	const { books } = summary;
 	if (books.length === 0) return null;

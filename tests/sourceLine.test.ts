@@ -125,6 +125,19 @@ describe('suggestedAttribution', () => {
 		expect(suggestedAttribution(summariseSources(lines))).toBe('A; B; C and 2 more');
 	});
 
+	it('keeps every title at the limit and counts one more past it', () => {
+		const lines = ['A', 'B', 'C', 'D'].map((b) => readSourceLine(`*Source: ${b}, p. 1*`));
+
+		expect(suggestedAttribution(summariseSources(lines.slice(0, 3)))).toBe('A; B; C');
+		expect(suggestedAttribution(summariseSources(lines))).toBe('A; B; C and 1 more');
+	});
+
+	it('keeps a single book full title', () => {
+		const summary = summariseSources([readSourceLine(bookLine)]);
+
+		expect(suggestedAttribution(summary)).toBe('Ghosts of Saltmarsh');
+	});
+
 	it('is null when no note named a book', () => {
 		expect(suggestedAttribution(summariseSources([]))).toBeNull();
 	});
