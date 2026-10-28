@@ -177,6 +177,17 @@ export function raiseEarlyFeatures(parsed: ParsedSubclass): ParsedSubclass {
 	const rest = parsed.subclass.levels.filter((level) => level.level >= SUBCLASS_LEVEL);
 	const atThreshold = rest.find((level) => level.level === SUBCLASS_LEVEL);
 
+	// The text still says "at 1st level"; a note beats rewriting prose we cannot parse reliably.
+	const movedFrom = new Map(
+		early.flatMap((level) => level.gains.map((gain) => [gain.feature, level.level] as const)),
+	);
+	const features = parsed.subclass.features.map((feature) => {
+		const from = movedFrom.get(feature.key);
+		if (from === undefined) return feature;
+		const note = `(Moved from level ${from} to level ${SUBCLASS_LEVEL} on import.)`;
+		return { ...feature, desc: feature.desc ? `${feature.desc}\n\n${note}` : note };
+	});
+
 	const raised = {
 		level: SUBCLASS_LEVEL,
 		gains: [...early.flatMap((level) => level.gains), ...(atThreshold?.gains ?? [])],
@@ -187,6 +198,7 @@ export function raiseEarlyFeatures(parsed: ParsedSubclass): ParsedSubclass {
 		...parsed,
 		subclass: {
 			...parsed.subclass,
+			features,
 			levels: [raised, ...rest.filter((level) => level.level !== SUBCLASS_LEVEL)].sort(
 				(a, b) => a.level - b.level,
 			),

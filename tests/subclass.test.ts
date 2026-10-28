@@ -266,7 +266,16 @@ describe('raiseEarlyFeatures', () => {
 	/** In level order, so a domain's opening feature still reads before what followed it. */
 	it('keeps the features in the order the book granted them', () => {
 		expect(unreachableFeatures(raised)).toEqual([]);
-		expect(raised.subclass.features).toEqual(knowledge.subclass.features);
+		expect(raised.subclass.features.map((f) => f.key)).toEqual(
+			knowledge.subclass.features.map((f) => f.key),
+		);
+	});
+
+	it('notes the move in the text of moved features only', () => {
+		const features = raised.subclass.features;
+		expect(features[0]?.desc).toBe('Two languages.\n\n(Moved from level 1 to level 3 on import.)');
+		expect(features[1]).toEqual(knowledge.subclass.features[1]);
+		expect(features[2]).toEqual(knowledge.subclass.features[2]);
 	});
 
 	it('leaves the later levels alone', () => {
