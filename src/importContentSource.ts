@@ -31,6 +31,9 @@ import { vaultNotes } from './vaultNotes';
  * asks, posts and reports.
  */
 
+/** What the person has typed, carried over when a toggle reopens the dialog. */
+type TypedFields = Partial<ImportManifest>;
+
 /** Import on a yes, reassemble on a toggle, null on Cancel or Close. */
 type ImportAnswer = { manifest: ImportManifest } | { options: AssembleOptions } | null;
 
@@ -55,6 +58,8 @@ class ConfirmImportModal extends Modal {
 		private readonly importScope: SyncScope,
 		/** The options this report was built with, so the toggles show their state. */
 		private readonly options: AssembleOptions,
+		/** Wins over the defaults; a field left alone still follows the new report. */
+		private readonly typed: TypedFields,
 		private readonly onDone: (answer: ImportAnswer) => void,
 	) {
 		super(app);
@@ -69,6 +74,7 @@ class ConfirmImportModal extends Modal {
 			license: report.suggested.license ?? '',
 			attribution: report.suggested.attribution ?? '',
 			url: '',
+			...typed,
 		};
 	}
 
@@ -215,7 +221,7 @@ class ConfirmImportModal extends Modal {
 					control.setValue(value).onChange((on) => {
 						// Reopened on a fresh report rather than patched in place: the
 						// counts, the licence notice and the prefilled fields all move
-						// together.
+						// together. What the person typed is carried over.
 						this.nextOptions = apply(on);
 						this.close();
 					}),
@@ -258,6 +264,7 @@ class ConfirmImportModal extends Modal {
 			new Setting(contentEl).setName(name).setDesc(description).addText((text) =>
 				text.setValue(this.manifest[property] ?? '').onChange((value) => {
 					this.manifest[property] = value;
+					this.typed[property] = value;
 				}),
 			);
 		}
@@ -317,10 +324,12 @@ export const runContentImport = oneAtATime(
 
 		// Awaited, not fired from a callback: the guard has to hold through the upload.
 		let options: AssembleOptions = {};
+		// Shared by every reopen: each dialog writes what is typed straight into it.
+		const typed: TypedFields = {};
 		for (;;) {
 			const report = scan.assemble(options);
 			const answer = await new Promise<ImportAnswer>((resolve) => {
-				new ConfirmImportModal(plugin.app, report, scope, options, resolve).open();
+				new ConfirmImportModal(plugin.app, report, scope, options, typed, resolve).open();
 			});
 			if (answer === null) return;
 			if ('options' in answer) {
