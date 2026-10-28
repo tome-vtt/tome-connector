@@ -52,6 +52,9 @@ The API key determines the Tome account. Before every campaign-scoped import, th
 connector loads that account's campaigns and asks which one should receive the content.
 It sends the selected id in the `X-Campaign-Id` header.
 
+Every request also carries the connector's own version, from its manifest, in the
+`X-Tome-Connector-Version` header, so Tome can tell you when your connector is out of date.
+
 ### Image size
 
 By default, pictures are shrunk to fit Tome before they are uploaded - maps to

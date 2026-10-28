@@ -7,11 +7,14 @@
  * and a fake in the tests.
  */
 
+import { version as CONNECTOR_VERSION } from '../manifest.json';
 import { describeError } from './shared';
 
 /** Header name the Tome server expects the API key under (see TomeVTT.Server.Auth.ApiKeyAuthenticationDefaults). */
 export const API_KEY_HEADER_NAME = 'X-Api-Key';
 export const CAMPAIGN_HEADER_NAME = 'X-Campaign-Id';
+/** Tells Tome which connector release sent the request, so it can say when one is out of date. */
+export const VERSION_HEADER_NAME = 'X-Tome-Connector-Version';
 
 /** What every caller says when a request is refused before it is sent. */
 export const NOT_CONFIGURED = 'Set a base URL and an API key in the plugin settings first.';
@@ -126,6 +129,15 @@ async function readJson<T>(sent: Promise<{ result: SendResult; text: string }>):
 	}
 }
 
+/** The headers every request carries; a POST also names its content type. */
+function headersFor(target: TomeTarget, contentType?: string): Record<string, string> {
+	const headers: Record<string, string> = contentType ? { 'Content-Type': contentType } : {};
+	headers[API_KEY_HEADER_NAME] = target.apiKey;
+	headers[VERSION_HEADER_NAME] = CONNECTOR_VERSION;
+	if (target.campaignId) headers[CAMPAIGN_HEADER_NAME] = target.campaignId;
+	return headers;
+}
+
 /** Sends one request; a POST when `post` is given, otherwise a GET. */
 async function send(
 	transport: TomeTransport,
@@ -136,9 +148,7 @@ async function send(
 		return { result: { ok: false, status: 0, id: null, message: NOT_CONFIGURED, retryable: false }, text: '' };
 	}
 
-	const headers: Record<string, string> = post ? { 'Content-Type': post.contentType } : {};
-	headers[API_KEY_HEADER_NAME] = target.apiKey;
-	if (target.campaignId) headers[CAMPAIGN_HEADER_NAME] = target.campaignId;
+	const headers = headersFor(target, post?.contentType);
 
 	let response: TomeResponse;
 	try {
