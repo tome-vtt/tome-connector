@@ -5,6 +5,7 @@
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"target": "ES2021",
+		"types": ["node"],
 		"strict": true,
 		"noImplicitReturns": true,
 		"noFallthroughCasesInSwitch": true,
