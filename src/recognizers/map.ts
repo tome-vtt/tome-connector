@@ -24,6 +24,7 @@
  */
 
 import { existingTomeId } from '../tomeIdWriteBack';
+import type { Warn } from './note';
 import { titleCase } from './labelledMarkdown';
 
 export interface MapReference {
@@ -96,9 +97,9 @@ function firstImageBasePath(value: unknown): string | null {
  *
  * A layered zoommap sends its first base only. Tome holds one image per map, so
  * the alternative is refusing the map entirely; the first layer is the one the
- * plugin shows first.
+ * plugin shows first, and the rest are passed to `warn`.
  */
-export function mapReferenceFrom(parsed: unknown): MapReference | null {
+export function mapReferenceFrom(parsed: unknown, warn: Warn = () => {}): MapReference | null {
 	if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
 		return null;
 	}
@@ -106,7 +107,13 @@ export function mapReferenceFrom(parsed: unknown): MapReference | null {
 	const record = parsed as Record<string, unknown>;
 	const direct = unwrapWikilink(record.image);
 	const image = direct ? direct : unwrapWikilink(firstImageBasePath(record.imageBases));
-	if (!image) return null;
+	if (!image) {
+		warn('Map block skipped: it names no image.');
+		return null;
+	}
+	if (!direct && Array.isArray(record.imageBases) && record.imageBases.length > 1) {
+		warn(`Map ${image}: only its first layer is sent, since Tome holds one image per map.`);
+	}
 
 	const reference: MapReference = { image, title: titleFromImagePath(image) };
 

@@ -3,6 +3,9 @@
  * parsed frontmatter. Pure and `obsidian`-free - `scopeReader.ts` produces these,
  * and the note scan and the compendium package both read them.
  */
+/** Says what a reader skipped or changed, so the send results can list it. */
+export type Warn = (message: string) => void;
+
 export interface Note {
 	/** Vault-relative path. */
 	path: string;

@@ -194,6 +194,11 @@ describe('readImagePath', () => {
 		expect(readImagePath('![](img/bag%20of%20holding.webp)')).toBe('img/bag of holding.webp');
 	});
 
+	/** A bare `%` is a plain filename character, not a broken escape worth throwing over. */
+	it('keeps a path with a stray percent sign as written', () => {
+		expect(readImagePath('![](img/50%off.png)')).toBe('img/50%off.png');
+	});
+
 	it.each([['# Just a title'], [''], ['Not an ![inline](link) embed']])(
 		'is null for %o',
 		(markdown) => {
