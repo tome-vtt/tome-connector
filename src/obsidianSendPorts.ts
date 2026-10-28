@@ -2,8 +2,9 @@ import { TFile, type App } from 'obsidian';
 
 import { getStatblockBestiaryApi } from './fantasyStatblocksBestiary';
 import type TomeConnectorPlugin from './main';
-import { sendBlockToTome, sendToTome, type ModuleSendable, type SendPorts, type SourceBlock } from './sendModule';
+import { sendBlockToTome, sendableName, sendToTome, type ModuleSendable, type SendPorts, type SourceBlock } from './sendModule';
 import { noticeResult, tomeHttp } from './tomeApiClient';
+import type { TomeCampaign } from './tomeCampaigns';
 import { getApiKey } from './tomeConnectorSettings';
 import { readImageAsDataUri } from './tomeImageEmbedding';
 
@@ -62,28 +63,28 @@ function noteAt(app: App, path: string): TFile {
 export async function sendWithNotice(
 	plugin: TomeConnectorPlugin,
 	sendable: ModuleSendable,
-	campaignId: string,
+	campaign: TomeCampaign,
 ): Promise<string | null> {
 	const result = await sendToTome(
 		obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),
 		sendable,
-		{ baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId },
+		{ baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId: campaign.id },
 	);
-	return noticeResult(result);
+	return noticeResult(result, sendableName(sendable), campaign.name);
 }
 
 /** {@link sendWithNotice} for a code block: Tome's id is written into `block` before the one Notice. */
 export async function sendBlockWithNotice(
 	plugin: TomeConnectorPlugin,
 	sendable: ModuleSendable,
-	campaignId: string,
+	campaign: TomeCampaign,
 	block: SourceBlock,
 ): Promise<void> {
 	const result = await sendBlockToTome(
 		obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),
 		sendable,
-		{ baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId },
+		{ baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId: campaign.id },
 		block,
 	);
-	noticeResult(result);
+	noticeResult(result, sendableName(sendable), campaign.name);
 }

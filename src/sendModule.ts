@@ -18,7 +18,8 @@ import { resolveCreatureData, type StatblockBestiaryApi } from './fantasyStatblo
 import { equipmentItemBody, magicItemBody, spellBody } from './libraryItemBody';
 import { PLAYER_CHARACTER_PROPERTIES, playerCharacterBody, type PlayerCharacterBody } from './playerCharacterBody';
 import { unwrapWikilink, type MapReference } from './recognizers/map';
-import type { SendableKind, SendableParse } from './recognizers/noteScan';
+import { noteName } from './recognizers/note';
+import { creatureLabel, type SendableKind, type SendableParse } from './recognizers/noteScan';
 import { mapToNpcPayload, type NpcPayload } from './recognizers/statblockCreature';
 import { TOME_ROUTES, type TomeRoute } from './routes';
 import { embedImages, type TomeImageKind } from './tomeImageDownscale';
@@ -99,14 +100,41 @@ export async function sendToTome(
 	return ports.postJson({ ...destination, path: KIND_ROUTES[kind] }, JSON.stringify(body));
 }
 
+/** What the result Notice calls the thing sent: the name Tome will show it under. */
+export function sendableName(sendable: ModuleSendable): string {
+	switch (sendable.kind) {
+		case 'image':
+			return imageTitle(sendable);
+		case 'creature':
+			return creatureLabel(sendable.block, noteName(sendable.path));
+		case 'encounter':
+			return sendable.encounter.name;
+		case 'map':
+			return sendable.map.title;
+		case 'prop':
+			return String(sendable.block.title);
+		case 'magicItem':
+		case 'equipmentItem':
+			return sendable.item.name;
+		case 'spell':
+			return sendable.spell.name;
+	}
+}
+
+/**
+ * The file name is the only thing on a bare image that reads like a title. Kept
+ * as written (Obsidian's `basename`), not title-cased the way a map block's is.
+ */
+function imageTitle(sendable: { path: string; title?: string }): string {
+	const { path } = sendable;
+	return sendable.title ?? (path.split('/').pop() ?? path).replace(/\.[^.]+$/, '');
+}
+
 async function bodyFor(ports: SendPorts, sendable: ModuleSendable): Promise<unknown> {
 	const { path } = sendable;
 	if (sendable.kind === 'image') {
-		// The file name is the only thing on a bare image that reads like a title. Kept
-		// as written (Obsidian's `basename`), not title-cased the way a map block's is.
-		const title = sendable.title ?? (path.split('/').pop() ?? path).replace(/\.[^.]+$/, '');
 		const kind = sendable.to === 'map' ? 'map' : 'token';
-		return { title, image: await readImage(ports, path, path, kind) };
+		return { title: imageTitle(sendable), image: await readImage(ports, path, path, kind) };
 	}
 
 	switch (sendable.kind) {

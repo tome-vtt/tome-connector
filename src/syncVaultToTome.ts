@@ -8,7 +8,14 @@ import { summarise, type ScanWarning, type Sendable, type SendableKind } from '.
 import { obsidianSendPorts } from './obsidianSendPorts';
 import { sendToTome } from './sendModule';
 import { describeScope, type SyncScope } from './scopeReader';
-import { loadCampaignChoice, rememberCampaign, renderCampaignSelector, type CampaignChoice } from './tomeCampaigns';
+import {
+	chosenCampaign,
+	loadCampaignChoice,
+	rememberCampaign,
+	renderCampaignSelector,
+	type CampaignChoice,
+	type TomeCampaign,
+} from './tomeCampaigns';
 import { getApiKey } from './tomeConnectorSettings';
 import { TomeProgressNotice } from './tomeProgressNotice';
 import { vaultNotes } from './vaultNotes';
@@ -198,6 +205,7 @@ class SyncReportModal extends Modal {
 	constructor(
 		app: App,
 		private readonly report: BulkReport<Sendable>,
+		private readonly campaignName: string,
 		private readonly warnings: ScanWarning[],
 	) {
 		super(app);
@@ -206,8 +214,7 @@ class SyncReportModal extends Modal {
 	override onOpen(): void {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl('h3', { text: 'Sent to Tome' });
-		contentEl.createEl('p', { text: describeReport(this.report) });
+		contentEl.createEl('h3', { text: describeReport(this.report, this.campaignName) });
 
 		if (this.report.failed.length > 0) {
 			contentEl.createEl('h4', { text: 'Not sent' });
@@ -262,7 +269,7 @@ export const runVaultSync = oneAtATime(
 		if (campaignId === null) return;
 
 		void rememberCampaign(plugin, campaignId);
-		await send(plugin, scan.sendables, scan.warnings, campaignId);
+		await send(plugin, scan.sendables, scan.warnings, chosenCampaign(choice, campaignId));
 	},
 	() => new Notice('Tome connector: a sync is already running.'),
 );
@@ -271,14 +278,14 @@ async function send(
 	plugin: TomeConnectorPlugin,
 	sendables: Sendable[],
 	warnings: ScanWarning[],
-	campaignId: string,
+	campaign: TomeCampaign,
 ): Promise<void> {
 	const progress = new SyncProgressModal(plugin.app, sendables.length);
 	progress.open();
 
 	try {
 		const ports = obsidianSendPorts(plugin.app, plugin.settings.downscaleImages);
-		const destination = { baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId };
+		const destination = { baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId: campaign.id };
 		const report = await runBulkSend<Sendable>({
 			items: sendables.map((sendable) => ({ label: sendable.label, path: sendable.path, value: sendable })),
 			sleep,
@@ -289,7 +296,7 @@ async function send(
 		});
 
 		progress.close();
-		new SyncReportModal(plugin.app, report, warnings).open();
+		new SyncReportModal(plugin.app, report, campaign.name, warnings).open();
 	} catch (error) {
 		progress.close();
 		console.error('Tome Connector: bulk sync failed', error);

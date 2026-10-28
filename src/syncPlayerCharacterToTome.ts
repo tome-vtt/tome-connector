@@ -107,16 +107,16 @@ function refreshView(plugin: TomeConnectorPlugin, view: MarkdownView): void {
  * title-bar button and the context menu item.
  */
 async function sendCharacter(plugin: TomeConnectorPlugin, file: TFile): Promise<void> {
-	const destination = await chooseCharacterDestination(plugin);
-	if (destination === null) return;
+	const chosen = await chooseCharacterDestination(plugin);
+	if (chosen === null) return;
 
 	const result = await sendCharacterToTome(
 		obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),
 		file.path,
 		{ baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin) },
-		destination,
+		chosen.destination,
 	);
-	noticeResult(result);
+	noticeResult(result, file.basename, chosen.label);
 }
 
 async function handleMenuClick(plugin: TomeConnectorPlugin, file: TFile): Promise<void> {
