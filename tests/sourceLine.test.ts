@@ -119,6 +119,12 @@ describe('suggestedAttribution', () => {
 		expect(suggestedAttribution(summary)).toBe("Player's Handbook (2024); Ghosts of Saltmarsh");
 	});
 
+	it('lists the first few books and counts the rest', () => {
+		const lines = ['A', 'B', 'C', 'D', 'E'].map((b) => readSourceLine(`*Source: ${b}, p. 1*`));
+
+		expect(suggestedAttribution(summariseSources(lines))).toBe('A; B; C and 2 more');
+	});
+
 	it('is null when no note named a book', () => {
 		expect(suggestedAttribution(summariseSources([]))).toBeNull();
 	});
