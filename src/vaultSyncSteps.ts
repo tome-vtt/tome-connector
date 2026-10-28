@@ -1,4 +1,4 @@
-import { findSendables, type Sendable, type YamlParser } from './recognizers/noteScan';
+import { findSendables, type Sendable, type ScanWarning, type YamlParser } from './recognizers/noteScan';
 import { readScope, type NoteSource, type SyncScope } from './scopeReader';
 
 /**
@@ -10,13 +10,20 @@ import { readScope, type NoteSource, type SyncScope } from './scopeReader';
  * or title, so a second run updates rather than duplicates.
  */
 
-/** Reads the scope's notes and returns the sendables found, with a count after each note. */
+/**
+ * Reads the scope's notes and returns the sendables found, and what was skipped or
+ * changed on the way, with a count after each note.
+ */
 export async function scanScope(
 	notes: NoteSource,
 	scope: SyncScope,
 	parseYaml: YamlParser,
 	onProgress?: (done: number, total: number) => void,
-): Promise<Sendable[]> {
+): Promise<{ sendables: Sendable[]; warnings: ScanWarning[] }> {
 	const read = await readScope(notes, scope, onProgress);
-	return read.flatMap((note) => findSendables(note, parseYaml));
+	const warnings: ScanWarning[] = [];
+	const sendables = read.flatMap((note) =>
+		findSendables(note, parseYaml, (message) => warnings.push({ path: note.path, message })),
+	);
+	return { sendables, warnings };
 }
