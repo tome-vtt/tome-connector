@@ -169,6 +169,20 @@ describe('assemblePackage', () => {
 		expect(assemblePackage([rope], 'k', { includeSrdContent: true }).counts.items).toBe(1);
 	});
 
+	/** One oddly named picture must not stop a whole book's import. */
+	it('imports equipment whose picture path has a stray percent sign', () => {
+		const flyer = note(
+			'CLI/items/sale-flyer-xphb.md',
+			'json5e-item',
+			"# Sale Flyer\n*Adventuring gear*\n\n![](img/50%off.png)\n\nHalf price.\n\n*Source: Player's Handbook (2024) p. 228*",
+			['ttrpg-cli/item/rarity/none'],
+		);
+
+		const report = assemblePackage([flyer], 'k');
+		expect(report.counts.items).toBe(1);
+		expect(report.failed).toEqual([]);
+	});
+
 	/** A vault holds session notes and daily notes; those are not a failure. */
 	it('ignores notes that are not compendium entries', () => {
 		const withNoise = assemblePackage(

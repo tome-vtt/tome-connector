@@ -39,6 +39,21 @@ describe('parseCreatureEntry', () => {
 		expect(parseCreatureEntry(input)).toBeNull();
 	});
 
+	it('says when a long-form count is read as one', () => {
+		const warnings: string[] = [];
+		expect(parseCreatureEntry({ name: 'Goblin', quantity: '1d4' }, (message) => warnings.push(message))).toEqual({
+			name: 'Goblin',
+			count: 1
+		});
+		expect(warnings).toEqual(['"1d4" Goblin sent as 1, since the count is not a whole number above 0.']);
+	});
+
+	it('says when a long-form entry loses its overrides', () => {
+		const warnings: string[] = [];
+		parseCreatureEntry({ name: 'Goblin', quantity: 2, hp: 12 }, (message) => warnings.push(message));
+		expect(warnings).toEqual(['Goblin sent without its overrides, which Tome does not keep.']);
+	});
+
 	it('never returns a count below one', () => {
 		expect(parseCreatureEntry({ 0: 'Goblin' })?.count).toBe(1);
 	});

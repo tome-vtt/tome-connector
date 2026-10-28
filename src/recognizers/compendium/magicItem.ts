@@ -175,7 +175,13 @@ export function readImagePath(markdown: string): string | null {
 		/^\s*!\[[^\]]*\]\(([^)]+)\)/m.exec(markdown) ?? /^\s*!\[\[([^\]|]+)/m.exec(markdown);
 	const path = embed?.[1]?.split('#')[0]?.trim();
 
-	return path ? decodeURIComponent(path) : null;
+	if (!path) return null;
+	try {
+		return decodeURIComponent(path);
+	} catch {
+		// A stray `%` (`50%off.png`) is part of the filename, not a broken escape.
+		return path;
+	}
 }
 
 /**
