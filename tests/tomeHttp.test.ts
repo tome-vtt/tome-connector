@@ -1,7 +1,7 @@
-import { readFileSync } from 'node:fs';
-
 import { describe, expect, it, vi } from 'vitest';
 
+// The version every request reports, from the manifest a release bumps.
+import { version as manifestVersion } from '../manifest.json';
 import { runBulkSend } from '../src/bulkSend';
 import { TOME_ROUTES } from '../src/routes';
 import {
@@ -25,9 +25,6 @@ function fakeTransport(...answers: (TomeResponse | Error)[]): TomeTransport & { 
 	};
 	return Object.assign(transport, { sent });
 }
-
-/** The version every request reports, read from the manifest a release bumps. */
-const manifestVersion = (JSON.parse(readFileSync('manifest.json', 'utf8')) as { version: string }).version;
 
 const target = { baseUrl: 'https://tome.example.com/', apiKey: 'key-1', campaignId: 'camp-1' };
 
