@@ -191,9 +191,12 @@ function registerImage(
 	playerPath: string | null,
 	suggested: ImageDestination,
 	images: Map<string, PlannedImage>,
+	destinationForced = false,
 ): void {
 	if (images.has(key)) return;
-	images.set(key, { key, label, dmPath, playerPath, suggested, chosen: suggested, resolvedId: null });
+	images.set(key, { key, label, dmPath, playerPath, suggested, chosen: suggested, resolvedId: null,
+		...(destinationForced ? { destinationForced: true } : {}),
+	});
 }
 
 /**
@@ -227,7 +230,7 @@ function makeScene(title: string, body: string, id: string | null, acc: ParseAcc
 				blocks.push({ kind: 'Entity', key: raw.key, from: 'entity', note: null, audience: 'Gm' });
 			} else {
 				const suggested: ImageDestination = { to: raw.to };
-				registerImage(raw.key, raw.label, raw.key, null, suggested, acc.images);
+				registerImage(raw.key, raw.label, raw.key, null, suggested, acc.images, true);
 				blocks.push({ kind: 'Entity', key: raw.key, from: 'image', note: null, audience: 'Gm' });
 			}
 			continue;
