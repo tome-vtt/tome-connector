@@ -235,7 +235,8 @@ function sortNotes(notes: Note[], options: AssembleOptions): Sorted {
 		let result: Parsed | null;
 		try {
 			result = parseNote(note, type);
-		} catch {
+		} catch (error) {
+			console.error(`Tome Connector: could not parse ${note.path}`, error);
 			result = null;
 		}
 		if (result === null) {

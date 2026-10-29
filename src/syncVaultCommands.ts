@@ -107,9 +107,9 @@ type FolderMenuEntry = [title: string, icon: string, run: (folder: TFolder) => P
  * The Tome imports on a folder's menu, grouped under one "Tome" submenu on
  * desktop and listed flat on mobile. Which entries apply is not decidable
  * without scanning the folder, so every entry the platform supports shows.
- * Each names what it sends: "Import Library items to Tome" scans every note and fans each one out to
- * whichever library it belongs in, where the others turn the whole folder into
- * a single row in one library. The Reference import prints through Electron, so
+ * Each names what it sends: "Import Library items to Tome" scans every note and
+ * fans each one out to whichever library it belongs in, where the others turn
+ * the whole folder into a single row in one library. The Reference import prints through Electron, so
  * it is desktop only.
  */
 function registerFolderMenu(plugin: TomeConnectorPlugin): void {
