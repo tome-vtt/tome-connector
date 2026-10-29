@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('obsidian', () => ({ TFolder: class {} }));
 vi.mock('../src/syncVaultToTome', () => ({ runVaultSync: vi.fn() }));
@@ -24,6 +24,8 @@ function setup(syncTag: string) {
 }
 
 describe('send notes with the sync tag command', () => {
+	beforeEach(() => vi.clearAllMocks());
+
 	it('is always in the palette, even with no tag set', () => {
 		const { command } = setup('');
 		// A plain callback is always listed; a checkCallback could hide it.
