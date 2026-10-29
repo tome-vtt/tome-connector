@@ -248,8 +248,11 @@ describe('Import a content source', () => {
 		run = runContentImport(plugin, { kind: 'vault' });
 		await open;
 
-		// Book content arrives blank, so it starts on the private choice.
-		expect(shown.fields.get('Licence')?.value).toBe('personal-use');
+		// Book content arrives blank, and stays blank until the person picks one.
+		expect(shown.fields.get('Licence')?.value).toBe('');
+		shown.buttons.get('Import')?.();
+		expect(notices.join('\n')).toContain('Say what licence');
+		expect(posted).toHaveLength(0);
 
 		type('Licence', 'other');
 		type('Licence (other)', 'MyLicence-2');
