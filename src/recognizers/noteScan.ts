@@ -90,6 +90,23 @@ export function declaresStatblock(frontmatter: Record<string, unknown> | null): 
 	return true;
 }
 
+/** Whether a note's text holds a fence this scan reads: statblock, encounter or map. */
+export function hasSendableFence(markdown: string): boolean {
+	return extractFencedBlocks(markdown).some((block) => BLOCK_NOUNS[block.language] !== undefined);
+}
+
+/**
+ * Whether a file's menu offers "Send this note to Tome": a markdown note whose
+ * frontmatter declares a statblock or whose text holds a sendable fence.
+ */
+export function offersNoteSend(
+	extension: string,
+	frontmatter: Record<string, unknown> | null,
+	holdsSendableFence: boolean,
+): boolean {
+	return extension === 'md' && (holdsSendableFence || declaresStatblock(frontmatter));
+}
+
 export function creatureLabel(record: Record<string, unknown>, fallback: string): string {
 	const name = record.name ?? record.monster;
 	return typeof name === 'string' && name.trim() !== '' ? name.trim() : fallback;
