@@ -1,11 +1,11 @@
-import { TFile, TFolder, type Menu, type MenuItem } from 'obsidian';
+import { Platform, TFile, TFolder, type Menu, type MenuItem } from 'obsidian';
 
 import { declaresStatblock } from './recognizers/noteScan';
 
 import type TomeConnectorPlugin from './main';
 import { runAdventureFolderImport } from './adventure/sendAdventureToTome';
 import { runContentImport } from './importContentSource';
-import { referenceMenuEntry } from './syncFolderToTome';
+import { runFolderExport } from './syncFolderToTome';
 import { runVaultSync } from './syncVaultToTome';
 
 /**
@@ -99,37 +99,41 @@ function registerImportCommands(plugin: TomeConnectorPlugin): void {
 	);
 }
 
-// Obsidian's Menu API has a working but untyped submenu.
+// Obsidian's Menu API has an untyped submenu, which does not open in the mobile app.
 type SubmenuItem = MenuItem & { setSubmenu(): Menu };
+type FolderMenuEntry = [title: string, icon: string, run: (folder: TFolder) => Promise<void>];
 
 /**
- * One "Tome" entry on a folder's menu, opening a submenu of the four imports.
- * Which entries apply is not decidable without scanning the folder, so all show;
- * grouping keeps the top-level menu to a single line. Each names what it sends:
+ * The Tome imports on a folder's menu, grouped under one "Tome" submenu on
+ * desktop and listed flat on mobile. Which entries apply is not decidable
+ * without scanning the folder, so all show. Each names what it sends:
  * "Import Library items to Tome" scans every note and fans each one out to
  * whichever library it belongs in, where the others turn the whole folder into
- * a single row in one library.
+ * a single row in one library. The Reference import prints through Electron, so
+ * it is desktop only.
  */
 function registerFolderMenu(plugin: TomeConnectorPlugin): void {
 	plugin.registerEvent(
 		plugin.app.workspace.on('file-menu', (menu, file) => {
 			if (!(file instanceof TFolder)) return;
 
-			const entries: [string, string, (folder: TFolder) => Promise<void>][] = [
-				...referenceMenuEntry(plugin),
+			const entries: FolderMenuEntry[] = [
 				['Import Library items to Tome', 'upload-cloud', (folder) => runVaultSync(plugin, { kind: 'folder', folder })],
 				['Import as a Tome content source', 'book-open', (folder) => runContentImport(plugin, { kind: 'folder', folder })],
 				['Import as a Tome Storybook adventure', 'book-marked', (folder) => runAdventureFolderImport(plugin, folder)],
 			];
-			menu.addItem((top) => {
-				top.setTitle('Tome').setIcon('upload-cloud');
-				const sub = (top as SubmenuItem).setSubmenu();
-				for (const [title, icon, run] of entries) {
-					sub.addItem((item) => {
-						item.setTitle(title).setIcon(icon).onClick(() => void run(file));
-					});
-				}
-			});
+			let target: Menu = menu;
+			if (Platform.isDesktopApp) {
+				entries.unshift(['Import as a Tome Reference', 'upload-cloud', (folder) => runFolderExport(plugin, folder)]);
+				menu.addItem((top) => {
+					target = (top.setTitle('Tome').setIcon('upload-cloud') as SubmenuItem).setSubmenu();
+				});
+			}
+			for (const [title, icon, run] of entries) {
+				target.addItem((item) => {
+					item.setTitle(title).setIcon(icon).onClick(() => void run(file));
+				});
+			}
 		}),
 	);
 }

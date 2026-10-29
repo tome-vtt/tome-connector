@@ -1,4 +1,4 @@
-import { Component, Notice, Platform, TFile, TFolder } from 'obsidian';
+import { Component, Notice, TFile, TFolder } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { getApiKey } from './tomeConnectorSettings';
 import {
@@ -20,9 +20,6 @@ import { chooseCampaign } from './tomeCampaigns';
 import { describeError } from './shared';
 import { sentTo } from './tomeHttp';
 
-const MENU_TITLE = 'Import as a Tome Reference';
-const MENU_ICON = 'upload-cloud';
-
 function canStartFolderExport(plugin: TomeConnectorPlugin): boolean {
 	if (!plugin.settings.baseUrl) {
 		new Notice('Tome connector: set a base URL in the plugin settings first.');
@@ -33,21 +30,6 @@ function canStartFolderExport(plugin: TomeConnectorPlugin): boolean {
 		return false;
 	}
 	return true;
-}
-
-/**
- * The "Import as a Tome Reference" entry for the folder menu, which
- * `syncVaultCommands` groups with the other Tome entries under one submenu.
- * The folder's notes are compiled into one PDF, with each note a chapter in the
- * bookmark outline, and pushed to the campaign's Reference library.
- * Printing goes through Electron's <webview>, which only exists in the desktop
- * app; on mobile there is no entry.
- */
-export function referenceMenuEntry(
-	plugin: TomeConnectorPlugin,
-): [string, string, (folder: TFolder) => Promise<void>][] {
-	if (!Platform.isDesktopApp) return [];
-	return [[MENU_TITLE, MENU_ICON, (folder) => runFolderExport(plugin, folder)]];
 }
 
 /**
@@ -87,11 +69,16 @@ function warnUninlinedResources(bodyHtml: string): void {
 }
 
 /**
+ * "Import as a Tome Reference": the folder's notes are compiled into one PDF,
+ * with each note a chapter in the bookmark outline, and pushed to the campaign's
+ * Reference library. Printing goes through Electron's <webview>, which only
+ * exists in the desktop app.
+ *
  * Only one export at a time. Each run stands up a print guest and holds the
  * whole compiled book in memory twice - once as a DOM tree, once as markup -
  * so a concurrent second run would double both for no benefit.
  */
-const runFolderExport = oneAtATime(
+export const runFolderExport = oneAtATime(
 	async (plugin: TomeConnectorPlugin, folder: TFolder): Promise<void> => {
 		if (!canStartFolderExport(plugin)) return;
 		const campaign = await chooseCampaign(plugin, 'Import');
