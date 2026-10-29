@@ -1,7 +1,7 @@
 import { Component, MarkdownRenderer, TFile } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { inlineAssets, type InlineFailure } from './tomeAssetInlining';
-import type { ExportItem } from './tomeChapterPlan';
+import { countChapters, type ExportItem } from './tomeChapterPlan';
 import { planHeadingLevels } from './tomeHeadingLevels';
 import { stripFrontmatter } from './tomeMarkdownSanitizer';
 import { normalizeResourceRoot } from './tomeResourcePath';
@@ -64,7 +64,7 @@ export async function buildExportDocument(
 		cls: 'markdown-preview-view markdown-rendered tome-export-root',
 	});
 
-	const total = plan.filter((item) => item.kind === 'chapter').length;
+	const total = countChapters(plan);
 	const rendered: { body: HTMLElement; notePath: string }[] = [];
 	const skipped: string[] = [];
 	let current = 0;
@@ -138,19 +138,6 @@ export async function buildExportDocument(
 		imageSourceBytes,
 		imageEmbeddedBytes,
 	};
-}
-
-/**
- * Serializes the built tree for transport into the guest.
- *
- * A read of `innerHTML` rather than `XMLSerializer`, which would impose XML
- * well-formedness on markup any community plugin may have produced and would
- * stamp an `xmlns` attribute onto every element.
- */
-export function serializeForPrint(root: HTMLElement): string {
-	// `outerHTML`, not `innerHTML`: the root div carries the reading-view and
-	// `tome-export-root` classes the print stylesheet keys off.
-	return root.outerHTML;
 }
 
 /**

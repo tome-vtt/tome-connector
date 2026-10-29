@@ -58,30 +58,9 @@ const HEIGHT_TOLERANCE_PX = 4;
  * opens the file.
  */
 interface GuestDiagnostics {
-	url: string;
-	headChildren: number;
-	bodyChildren: number;
-	bodyClass: string;
 	chapters: number;
-	images: number;
-	dataImages: number;
-	unresolvedImages: number;
 	documentScrollHeight: number;
 	rootScrollHeight: number;
-	firstChapterHeight: number;
-	bodyPosition: string;
-	bodyDisplay: string;
-	bodyOverflow: string;
-	bodyHeight: string;
-	bodyContain: string;
-	bodyContentVisibility: string;
-	bodyColor: string;
-	bodyBackground: string;
-	rootPosition: string | null;
-	rootFloat: string | null;
-	rootOverflow: string | null;
-	rootHeight: string | null;
-	rootColor: string | null;
 }
 
 export async function printHtmlToPdf(request: PrintRequest): Promise<Uint8Array> {
@@ -256,10 +235,8 @@ export function buildInjectionScript(request: PrintRequest): string {
 }
 
 /**
- * Strips every `@media print` block out of the guest's stylesheets, reporting
- * what it found first.
+ * Strips every `@media print` block out of the guest's stylesheets.
  *
- * This is the one part of the cascade the diagnostics below cannot see:
  * `getComputedStyle` always reports the *screen* styles, while `printToPDF`
  * renders under Chromium's print media emulation. Obsidian ships print rules
  * for its own single-note export, which hide the application chrome and reveal
@@ -271,11 +248,6 @@ export function buildInjectionScript(request: PrintRequest): string {
  * own stylesheet is deliberately media-agnostic, so it survives this pass.
  */
 export const NEUTRALIZE_PRINT_MEDIA_SCRIPT = `(function () {
-	const root = document.querySelector('.tome-export-root');
-	const matched = [];
-	let found = 0;
-	let removed = 0;
-
 	for (const sheet of Array.from(document.styleSheets)) {
 		let rules = null;
 		try {
@@ -293,78 +265,26 @@ export const NEUTRALIZE_PRINT_MEDIA_SCRIPT = `(function () {
 			// template literal that is then re-parsed as JavaScript in the
 			// guest, and backslash escapes have to survive both hops intact.
 			if (condition.toLowerCase().indexOf('print') === -1) continue;
-			found++;
-
-			try {
-				for (const inner of Array.from(rule.cssRules || [])) {
-					if (!inner.selectorText || matched.length >= 12) continue;
-					let hits = false;
-					try {
-						hits =
-							document.body.matches(inner.selectorText) ||
-							(!!root && root.matches(inner.selectorText));
-					} catch (error) {
-						hits = false;
-					}
-					if (hits) matched.push(inner.cssText.slice(0, 200));
-				}
-			} catch (error) {
-				// Reporting is best-effort; removal below is what matters.
-			}
-
 			try {
 				sheet.deleteRule(index);
-				removed++;
 			} catch (error) {
-				// Leave it; the diagnostics will show it was found but kept.
+				// Leave it; a rule this document may not edit cannot be removed.
 			}
 		}
 	}
-
-	return {
-		printMediaBlocksFound: found,
-		printMediaBlocksRemoved: removed,
-		printRulesHittingExport: matched,
-	};
+	return true;
 })();`;
 
 /**
- * Reports what the guest actually ended up with, so a blank or clipped export
- * can be diagnosed from the console instead of by opening the PDF. The
- * computed `position`/`overflow`/`height` values are the ones that decide
- * whether the document paginates or gets cut off at one viewport.
+ * Reports what the guards in {@link printHtmlToPdf} read: how many chapters
+ * reached the guest and how tall the content and the document laid out.
  */
 export const DIAGNOSTIC_SCRIPT = `(function () {
 	const root = document.querySelector('.tome-export-root');
-	const rootStyle = root ? getComputedStyle(root) : null;
-	const bodyStyle = getComputedStyle(document.body);
-	const firstChapter = document.querySelector('.tome-chapter');
-	const images = Array.from(document.images);
 	return {
-		url: location.href,
-		headChildren: document.head.children.length,
-		bodyChildren: document.body.children.length,
-		bodyClass: document.body.className,
 		chapters: document.querySelectorAll('.tome-chapter').length,
-		images: images.length,
-		dataImages: images.filter((i) => i.src.startsWith('data:')).length,
-		unresolvedImages: images.filter((i) => !i.complete || i.naturalWidth === 0).length,
 		documentScrollHeight: document.documentElement.scrollHeight,
 		rootScrollHeight: root ? root.scrollHeight : 0,
-		firstChapterHeight: firstChapter ? firstChapter.offsetHeight : 0,
-		bodyPosition: bodyStyle.position,
-		bodyDisplay: bodyStyle.display,
-		bodyOverflow: bodyStyle.overflow,
-		bodyHeight: bodyStyle.height,
-		bodyContain: bodyStyle.contain,
-		bodyContentVisibility: bodyStyle.contentVisibility,
-		bodyColor: bodyStyle.color,
-		bodyBackground: bodyStyle.backgroundColor,
-		rootPosition: rootStyle ? rootStyle.position : null,
-		rootFloat: rootStyle ? rootStyle.float : null,
-		rootOverflow: rootStyle ? rootStyle.overflow : null,
-		rootHeight: rootStyle ? rootStyle.height : null,
-		rootColor: rootStyle ? rootStyle.color : null,
 	};
 })();`;
 

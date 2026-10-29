@@ -13,7 +13,7 @@
  * Pure and `obsidian`-free.
  */
 
-import { parseSections, preamble } from '../labelledMarkdown';
+import { preamble, titleOf } from '../labelledMarkdown';
 import { readCategory, readDescription, readImagePath, SUBTITLE } from './magicItem';
 
 /** Mirrors the server's `EquipmentItemInputDto`, minus the fields a note cannot fill. */
@@ -75,12 +75,11 @@ export function readWeight(text: string): number | null {
  * @param key The stable handle, normally the note's filename stem.
  */
 export function parseEquipmentItem(markdown: string, key: string, fallbackName: string): EquipmentItem {
-	const title = parseSections(markdown).find((section) => section.level === 1)?.title;
 	const body = preamble(markdown);
 	const subtitle = SUBTITLE.exec(body)?.[1] ?? '';
 
 	return {
-		name: title?.trim() || fallbackName,
+		name: titleOf(markdown, fallbackName),
 		desc: readDescription(markdown),
 		category: readCategory(subtitle, null),
 		cost: readCost(body),

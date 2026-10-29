@@ -194,6 +194,11 @@ describe('readImagePath', () => {
 		expect(readImagePath('![](img/bag%20of%20holding.webp)')).toBe('img/bag of holding.webp');
 	});
 
+	/** A bare `%` is a plain filename character, not a broken escape worth throwing over. */
+	it('keeps a path with a stray percent sign as written', () => {
+		expect(readImagePath('![](img/50%off.png)')).toBe('img/50%off.png');
+	});
+
 	it.each([['# Just a title'], [''], ['Not an ![inline](link) embed']])(
 		'is null for %o',
 		(markdown) => {
@@ -295,5 +300,16 @@ describe('parseMagicItem', () => {
 		const untitled = parseMagicItem('*Wondrous item, rare*\n\nProse.', magicFrontmatter, 'k', 'Fallback');
 
 		expect(untitled?.name).toBe('Fallback');
+	});
+
+	it('drops the frontmatter from the description of a note with no headings', () => {
+		const untitled = parseMagicItem(
+			'---\ncssclasses: json5e-item\n---\n*Wondrous item, rare*\n\nProse.',
+			magicFrontmatter,
+			'k',
+			'Fallback',
+		);
+
+		expect(untitled?.desc).toBe('Prose.');
 	});
 });

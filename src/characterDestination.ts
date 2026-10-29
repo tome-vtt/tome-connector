@@ -53,11 +53,18 @@ export function destinationOptions(
 	];
 }
 
+/** What a send's result calls `destination`: My Characters, or the campaign's name. */
+export function destinationLabel(
+	campaigns: readonly DestinationCampaign[],
+	destination: CharacterDestination,
+): string {
+	if (destination.kind === 'vault') return VAULT_DESTINATION_LABEL;
+	return campaigns.find((campaign) => campaign.id === destination.campaignId)?.name ?? destination.campaignId;
+}
+
 /** Reads a dropdown value back into the destination it names. */
 export function parseDestination(value: string): CharacterDestination {
-	return value === VAULT_DESTINATION_VALUE
-		? { kind: 'vault' }
-		: { kind: 'campaign', campaignId: value };
+	return recallDestination({ destination: value, campaignId: value });
 }
 
 /**

@@ -18,9 +18,10 @@
  * Pure and `obsidian`-free.
  */
 
-import { parseSections, preamble } from '../labelledMarkdown';
+import { asStrings } from './cliNote';
+import type { ClassPatch } from './package';
+import { parseSections, proseBody, slug, titleCase, titleOf } from '../labelledMarkdown';
 import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
-import { slug } from './species';
 
 /** Mirrors the server's `Srd2024SubclassFeature`. */
 export interface SubclassFeature {
@@ -113,14 +114,6 @@ const SUBCLASS_TAG = /^ttrpg-cli\/subclass\/([^/]+)\//;
 /** `### Vitality of the Tree (Level 3)` - the name and the level, in one heading. */
 const FEATURE_HEADING = /^(.*?)\s*\(Level\s+(\d+)\)\s*$/i;
 
-/** Frontmatter values arrive as a list, a bare string, or missing. */
-function tagsOf(frontmatter: Record<string, unknown> | null): string[] {
-	const raw = frontmatter?.['tags'];
-	if (typeof raw === 'string') return [raw];
-	if (Array.isArray(raw)) return raw.filter((tag): tag is string => typeof tag === 'string');
-	return [];
-}
-
 /**
  * The parent class, from `ttrpg-cli/subclass/<class>/<subclass>`.
  *
@@ -129,7 +122,7 @@ function tagsOf(frontmatter: Record<string, unknown> | null): string[] {
  * prose that happens to contain a link.
  */
 export function parentClassSlug(frontmatter: Record<string, unknown> | null): string | null {
-	for (const tag of tagsOf(frontmatter)) {
+	for (const tag of asStrings(frontmatter?.['tags'])) {
 		const match = SUBCLASS_TAG.exec(tag);
 		if (match?.[1]) return match[1];
 	}
@@ -184,6 +177,17 @@ export function raiseEarlyFeatures(parsed: ParsedSubclass): ParsedSubclass {
 	const rest = parsed.subclass.levels.filter((level) => level.level >= SUBCLASS_LEVEL);
 	const atThreshold = rest.find((level) => level.level === SUBCLASS_LEVEL);
 
+	// The text still says "at 1st level"; a note beats rewriting prose we cannot parse reliably.
+	const movedFrom = new Map(
+		early.flatMap((level) => level.gains.map((gain) => [gain.feature, level.level] as const)),
+	);
+	const features = parsed.subclass.features.map((feature) => {
+		const from = movedFrom.get(feature.key);
+		if (from === undefined) return feature;
+		const note = `(Moved from level ${from} to level ${SUBCLASS_LEVEL} on import.)`;
+		return { ...feature, desc: feature.desc ? `${feature.desc}\n\n${note}` : note };
+	});
+
 	const raised = {
 		level: SUBCLASS_LEVEL,
 		gains: [...early.flatMap((level) => level.gains), ...(atThreshold?.gains ?? [])],
@@ -194,19 +198,12 @@ export function raiseEarlyFeatures(parsed: ParsedSubclass): ParsedSubclass {
 		...parsed,
 		subclass: {
 			...parsed.subclass,
+			features,
 			levels: [raised, ...rest.filter((level) => level.level !== SUBCLASS_LEVEL)].sort(
 				(a, b) => a.level - b.level,
 			),
 		},
 	};
-}
-
-/** `barbarian` -> `Barbarian`, for reporting rather than for matching. */
-function titleCase(value: string): string {
-	return value
-		.split('-')
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-		.join(' ');
 }
 
 /**
@@ -217,22 +214,13 @@ function titleCase(value: string): string {
  * which is what makes dropping it a one-line filter rather than an HTML parse.
  */
 export function readDescription(markdown: string): string {
-	const sections = parseSections(markdown);
-	const body = sections.length > 0 ? preamble(markdown) : markdown;
-
-	const lines = body
-		.split(/\r?\n/)
+	return proseBody(markdown, [
 		// The callout holding the progression table, and its block anchor.
-		.filter((line) => !/^\s*>/.test(line))
-		.filter((line) => !/^\s*\^/.test(line))
-		.filter((line) => !/^\s*\*Source:/.test(line))
-		.filter((line) => !/^\s*!\[/.test(line))
+		/^\s*>/,
+		/^\s*\^/,
 		// `*[Barbarian](...): Barbarian Subclass*` - the parent, which the tag states.
-		.filter((line) => !/^\s*\*\[[^\]]+\]\([^)]*\):/.test(line));
-
-	return stripMarkdownFromString(lines.join('\n'))
-		.replace(/\n{3,}/g, '\n\n')
-		.trim();
+		/^\s*\*\[[^\]]+\]\([^)]*\):/,
+	]);
 }
 
 /**
@@ -312,14 +300,13 @@ export function parseSubclass(
 	const entries = readFeatures(markdown, key);
 	if (entries.length === 0) return null;
 
-	const title = parseSections(markdown).find((section) => section.level === 1)?.title;
 
 	return {
 		classKey: parentClassKey(classSlug),
 		className: titleCase(classSlug),
 		subclass: {
 			key,
-			name: title?.trim() || fallbackName,
+			name: titleOf(markdown, fallbackName),
 			desc: readDescription(markdown),
 			features: entries.map((entry) => entry.feature),
 			levels: readLevels(entries),
@@ -335,10 +322,8 @@ export function parseSubclass(
  * rather than replacing it. Sending a fuller entry would replace a working Barbarian
  * with whatever this parser managed to read.
  */
-export function toClassPatches(
-	parsed: ParsedSubclass[],
-): { key: string; name: string; subclasses: Subclass[] }[] {
-	const byClass = new Map<string, { key: string; name: string; subclasses: Subclass[] }>();
+export function toClassPatches(parsed: ParsedSubclass[]): ClassPatch[] {
+	const byClass = new Map<string, ClassPatch>();
 
 	for (const entry of parsed) {
 		const patch = byClass.get(entry.classKey) ?? {

@@ -4,19 +4,28 @@ import type TomeConnectorPlugin from '../main';
 import type { BulkReport } from '../bulkSend';
 import { obsidianSendPorts } from '../obsidianSendPorts';
 import { oneAtATime } from '../oneAtATime';
-import { postJsonAndReadFromTome } from '../tomeApiClient';
-import { loadCampaignChoice, rememberCampaign } from '../tomeCampaigns';
+import { describeError } from '../shared';
+import { tomeHttp } from '../tomeApiClient';
+import { sentTo } from '../tomeHttp';
+import { chosenCampaign, loadCampaignChoice, rememberCampaign, type TomeCampaign } from '../tomeCampaigns';
 import { getApiKey } from '../tomeConnectorSettings';
 import { readImageAsDataUri } from '../tomeImageEmbedding';
 import { TomeProgressNotice } from '../tomeProgressNotice';
 import { vaultNotes } from '../vaultNotes';
 import { TOME_ROUTES } from '../routes';
-import { entitiesPass, imagesPass, type PassDeps } from './adventurePasses';
+import { entitiesPass, imagesPass, isEntityTarget, isImageTarget, type PassDeps } from './adventurePasses';
 import { AdventureReviewModal } from './adventureReviewModal';
 import { buildAdventurePlan } from './adventureVault';
 import { renderBlockText, type ResolvedEntityLink } from './adventureLinkRewrite';
 import { writeAdventureIdsToVault } from './writeAdventureIdsToVault';
-import type { AdventurePlan, PlannedBlock, PlannedEntity, PlannedImage } from './adventurePlan';
+import { sceneMarkerEdits } from './sceneMarkerEdit';
+import type {
+	AdventurePlan,
+	ImportedChapterResultBody,
+	PlannedBlock,
+	PlannedEntity,
+	PlannedImage,
+} from './adventurePlan';
 
 /**
  * The four passes that turn a reviewed {@link AdventurePlan} into a book in
@@ -32,12 +41,6 @@ import type { AdventurePlan, PlannedBlock, PlannedEntity, PlannedImage } from '.
  * from - and that is reported as its own case.
  */
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => window.setTimeout(resolve, ms));
-
-function describeError(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
-
 function chunk<T>(items: T[], size: number): T[][] {
 	const chunks: T[][] = [];
 	for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
@@ -51,7 +54,7 @@ async function postJson<TResponse>(
 	apiKey: string,
 	campaignId: string,
 ): Promise<TResponse> {
-	const result = await postJsonAndReadFromTome<TResponse>(baseUrl, path, JSON.stringify(body), apiKey, campaignId);
+	const result = await tomeHttp.postJsonAndRead<TResponse>({ baseUrl, path, apiKey, campaignId }, JSON.stringify(body));
 	if (!result.ok) throw new Error(result.message);
 	return result.value;
 }
@@ -206,15 +209,6 @@ async function buildImportRequest(
 	};
 }
 
-export interface ImportedSceneResultBody {
-	id: string;
-}
-
-export interface ImportedChapterResultBody {
-	id: string;
-	scenes: ImportedSceneResultBody[];
-}
-
 interface ImportAdventureResponseBody {
 	id: string;
 	created: boolean;
@@ -228,21 +222,26 @@ interface ImportAdventureResponseBody {
 	chapters: ImportedChapterResultBody[];
 }
 
-function reportImport(plan: AdventurePlan, response: ImportAdventureResponseBody, failures: number): void {
+function reportImport(
+	plan: AdventurePlan,
+	response: ImportAdventureResponseBody,
+	failures: number,
+	campaignName: string,
+): void {
 	const parts = [
 		`${response.chaptersCreated + response.chaptersMatched} chapters`,
 		`${response.scenesCreated + response.scenesMatched} scenes`,
 		`${response.blocksWritten} blocks`,
 	];
 	const failureNote = failures > 0 ? ` ${failures} item${failures === 1 ? '' : 's'} failed - see the console.` : '';
-	new Notice(`Tome connector: "${plan.title}" sent - ${parts.join(', ')}.${failureNote}`);
+	new Notice(`Tome connector: ${sentTo(`"${plan.title}"`, campaignName)} - ${parts.join(', ')}.${failureNote}`);
 }
 
-/** How many rows `entitiesPass`/`imagesPass` will actually try to send - the same filters each uses internally. */
+/** How many rows `entitiesPass`/`imagesPass` will actually try to send - the same filters each uses. */
 function countRemainingTargets(plan: AdventurePlan): { entities: number; images: number } {
 	return {
-		entities: plan.entities.filter((entity) => entity.chosen.to !== 'skip' && entity.resolvedId === null).length,
-		images: plan.images.filter((image) => image.chosen.to === 'Map' || image.chosen.to === 'Prop').length,
+		entities: plan.entities.filter(isEntityTarget).length,
+		images: plan.images.filter(isImageTarget).length,
 	};
 }
 
@@ -302,7 +301,7 @@ function passDeps(plugin: TomeConnectorPlugin): PassDeps {
 export async function runAdventureImport(
 	plugin: TomeConnectorPlugin,
 	plan: AdventurePlan,
-	campaignId: string,
+	{ id: campaignId, name: campaignName }: TomeCampaign,
 ): Promise<void> {
 	const apiKey = getApiKey(plugin);
 	const baseUrl = plugin.settings.baseUrl;
@@ -351,12 +350,12 @@ export async function runAdventureImport(
 	// than before this existed, so nothing here is allowed to turn a successful import
 	// into a failed one.
 	try {
-		await writeAdventureIdsToVault(plugin.app, plan, response.chapters);
+		await writeAdventureIdsToVault(plugin.app, plan, response.chapters, sceneMarkerEdits(plan, response.chapters));
 	} catch (error) {
 		console.warn('Tome Connector: could not write ids back into the vault.', error);
 	}
 
-	reportImport(plan, response, failureCount);
+	reportImport(plan, response, failureCount, campaignName);
 }
 
 /**
@@ -387,7 +386,7 @@ export const runAdventureFolderImport = oneAtATime(
 		if (campaignId === null) return;
 
 		void rememberCampaign(plugin, campaignId);
-		await runAdventureImport(plugin, plan, campaignId);
+		await runAdventureImport(plugin, plan, chosenCampaign(choice, campaignId));
 	},
 	() => new Notice('Tome connector: an adventure import is already running.'),
 );

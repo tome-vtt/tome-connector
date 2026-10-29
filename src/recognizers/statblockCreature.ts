@@ -28,6 +28,7 @@
 import { stripMarkdownFromString } from '../tomeMarkdownSanitizer';
 import { isPf2eCreature, mapToPf2eCreature, type Pf2eCreature } from './pf2eCreature';
 import { existingTomeId } from '../tomeIdWriteBack';
+import { capitalise } from './labelledMarkdown';
 
 /** The server's `NamedAbility`, in the casing its record pins. */
 export interface NamedAbility {
@@ -139,11 +140,6 @@ export function toNamedAbilityList(value: unknown): NamedAbility[] {
  * Normalisers for the shapes Fantasy Statblocks uses and the server does not.
  * ---------------------------------------------------------------------- */
 
-/** `hp` may be `58` or `"58 (9d10+9)"`; the server wants one type. */
-export function normalizeHp(value: unknown): unknown {
-	return typeof value === 'number' ? String(value) : value;
-}
-
 /**
  * `"Goblin (Reskinned)"` -> `"Goblin"`.
  *
@@ -180,7 +176,7 @@ export function normalizeSaveEntry(entry: unknown): unknown {
 	if (typeof modifier !== 'number') return entry;
 
 	return {
-		name: ability.charAt(0).toUpperCase() + ability.slice(1),
+		name: capitalise(ability),
 		desc: modifier >= 0 ? `+${modifier}` : `${modifier}`,
 	};
 }
@@ -236,7 +232,8 @@ export function mergeCreature(
 ): Record<string, unknown> {
 	const merged: Record<string, unknown> = base ? { ...base, ...local } : { ...local };
 
-	if ('hp' in merged) merged.hp = normalizeHp(merged.hp);
+	// `hp` may be `58` or `"58 (9d10+9)"`; the server wants one type.
+	if (typeof merged.hp === 'number') merged.hp = String(merged.hp);
 	if ('name' in merged) merged.name = normalizeName(merged.name);
 	if ('saves' in merged) merged.saves = normalizeSaves(merged.saves);
 	if ('skillsaves' in merged) merged.skillsaves = normalizeSkillSaves(merged.skillsaves);

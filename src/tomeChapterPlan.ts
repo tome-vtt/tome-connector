@@ -26,15 +26,6 @@ export type ExportItem =
 	| { kind: 'group'; title: string; level: number }
 	| { kind: 'chapter'; title: string; path: string; level: number };
 
-export interface ExportOptions {
-	/**
-	 * When true a folder's own notes are emitted before its subfolders. The
-	 * default matches Obsidian's File Explorer (subfolders first), which is
-	 * what the user is looking at when they right-click.
-	 */
-	notesBeforeSubfolders?: boolean;
-}
-
 /**
  * Deepest heading level a subfolder name is allowed to occupy. Clamping here
  * rather than letting depth run to 6 guarantees at least two levels stay free
@@ -75,10 +66,7 @@ function hasNotes(node: FolderNode): boolean {
  * so its notes are chapters at level 1, a subfolder's name is a level 1
  * heading with its notes at level 2, and so on until the clamps above.
  */
-export function buildChapterPlan(
-	root: FolderNode,
-	options: ExportOptions = {},
-): ExportItem[] {
+export function buildChapterPlan(root: FolderNode): ExportItem[] {
 	const items: ExportItem[] = [];
 
 	const walk = (node: FolderNode, depth: number): void => {
@@ -92,34 +80,24 @@ export function buildChapterPlan(
 
 		const chapterLevel = Math.min(depth + 1, MAX_CHAPTER_LEVEL);
 
-		const emitNotes = () => {
-			for (const note of [...node.notes].sort((a, b) =>
-				compareNames(a.title, b.title),
-			)) {
-				items.push({
-					kind: 'chapter',
-					title: note.title,
-					path: note.path,
-					level: chapterLevel,
-				});
-			}
-		};
+		// Subfolders first, matching Obsidian's File Explorer, which is what
+		// the user is looking at when they right-click.
+		const children = node.folders
+			.filter(hasNotes)
+			.sort((a, b) => compareNames(a.name, b.name));
+		for (const child of children) {
+			walk(child, depth + 1);
+		}
 
-		const emitFolders = () => {
-			const children = node.folders
-				.filter(hasNotes)
-				.sort((a, b) => compareNames(a.name, b.name));
-			for (const child of children) {
-				walk(child, depth + 1);
-			}
-		};
-
-		if (options.notesBeforeSubfolders) {
-			emitNotes();
-			emitFolders();
-		} else {
-			emitFolders();
-			emitNotes();
+		for (const note of [...node.notes].sort((a, b) =>
+			compareNames(a.title, b.title),
+		)) {
+			items.push({
+				kind: 'chapter',
+				title: note.title,
+				path: note.path,
+				level: chapterLevel,
+			});
 		}
 	};
 

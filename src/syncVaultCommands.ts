@@ -1,8 +1,11 @@
-import { Notice, TFolder } from 'obsidian';
+import { Platform, TFile, TFolder, type Menu, type MenuItem } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
 import { runAdventureFolderImport } from './adventure/sendAdventureToTome';
 import { runContentImport } from './importContentSource';
+import { offersNoteSend } from './recognizers/noteScan';
+import { watchSendableFences } from './sendableFenceIndex';
+import { runFolderExport } from './syncFolderToTome';
 import { runVaultSync } from './syncVaultToTome';
 
 /**
@@ -20,6 +23,30 @@ export function registerSyncCommands(plugin: TomeConnectorPlugin): void {
 	registerSendCommands(plugin);
 	registerImportCommands(plugin);
 	registerFolderMenu(plugin);
+	registerNoteMenu(plugin);
+}
+
+/**
+ * A command on the active note's folder. `checkCallback` so the command hides itself
+ * when there is no active note to take a folder from, rather than appearing and then
+ * complaining.
+ */
+function folderCommand(
+	plugin: TomeConnectorPlugin,
+	id: string,
+	name: string,
+	run: (folder: TFolder) => Promise<void>,
+): void {
+	plugin.addCommand({
+		id,
+		name,
+		checkCallback: (checking: boolean) => {
+			const folder = plugin.app.workspace.getActiveFile()?.parent;
+			if (!folder) return false;
+			if (!checking) void run(folder);
+			return true;
+		},
+	});
 }
 
 /** Sending notes to the libraries: one request per creature, encounter or map. */
@@ -32,43 +59,29 @@ function registerSendCommands(plugin: TomeConnectorPlugin): void {
 		},
 	});
 
-	plugin.addCommand({
-		id: 'send-folder-to-tome',
-		name: 'Send the current note’s folder to Tome',
-		// `checkCallback` so the command hides itself when there is no active note
-		// to take a folder from, rather than appearing and then complaining.
-		checkCallback: (checking: boolean) => {
-			const folder = plugin.app.workspace.getActiveFile()?.parent;
-			if (!folder) return false;
-			if (!checking) void runVaultSync(plugin, { kind: 'folder', folder });
-			return true;
-		},
-	});
+	folderCommand(plugin, 'send-folder-to-tome', 'Send the current note’s folder to Tome', (folder) =>
+		runVaultSync(plugin, { kind: 'folder', folder }),
+	);
 
 	plugin.addCommand({
 		id: 'send-tagged-to-tome',
 		name: 'Send notes with the sync tag to Tome',
-		checkCallback: (checking: boolean) => {
+		callback: () => {
 			const tag = plugin.settings.syncTag.trim();
-			if (tag === '') return false;
-			if (!checking) void runVaultSync(plugin, { kind: 'tag', tag });
-			return true;
+			if (tag === '') plugin.settingTab.openAtSyncTag();
+			else void runVaultSync(plugin, { kind: 'tag', tag });
 		},
 	});
 }
 
 /** Importing a compendium as a ruleset: one request for the lot. */
 function registerImportCommands(plugin: TomeConnectorPlugin): void {
-	plugin.addCommand({
-		id: 'import-content-source-from-folder',
-		name: 'Import the current note’s folder as a content source',
-		checkCallback: (checking: boolean) => {
-			const folder = plugin.app.workspace.getActiveFile()?.parent;
-			if (!folder) return false;
-			if (!checking) void runContentImport(plugin, { kind: 'folder', folder });
-			return true;
-		},
-	});
+	folderCommand(
+		plugin,
+		'import-content-source-from-folder',
+		'Import the current note’s folder as a content source',
+		(folder) => runContentImport(plugin, { kind: 'folder', folder }),
+	);
 
 	plugin.addCommand({
 		id: 'import-content-source-from-vault',
@@ -78,65 +91,67 @@ function registerImportCommands(plugin: TomeConnectorPlugin): void {
 		},
 	});
 
-	plugin.addCommand({
-		id: 'import-adventure-from-folder',
-		name: 'Import the current note’s folder as a Storybook adventure',
-		checkCallback: (checking: boolean) => {
-			const folder = plugin.app.workspace.getActiveFile()?.parent;
-			if (!folder) return false;
-			if (!checking) void runAdventureFolderImport(plugin, folder);
-			return true;
-		},
-	});
+	folderCommand(
+		plugin,
+		'import-adventure-from-folder',
+		'Import the current note’s folder as a Storybook adventure',
+		(folder) => runAdventureFolderImport(plugin, folder),
+	);
 }
 
+// Obsidian's Menu API has an untyped submenu, which does not open in the mobile app.
+type SubmenuItem = MenuItem & { setSubmenu(): Menu };
+type FolderMenuEntry = [title: string, icon: string, run: (folder: TFolder) => Promise<void>];
+
+/**
+ * The Tome imports on a folder's menu, grouped under one "Tome" submenu on
+ * desktop and listed flat on mobile. Which entries apply is not decidable
+ * without scanning the folder, so every entry the platform supports shows.
+ * Each names what it sends: "Import Library items to Tome" scans every note and
+ * fans each one out to whichever library it belongs in, where the others turn
+ * the whole folder into a single row in one library. The Reference import prints through Electron, so
+ * it is desktop only.
+ */
 function registerFolderMenu(plugin: TomeConnectorPlugin): void {
-	// Alongside the existing "Import as a Tome Reference" folder export, which
-	// produces a PDF. Four entries on one menu needs all of them to say which is
-	// which, so each names what it sends rather than just where it sends it.
-	// "Import Library items to Tome" is the odd one among these three: it scans
-	// every note and fans each one out to whichever library it belongs in
-	// (creatures, maps, magic items, equipment...), where the other two turn the
-	// whole folder into a single row in one library.
 	plugin.registerEvent(
 		plugin.app.workspace.on('file-menu', (menu, file) => {
 			if (!(file instanceof TFolder)) return;
 
-			menu.addItem((item) => {
-				item
-					.setTitle('Import Library items to Tome')
-					.setIcon('upload-cloud')
-					.onClick(() => {
-						void runVaultSync(plugin, { kind: 'folder', folder: file });
-					});
-			});
-
-			menu.addItem((item) => {
-				item
-					.setTitle('Import as a Tome content source')
-					.setIcon('book-open')
-					.onClick(() => {
-						void runContentImport(plugin, { kind: 'folder', folder: file });
-					});
-			});
-
-			menu.addItem((item) => {
-				item
-					.setTitle('Import as a Tome Storybook adventure')
-					.setIcon('book-marked')
-					.onClick(() => {
-						void runAdventureFolderImport(plugin, file);
-					});
-			});
+			const entries: FolderMenuEntry[] = [
+				['Import Library items to Tome', 'upload-cloud', (folder) => runVaultSync(plugin, { kind: 'folder', folder })],
+				['Import as a Tome content source', 'book-open', (folder) => runContentImport(plugin, { kind: 'folder', folder })],
+				['Import as a Tome Storybook adventure', 'book-marked', (folder) => runAdventureFolderImport(plugin, folder)],
+			];
+			let target: Menu = menu;
+			if (Platform.isDesktopApp) {
+				entries.unshift(['Import as a Tome Reference', 'upload-cloud', (folder) => runFolderExport(plugin, folder)]);
+				menu.addItem((top) => {
+					target = (top.setTitle('Tome').setIcon('upload-cloud') as SubmenuItem).setSubmenu();
+				});
+			}
+			for (const [title, icon, run] of entries) {
+				target.addItem((item) => {
+					item.setTitle(title).setIcon(icon).onClick(() => void run(file));
+				});
+			}
 		}),
 	);
 }
 
-/** Warns once when a command is invoked with nothing configured. */
-export function warnIfUnconfigured(plugin: TomeConnectorPlugin): boolean {
-	if (plugin.settings.baseUrl.trim() === '') {
-		new Notice('Tome connector: set a base URL in the plugin settings first.');
-		return true;
-	}
-	return false;
+/** "Send this note to Tome" on a note holding a statblock, encounter or map block. */
+function registerNoteMenu(plugin: TomeConnectorPlugin): void {
+	const pathsWithFence = watchSendableFences(plugin);
+	plugin.registerEvent(
+		plugin.app.workspace.on('file-menu', (menu, file) => {
+			if (!(file instanceof TFile)) return;
+			const frontmatter = plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
+			if (!offersNoteSend(file.extension, frontmatter, pathsWithFence.has(file.path))) return;
+
+			menu.addItem((item) => {
+				item.setTitle('Send this note to Tome')
+					.setIcon('upload-cloud')
+					.onClick(() => void runVaultSync(plugin, { kind: 'note', note: file }));
+			});
+		}),
+	);
 }

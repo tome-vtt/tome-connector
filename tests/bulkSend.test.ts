@@ -47,29 +47,27 @@ function fakeClock() {
 }
 
 describe('backoffDelay', () => {
-	const options = { baseDelayMs: 1_000, maxDelayMs: 30_000 };
-
 	it('doubles from the base', () => {
-		expect(backoffDelay(2, options)).toBe(1_000);
-		expect(backoffDelay(3, options)).toBe(2_000);
-		expect(backoffDelay(4, options)).toBe(4_000);
+		expect(backoffDelay(2)).toBe(1_000);
+		expect(backoffDelay(3)).toBe(2_000);
+		expect(backoffDelay(4)).toBe(4_000);
 	});
 
 	it('is capped, so a long run cannot stall for minutes', () => {
-		expect(backoffDelay(20, options)).toBe(30_000);
+		expect(backoffDelay(20)).toBe(30_000);
 	});
 
 	/** The server knows when its window rolls over; we are guessing. */
 	it('prefers the server\'s Retry-After', () => {
-		expect(backoffDelay(2, options, 5)).toBe(5_000);
+		expect(backoffDelay(2, 5)).toBe(5_000);
 	});
 
 	it('still caps an unreasonable Retry-After', () => {
-		expect(backoffDelay(2, options, 600)).toBe(30_000);
+		expect(backoffDelay(2, 600)).toBe(30_000);
 	});
 
 	it('treats Retry-After: 0 as now rather than falling back to exponential', () => {
-		expect(backoffDelay(3, options, 0)).toBe(0);
+		expect(backoffDelay(3, 0)).toBe(0);
 	});
 });
 
@@ -231,11 +229,11 @@ describe('runBulkSend', () => {
 
 describe('describeReport', () => {
 	it.each([
-		[{ sent: [1], failed: [], cancelled: false }, '1 sent'],
-		[{ sent: [1, 2], failed: [3], cancelled: false }, '2 sent, 1 failed'],
-		[{ sent: [1], failed: [], cancelled: true }, '1 sent, stopped early'],
-		[{ sent: [], failed: [], cancelled: false }, '0 sent']
+		[{ sent: [1], failed: [], cancelled: false }, '1 sent to Test 2'],
+		[{ sent: [1, 2], failed: [3], cancelled: false }, '2 sent to Test 2, 1 failed'],
+		[{ sent: [1], failed: [], cancelled: true }, '1 sent to Test 2, stopped early'],
+		[{ sent: [], failed: [], cancelled: false }, '0 sent to Test 2']
 	])('%o -> %s', (report, expected) => {
-		expect(describeReport(report as never)).toBe(expected);
+		expect(describeReport(report as never, 'Test 2')).toBe(expected);
 	});
 });

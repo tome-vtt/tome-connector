@@ -5,6 +5,7 @@
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"target": "ES2021",
+		"types": ["node"],
 		"strict": true,
 		"noImplicitReturns": true,
 		"noFallthroughCasesInSwitch": true,
@@ -26,6 +27,8 @@
 		"skipLibCheck": true,
 		"forceConsistentCasingInFileNames": true,
 		"allowSyntheticDefaultImports": true,
+		// So `tomeHttp.ts` can read the version it reports to Tome from `manifest.json`.
+		"resolveJsonModule": true,
 		"lib": ["ES2021", "DOM"]
 	},
 	// `scripts/*.d.mts` types the plain-ESM build scripts so the tests can import

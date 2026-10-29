@@ -9,10 +9,13 @@
  */
 
 import {
+	capitalise,
 	labelMap,
 	parseSections,
 	preamble,
 	sectionsAtLevel,
+	slug,
+	titleOf,
 } from '../labelledMarkdown';
 import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
 
@@ -40,13 +43,6 @@ export interface Species {
 	traits: SpeciesTrait[];
 }
 
-/** Lower-case, hyphenated, safe as a lookup key and stable across imports. */
-export function slug(value: string): string {
-	return value
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '');
-}
 
 /**
  * The size word the builder branches on, out of a sentence that may offer a
@@ -66,7 +62,7 @@ export function readSize(detail: string | undefined): string | null {
 	if (!detail) return null;
 	const text = detail.toLowerCase();
 	for (const size of ['gargantuan', 'huge', 'large', 'medium', 'small', 'tiny']) {
-		if (text.includes(size)) return size.charAt(0).toUpperCase() + size.slice(1);
+		if (text.includes(size)) return capitalise(size);
 	}
 	return null;
 }
@@ -137,12 +133,11 @@ export function parseSpecies(
 	const sizeDetail = fields.get('size') ?? null;
 	if (sizeDetail === null && traits.length === 0) return null;
 
-	const title = parseSections(markdown).find((section) => section.level === 1)?.title;
 	const speedDetail = fields.get('speed') ?? null;
 
 	return {
 		key,
-		name: title?.trim() || fallbackName,
+		name: titleOf(markdown, fallbackName),
 		desc: sectionBody(markdown, 'description'),
 		size: readSize(sizeDetail ?? undefined),
 		sizeDetail,

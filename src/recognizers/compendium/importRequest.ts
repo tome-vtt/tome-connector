@@ -9,8 +9,7 @@
  * Pure and `obsidian`-free: it builds bytes, and the caller sends them.
  */
 
-import { TOME_ROUTES } from '../../routes';
-import { buildMultipartBody, type MultipartBody } from '../../tomeMultipartBody';
+import { encodeForm } from '../../tomeMultipartBody';
 import type { ContentPackage } from './package';
 
 /**
@@ -33,19 +32,16 @@ export interface ImportManifest {
 	url?: string;
 }
 
-/** Why an import cannot be sent yet, in words the person can act on. */
-export type ImportRefusal = string;
-
 /**
- * Checks the manifest before anything is uploaded.
+ * Checks the manifest before anything is uploaded; each problem is in words the person can act on.
  *
  * The server validates all of this too and would refuse with a 400, but by then
  * a 391-spell package has crossed the wire - and on a Free account the plan
  * check refuses *after* the upload, which is a documented consequence of the
  * size limit being a compile-time constant. Catching it here costs nothing.
  */
-export function validateManifest(manifest: Partial<ImportManifest>): ImportRefusal[] {
-	const problems: ImportRefusal[] = [];
+export function validateManifest(manifest: Partial<ImportManifest>): string[] {
+	const problems: string[] = [];
 
 	if (!manifest.key?.trim()) problems.push('Give the package a key.');
 	else if (!/^[a-z0-9][a-z0-9-]*$/.test(manifest.key.trim())) {
@@ -87,21 +83,12 @@ function filenameFor(key: string): string {
  *
  * The package is serialised without indentation: it is a wire format, and a
  * 391-spell document gains about a third in size for whitespace nobody reads.
- *
- * @param boundary
- *   Injected rather than generated here so a test can assert the byte layout;
- *   callers pass `createMultipartBoundary()`.
  */
-export function buildImportRequest(
-	manifest: ImportManifest,
-	contentPackage: ContentPackage,
-	boundary: string,
-): MultipartBody {
-	const fields = [
-		{ name: 'key', value: manifest.key.trim() },
-		{ name: 'name', value: manifest.name.trim() },
-		{ name: 'license', value: manifest.license.trim() },
-	];
+export function buildImportRequest(manifest: ImportManifest, contentPackage: ContentPackage) {
+	const form = new FormData();
+	form.append('key', manifest.key.trim());
+	form.append('name', manifest.name.trim());
+	form.append('license', manifest.license.trim());
 
 	// Omitted rather than sent empty: the server stores what it is given, and a
 	// blank publisher is a publisher of "" in the registry listing.
@@ -111,28 +98,13 @@ export function buildImportRequest(
 		['attribution', manifest.attribution],
 		['url', manifest.url],
 	] as const) {
-		if (value?.trim()) fields.push({ name, value: value.trim() });
+		if (value?.trim()) form.append(name, value.trim());
 	}
 
-	return buildMultipartBody(
-		fields,
-		[
-			{
-				name: 'file',
-				filename: filenameFor(manifest.key),
-				contentType: 'application/json',
-				bytes: new TextEncoder().encode(JSON.stringify(contentPackage)),
-			},
-		],
-		boundary,
+	form.append(
+		'file',
+		new Blob([JSON.stringify(contentPackage)], { type: 'application/json' }),
+		filenameFor(manifest.key),
 	);
+	return encodeForm(form);
 }
-
-/**
- * The endpoint path, relative to the configured base URL.
- *
- * Re-exported from {@link TOME_ROUTES} rather than spelled out again, so this stays one
- * value with one home; the name is kept because it reads better at the call site than
- * `TOME_ROUTES.importContentSource` does.
- */
-export const IMPORT_PATH = TOME_ROUTES.importContentSource;

@@ -3,7 +3,7 @@ import type { App } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
 import { TOME_ROUTES } from './routes';
-import { getJsonFromTome } from './tomeApiClient';
+import { tomeHttp } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 
 export interface TomeCampaign {
@@ -36,7 +36,11 @@ function isCampaign(value: unknown): value is TomeCampaign {
 export async function loadCampaigns(
 	plugin: TomeConnectorPlugin,
 ): Promise<TomeCampaign[] | null> {
-	const result = await getJsonFromTome<unknown>(plugin.settings.baseUrl, TOME_ROUTES.campaigns, getApiKey(plugin));
+	const result = await tomeHttp.getJson<unknown>({
+		baseUrl: plugin.settings.baseUrl,
+		path: TOME_ROUTES.campaigns,
+		apiKey: getApiKey(plugin),
+	});
 	if (!result.ok) {
 		new Notice(`Tome connector: could not load campaigns. ${result.message}`);
 		return null;
@@ -115,24 +119,29 @@ class CampaignSelectModal extends Modal {
 	}
 }
 
-/** Opens the compact selector used by actions that did not already have a review modal. */
+/**
+ * Opens the compact selector used by actions that did not already have a review modal.
+ * Returns the campaign itself, so the result can name where the send went.
+ */
 export async function chooseCampaign(
 	plugin: TomeConnectorPlugin,
 	action = 'Send',
-): Promise<string | null> {
+): Promise<TomeCampaign | null> {
 	const choice = await loadCampaignChoice(plugin);
 	if (choice === null) return null;
 
 	const campaignId = await new Promise<string | null>((resolve) => {
 		new CampaignSelectModal(plugin.app, choice, action, resolve).open();
 	});
+	if (campaignId === null) return null;
 
-	if (campaignId !== null && campaignId !== plugin.settings.campaignId) {
-		plugin.settings.campaignId = campaignId;
-		await plugin.saveSettings();
-	}
+	await rememberCampaign(plugin, campaignId);
+	return chosenCampaign(choice, campaignId);
+}
 
-	return campaignId;
+/** The campaign `campaignId` names in `choice`; its id stands in for a name the list lacks. */
+export function chosenCampaign(choice: CampaignChoice, campaignId: string): TomeCampaign {
+	return choice.campaigns.find((campaign) => campaign.id === campaignId) ?? { id: campaignId, name: campaignId };
 }
 
 export async function rememberCampaign(

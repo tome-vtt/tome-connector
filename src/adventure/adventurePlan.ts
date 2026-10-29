@@ -150,6 +150,8 @@ export interface PlannedImage {
 	label: string;
 	dmPath: string;
 	playerPath: string | null;
+	/** An explicit map/prop callout takes precedence over image-size guesses. */
+	destinationForced?: boolean;
 	suggested: ImageDestination;
 	chosen: ImageDestination;
 	resolvedId: string | null;
@@ -172,4 +174,13 @@ export interface AdventurePlan {
 	 * the point of sending.
 	 */
 	coverKey: string | null;
+}
+
+export interface ImportedSceneResultBody {
+	id: string;
+}
+
+export interface ImportedChapterResultBody {
+	id: string;
+	scenes: ImportedSceneResultBody[];
 }

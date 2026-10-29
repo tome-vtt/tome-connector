@@ -1,6 +1,6 @@
 import {
 	dataUriByteLength,
-	fitWithin,
+	drawScaled,
 	toDataUri,
 } from './tomeImageEncoding';
 
@@ -29,12 +29,10 @@ import {
 export type TomeImageKind = 'map' | 'token' | 'cover';
 
 /**
- * The map cap, named separately from the table below so `verify-limits.mjs` can read
- * it - the Angular client declares the same number and nothing else links the two.
- * Written as a bare literal because that script's reader evaluates digits and `*`
- * and nothing else.
+ * The map cap, named separately from the table below. The Angular client declares
+ * the same number and nothing else links the two, so change them together.
  */
-export const TOME_MAP_MAX_EDGE = 3072;
+const TOME_MAP_MAX_EDGE = 3072;
 
 /**
  * Longest edge each kind of image keeps.
@@ -76,7 +74,7 @@ export function imageKindForKey(
 }
 
 /** Reads the image a payload names and returns it as a `data:` URI; throws when it cannot. */
-export type ImageReader = (reference: string, kind: TomeImageKind) => Promise<string>;
+type ImageReader = (reference: string, kind: TomeImageKind) => Promise<string>;
 
 /**
  * Recursively walks a parsed JSON value and replaces every non-empty string under
@@ -145,22 +143,7 @@ export function keepReencoded(
 	originalBytes: number,
 	encodedBytes: number,
 ): boolean {
-	if (!Number.isFinite(originalBytes) || !Number.isFinite(encodedBytes)) {
-		return false;
-	}
-	if (originalBytes <= 0 || encodedBytes <= 0) return false;
 	return encodedBytes < originalBytes;
-}
-
-/** Whether `fitWithin` actually has anything to do at this cap. */
-export function needsDownscale(
-	width: number,
-	height: number,
-	maxEdge: number,
-): boolean {
-	if (!Number.isFinite(width) || !Number.isFinite(height)) return false;
-	if (width <= 0 || height <= 0 || maxEdge <= 0) return false;
-	return Math.max(width, height) > maxEdge;
 }
 
 /**
@@ -183,24 +166,12 @@ export async function downscaleImageBytes(
 
 	if (!DOWNSCALEABLE_TYPES.has(mimeType)) return original();
 
-	let bitmap: ImageBitmap | null = null;
 	try {
-		bitmap = await createImageBitmap(new Blob([bytes], { type: mimeType }));
-		const maxEdge = TOME_MAX_EDGE[kind];
-		if (!needsDownscale(bitmap.width, bitmap.height, maxEdge)) {
-			// Already inside the cap. Re-encoding at 1:1 would re-quantise and shift
-			// the colour space in exchange for no bytes at all.
-			return original();
-		}
-
-		const target = fitWithin(bitmap.width, bitmap.height, maxEdge);
-		const canvas = createEl('canvas');
-		canvas.width = target.width;
-		canvas.height = target.height;
-		const context = canvas.getContext('2d');
-		if (!context) return original();
-		context.imageSmoothingQuality = 'high';
-		context.drawImage(bitmap, 0, 0, target.width, target.height);
+		const drawn = await drawScaled(bytes, mimeType, TOME_MAX_EDGE[kind]);
+		// Already inside the cap: re-encoding at 1:1 would re-quantise and shift
+		// the colour space in exchange for no bytes at all.
+		if (!drawn?.scaled) return original();
+		const { canvas } = drawn;
 
 		// WebP, or PNG when the browser will not. Never JPEG: it would flatten
 		// every transparent prop onto black, and `toDataURL` is allowed to answer
@@ -218,8 +189,6 @@ export async function downscaleImageBytes(
 	} catch (error) {
 		console.warn('Tome Connector: could not downscale an image', error);
 		return original();
-	} finally {
-		bitmap?.close();
 	}
 }
 

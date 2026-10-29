@@ -4,6 +4,7 @@ import { IMAGE_EXTENSION } from './adventure/adventureImages';
 // The body, the route and the headers are the send module's; this file keeps the menu.
 import { sendWithNotice } from './obsidianSendPorts';
 import { chooseCampaign } from './tomeCampaigns';
+import { describeError } from './shared';
 
 /**
  * Adds "Import image as Prop to Tome" and "Import image as Map to Tome" to
@@ -38,13 +39,13 @@ async function sendImage(
 	to: 'map' | 'prop',
 ): Promise<void> {
 	try {
-		const campaignId = await chooseCampaign(plugin, 'Import');
-		if (campaignId === null) return;
+		const campaign = await chooseCampaign(plugin, 'Import');
+		if (campaign === null) return;
 
-		await sendWithNotice(plugin, { kind: 'image', path: file.path, to }, campaignId);
+		await sendWithNotice(plugin, { kind: 'image', path: file.path, to }, campaign);
 	} catch (error) {
 		console.error('Tome Connector: failed to send image', error);
-		const message = error instanceof Error ? error.message : String(error);
+		const message = describeError(error);
 		new Notice(`Tome connector: ${message}`);
 	}
 }

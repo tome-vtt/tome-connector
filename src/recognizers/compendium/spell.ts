@@ -8,8 +8,15 @@
  * Pure and `obsidian`-free.
  */
 
-import { labelMap, parseLabelledValues, parseSections, preamble } from '../labelledMarkdown';
-import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
+import {
+	FIELD_LINE,
+	labelMap,
+	parseLabelledValues,
+	preamble,
+	proseBody,
+	titleOf,
+} from '../labelledMarkdown';
+import { asStrings } from './cliNote';
 
 /** Mirrors the server's `Srd2024Spell`, minus the fields prose cannot give. */
 export interface Spell {
@@ -44,14 +51,6 @@ export interface Spell {
 }
 
 const TAG_PREFIX = 'ttrpg-cli/spell/';
-
-/** Frontmatter values arrive as a list, a bare string, or missing. */
-function tagsOf(frontmatter: Record<string, unknown> | null): string[] {
-	const raw = frontmatter?.['tags'];
-	if (typeof raw === 'string') return [raw];
-	if (Array.isArray(raw)) return raw.filter((tag): tag is string => typeof tag === 'string');
-	return [];
-}
 
 function tagValues(tags: string[], kind: string): string[] {
 	const prefix = `${TAG_PREFIX}${kind}/`;
@@ -240,22 +239,10 @@ export function readHigherLevel(markdown: string): string | null {
 
 /** The spell's text: the body, minus the fields, the scaling line and the footers. */
 function readDescription(markdown: string): string {
-	const sections = parseSections(markdown);
-	const body = sections.length > 0 ? preamble(markdown) : markdown;
-
-	const lines = body
-		.split(/\r?\n/)
-		// Every field, the scaling line and the `**Classes**:` footer are all
-		// bold-labelled, so one filter removes the lot.
-		.filter((line) => !/^[ \t]*(?:[-*+][ \t]+)?\*\*/.test(line))
-		.filter((line) => !/^\s*\*Source:/.test(line))
-		.filter((line) => !/^\s*!\[/.test(line))
-		// The `*3rd-level, Evocation*` subtitle, which the tags already state.
-		.filter((line) => !/^\s*\*(?:cantrip|\d+(?:st|nd|rd|th)-level)\b/i.test(line));
-
-	return stripMarkdownFromString(lines.join('\n'))
-		.replace(/\n{3,}/g, '\n\n')
-		.trim();
+	// Every field, the scaling line and the `**Classes**:` footer are all
+	// bold-labelled, so one filter removes the lot. The `*3rd-level, Evocation*`
+	// subtitle is dropped too, which the tags already state.
+	return proseBody(markdown, [FIELD_LINE, /^\s*\*(?:cantrip|\d+(?:st|nd|rd|th)-level)\b/i]);
 }
 
 /**
@@ -285,13 +272,12 @@ export function parseSpell(
 	// A spell note always states a casting time and a duration.
 	if (castingDetail === undefined && !fields.has('duration')) return null;
 
-	const tags = tagsOf(frontmatter);
-	const title = parseSections(markdown).find((section) => section.level === 1)?.title;
+	const tags = asStrings(frontmatter?.['tags']);
 	const { duration, concentration } = readDuration(fields.get('duration'));
 
 	return {
 		key,
-		name: title?.trim() || fallbackName,
+		name: titleOf(markdown, fallbackName),
 		desc: readDescription(markdown),
 		level: readLevel(tags),
 		school: tagValues(tags, 'school')[0] ?? null,

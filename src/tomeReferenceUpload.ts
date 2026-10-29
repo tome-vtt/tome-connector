@@ -1,12 +1,8 @@
 import type TomeConnectorPlugin from './main';
-import { describeFailure, postMultipartToTome } from './tomeApiClient';
+import { describeFailure, tomeHttp } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
 import { TOME_ROUTES } from './routes';
-import {
-	buildMultipartBody,
-	createMultipartBoundary,
-	sanitizeUploadFilename,
-} from './tomeMultipartBody';
+import { encodeForm, sanitizeUploadFilename } from './tomeMultipartBody';
 
 /**
  * Mirrors `ReferencesController.MaxPdfBytes`. Checked locally so a long
@@ -50,27 +46,20 @@ export async function uploadReferencePdf(
 		);
 	}
 
-	const boundary = createMultipartBoundary();
-	const multipart = buildMultipartBody(
-		[{ name: 'title', value: title }],
-		[
-			{
-				name: 'file',
-				filename: sanitizeUploadFilename(title),
-				contentType: 'application/pdf',
-				bytes: pdf,
-			},
-		],
-		boundary,
-	);
+	const form = new FormData();
+	form.append('title', title);
+	form.append('file', new Blob([new Uint8Array(pdf)], { type: 'application/pdf' }), sanitizeUploadFilename(title));
+	const { body, contentType } = await encodeForm(form);
 
-	const result = await postMultipartToTome(
-		plugin.settings.baseUrl,
-		TOME_ROUTES.uploadReference,
-		multipart.body,
-		multipart.contentType,
-		getApiKey(plugin),
-		campaignId,
+	const result = await tomeHttp.postMultipart(
+		{
+			baseUrl: plugin.settings.baseUrl,
+			path: TOME_ROUTES.uploadReference,
+			apiKey: getApiKey(plugin),
+			campaignId,
+		},
+		body,
+		contentType,
 	);
 	if (!result.ok) throw new Error(`the reference upload failed. ${describeFailure(result)}`);
 	return result.id;

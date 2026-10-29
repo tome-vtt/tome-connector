@@ -10,8 +10,7 @@
  * Pure and `obsidian`-free.
  */
 
-import { labelMap, parseSections, preamble } from '../labelledMarkdown';
-import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
+import { FIELD_LINE, labelMap, preamble, proseBody, titleOf } from '../labelledMarkdown';
 
 /** Mirrors the server's `Srd2024EquipmentOption`. */
 export interface EquipmentOption {
@@ -36,7 +35,7 @@ export interface Background {
 }
 
 /** The three-letter keys the builder indexes abilities by. */
-const ABILITIES: Record<string, string> = {
+export const ABILITIES: Record<string, string> = {
 	strength: 'str',
 	dexterity: 'dex',
 	constitution: 'con',
@@ -121,14 +120,7 @@ export function readEquipmentOptions(detail: string | undefined): EquipmentOptio
  * those are left out, being flavour tables rather than the description.
  */
 export function readDescription(markdown: string): string {
-	const lines = preamble(markdown)
-		.split(/\r?\n/)
-		.filter((line) => !/^[ \t]*(?:[-*+][ \t]+)?\*\*/.test(line))
-		// The source line and the portrait, which are not description.
-		.filter((line) => !/^\s*\*Source:/.test(line))
-		.filter((line) => !/^\s*!\[/.test(line));
-
-	return stripMarkdownFromString(lines.join('\n')).trim();
+	return proseBody(markdown, [FIELD_LINE]);
 }
 
 /**
@@ -150,12 +142,11 @@ export function parseBackground(
 		fields.get('skill proficiencies') ?? fields.get('skill proficiency') ?? null;
 	if (abilityScoresDetail === null && skillDetail === null) return null;
 
-	const title = parseSections(markdown).find((section) => section.level === 1)?.title;
 	const equipment = fields.get('equipment') ?? null;
 
 	return {
 		key,
-		name: title?.trim() || fallbackName,
+		name: titleOf(markdown, fallbackName),
 		desc: readDescription(markdown),
 		abilityScores: readAbilities(abilityScoresDetail ?? undefined),
 		abilityScoresDetail,

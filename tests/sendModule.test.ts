@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest';
 import type { SpellNote } from '../src/libraryItemBody';
 import type { EquipmentItem } from '../src/recognizers/compendium/equipmentItem';
 import type { MagicItem } from '../src/recognizers/compendium/magicItem';
-import { sendCharacterToTome as sendCharacter, sendToTome as send, type ModuleSendable } from '../src/sendModule';
+import {
+	sendBlockToTome as sendBlock,
+	sendCharacterToTome as sendCharacter,
+	sendToTome as send,
+	sendableName,
+	type ModuleSendable,
+} from '../src/sendModule';
 import { TINY_PNG, bodyOf, inMemorySendPorts } from './fixtures/inMemorySendPorts';
 
 const DESTINATION = { baseUrl: 'https://tome.example.com/', apiKey: 'key', campaignId: 'campaign-1' };
@@ -114,16 +120,17 @@ describe('sending a creature', () => {
 
 describe('sending a character', () => {
 	const SENDER = { baseUrl: 'https://tome.example.com/', apiKey: 'key' };
+	const PATH = 'Characters/Zabadun.md';
 	const note = {
-		path: 'Characters/Zabadun.md',
 		frontmatter: { name: 'Zabadun', dndbeyond_id: 123, image: '[[zabadun.png]]' },
 		content: '---\nname: Zabadun\n---\n# Zabadun\n',
 	};
+	const bare = { ...note, frontmatter: { name: 'Zabadun' } };
 
 	it('sends to My Characters with no campaign header, and records the id as tome_vault_id', async () => {
-		const { ports, sent, frontmatter } = inMemorySendPorts({ files: { 'Characters/zabadun.png': TINY_PNG } });
+		const { ports, sent, frontmatter } = inMemorySendPorts({ files: { 'Characters/zabadun.png': TINY_PNG }, notes: { [PATH]: note } });
 
-		const result = await sendCharacter(ports, note, SENDER, { kind: 'vault' });
+		const result = await sendCharacter(ports, PATH, SENDER, { kind: 'vault' });
 
 		expect(result).toMatchObject({ ok: true, id: 'id-1' });
 		expect(sent[0]?.url).toBe('https://tome.example.com/api/vault/characters/import');
@@ -133,9 +140,9 @@ describe('sending a character', () => {
 	});
 
 	it('sends to a campaign with its header, and records the id as tome_id', async () => {
-		const { ports, sent, frontmatter } = inMemorySendPorts({ files: { 'Characters/zabadun.png': TINY_PNG } });
+		const { ports, sent, frontmatter } = inMemorySendPorts({ files: { 'Characters/zabadun.png': TINY_PNG }, notes: { [PATH]: note } });
 
-		await sendCharacter(ports, note, SENDER, { kind: 'campaign', campaignId: 'campaign-1' });
+		await sendCharacter(ports, PATH, SENDER, { kind: 'campaign', campaignId: 'campaign-1' });
 
 		expect(sent[0]?.url).toBe('https://tome.example.com/api/playercharacters/addplayercharacter');
 		expect(sent[0]?.headers).toMatchObject({ 'X-Api-Key': 'key', 'X-Campaign-Id': 'campaign-1' });
@@ -143,28 +150,28 @@ describe('sending a character', () => {
 	});
 
 	it('records nothing when the server refuses the send', async () => {
-		const { ports, frontmatter } = inMemorySendPorts({ status: 400 });
+		const { ports, frontmatter } = inMemorySendPorts({ status: 400, notes: { [PATH]: bare } });
 
-		const result = await sendCharacter(ports, { ...note, frontmatter: { name: 'Zabadun' } }, SENDER, { kind: 'vault' });
+		const result = await sendCharacter(ports, PATH, SENDER, { kind: 'vault' });
 
 		expect(result.ok).toBe(false);
 		expect(frontmatter).toEqual({});
 	});
 
 	it('says the send went through when only the id write-back fails', async () => {
-		const { ports } = inMemorySendPorts();
+		const { ports } = inMemorySendPorts({ notes: { [PATH]: bare } });
 		ports.setFrontmatter = () => Promise.reject(new Error('note was moved'));
 
-		await expect(sendCharacter(ports, { ...note, frontmatter: { name: 'Zabadun' } }, SENDER, { kind: 'vault' })).rejects.toThrow(
+		await expect(sendCharacter(ports, PATH, SENDER, { kind: 'vault' })).rejects.toThrow(
 			/^Sent to Tome, but its id could not be written to Characters\/Zabadun\.md: note was moved$/,
 		);
 	});
 
 	it('sends only the properties the body reads, so an unread one cannot fail the send', async () => {
-		const { ports, sent } = inMemorySendPorts();
 		const stray = { name: 'Zabadun', portrait: { image: '[[missing.png]]' } };
+		const { ports, sent } = inMemorySendPorts({ notes: { [PATH]: { ...note, frontmatter: stray } } });
 
-		await sendCharacter(ports, { ...note, frontmatter: stray }, SENDER, { kind: 'vault' });
+		await sendCharacter(ports, PATH, SENDER, { kind: 'vault' });
 
 		expect(sent).toHaveLength(1);
 		expect(bodyOf(sent[0])).not.toHaveProperty('portrait');
@@ -172,6 +179,60 @@ describe('sending a character', () => {
 });
 
 const TOME_ID = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
+
+describe('sending a code block', () => {
+	const PATH = 'Bestiary/Goblin.md';
+	const TEXT = 'intro\n```statblock\nname: Goblin\n```\n';
+	const sendable = { ...creature(INLINE_GOBLIN, PATH) };
+	const lines = () => ({ lineStart: 1, lineEnd: 3 });
+
+	it('writes the id into the block it sent', async () => {
+		const { ports, notes } = inMemorySendPorts({ notes: { [PATH]: { content: TEXT } } });
+
+		await sendBlock(ports, sendable, DESTINATION, { kind: 'creature', lines });
+
+		expect(notes[PATH]?.content).toBe('intro\n```statblock\nname: Goblin\nid: id-1\n```\n');
+	});
+
+	it('looks the block up after the send, so an edit made meanwhile cannot shift the id', async () => {
+		const { ports, notes } = inMemorySendPorts({ notes: { [PATH]: { content: TEXT } } });
+		const post = ports.postJson.bind(ports);
+		ports.postJson = async (target, payload) => {
+			const result = await post(target, payload);
+			(notes[PATH] as { content: string }).content = `new line\n${TEXT}`;
+			return result;
+		};
+
+		await sendBlock(ports, sendable, DESTINATION, { kind: 'creature', lines: () => ({ lineStart: 2, lineEnd: 4 }) });
+
+		expect(notes[PATH]?.content).toBe('new line\nintro\n```statblock\nname: Goblin\nid: id-1\n```\n');
+	});
+
+	it('says the send went through when only the id write fails', async () => {
+		const { ports } = inMemorySendPorts({ notes: {} });
+
+		await expect(sendBlock(ports, sendable, DESTINATION, { kind: 'creature', lines })).rejects.toThrow(
+			/^Sent to Tome, but its id could not be written to Bestiary\/Goblin\.md: No note at Bestiary\/Goblin\.md$/,
+		);
+	});
+
+	it('writes nothing when the server refuses the send', async () => {
+		const { ports, notes } = inMemorySendPorts({ status: 400, notes: { [PATH]: { content: TEXT } } });
+
+		const result = await sendBlock(ports, sendable, DESTINATION, { kind: 'creature', lines });
+
+		expect(result.ok).toBe(false);
+		expect(notes[PATH]?.content).toBe(TEXT);
+	});
+
+	it('sends from the vault sync write no id', async () => {
+		const { ports, notes } = inMemorySendPorts({ notes: { [PATH]: { content: TEXT } } });
+
+		await send(ports, sendable, DESTINATION);
+
+		expect(notes[PATH]?.content).toBe(TEXT);
+	});
+});
 
 describe('sending a map', () => {
 	it('sends a Leaflet map whose image is a wikilink to a file in another folder', async () => {
@@ -229,6 +290,18 @@ describe('sending a bare image', () => {
 
 		expect(sent[0]?.url).toBe(url);
 		expect(bodyOf(sent[0])).toEqual({ title: 'Old Keep', image: TINY_PNG });
+	});
+});
+
+describe('naming what was sent', () => {
+	it.each([
+		[{ kind: 'image', path: 'Art/Old Keep.png', to: 'prop' }, 'Old Keep'],
+		[{ kind: 'prop', path: 'Keep.md', block: { title: 'Simple Chest' } }, 'Simple Chest'],
+		[creature(INLINE_GOBLIN), 'Goblin'],
+		[creature({ monster: 'Goblin Boss' }), 'Goblin Boss'],
+		[creature({ hp: 7 }, 'Bestiary/Cave Rat.md'), 'Cave Rat'],
+	] as [ModuleSendable, string][])('%o -> %s', (sendable, expected) => {
+		expect(sendableName(sendable)).toBe(expected);
 	});
 });
 

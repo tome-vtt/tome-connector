@@ -1,12 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Note } from '../src/recognizers/note';
+import { parseFeat } from '../src/recognizers/compendium/feat';
 import {
 	assemblePackage,
 	describeCounts,
 	isEmpty,
 	packageKeyFrom,
 } from '../src/recognizers/compendium/package';
+
+// The real parser, wrapped so one test can make it throw.
+vi.mock('../src/recognizers/compendium/feat', async (importOriginal) => {
+	const real = await importOriginal<typeof import('../src/recognizers/compendium/feat')>();
+	return { ...real, parseFeat: vi.fn(real.parseFeat) };
+});
 
 const srdSource =
 	"*Source: Player's Handbook (2024) p. 185. Available in the <span title='Systems Reference Document (5.2)'>SRD</span> and the Free Rules (2024)*";
@@ -61,7 +68,7 @@ describe('assemblePackage', () => {
 	});
 
 	it('sorts each type into its own list', () => {
-		expect(report.counts).toEqual({ species: 1, backgrounds: 1, feats: 1, spells: 1, subclasses: 0 });
+		expect(report.counts).toEqual({ species: 1, backgrounds: 1, feats: 1, spells: 1, subclasses: 0, items: 0 });
 		expect(report.package.species[0]?.name).toBe('Aasimar');
 		expect(report.package.backgrounds[0]?.name).toBe('Soldier');
 		expect(report.package.feats[0]?.name).toBe('Alert');
@@ -103,14 +110,84 @@ describe('assemblePackage', () => {
 	 * so the types with no parser are counted rather than dropped.
 	 */
 	it('counts the types it cannot yet import', () => {
-		const withItems = assemblePackage(
-			[species, note('CLI/items/rope.md', 'json5e-item', '# Rope'), note('CLI/items/axe.md', 'json5e-item', '# Axe')],
+		const withCreatures = assemblePackage(
+			[
+				species,
+				note('CLI/bestiary/goblin.md', 'json5e-monster', '# Goblin'),
+				note('CLI/bestiary/orc.md', 'json5e-monster', '# Orc'),
+			],
 			'k',
 			{ includeSrdContent: true },
 		);
 
-		expect(withItems.unsupported).toEqual({ item: 2 });
-		expect(withItems.counts.species).toBe(1);
+		expect(withCreatures.unsupported).toEqual({ creature: 2 });
+		expect(withCreatures.counts.species).toBe(1);
+	});
+
+	/**
+	 * A book's gear travels with the book, as the content source's `items`. Its magic
+	 * items do not: Tome keeps those in a catalogue of their own that a content source
+	 * cannot add to, so they are counted as not included rather than dropped.
+	 */
+	it('puts equipment in the package and counts magic items as not included', () => {
+		const rope = note(
+			'CLI/items/silk-rope-xphb.md',
+			'json5e-item',
+			"# Silk Rope\n*Adventuring gear*\n\n- **Cost**: 10 gp\n- **Weight**: 5.0 lbs.\n\nStrong and light.\n\n*Source: Player's Handbook (2024) p. 228*",
+			['ttrpg-cli/item/rarity/none'],
+		);
+		const cloak = note(
+			'CLI/items/cloak-of-elvenkind-xdmg.md',
+			'json5e-item',
+			"# Cloak of Elvenkind\n*Wondrous item, uncommon (requires attunement)*\n\nYou are hard to see.\n\n*Source: Dungeon Master's Guide (2024) p. 255*",
+			['ttrpg-cli/item/rarity/uncommon'],
+		);
+
+		const withItems = assemblePackage([rope, cloak], 'k');
+
+		expect(withItems.package.items).toEqual([
+			{
+				key: 'silk-rope-xphb',
+				name: 'Silk Rope',
+				desc: 'Strong and light.',
+				category: 'adventuring-gear',
+				cost: 10,
+				weight: 5,
+			},
+		]);
+		expect(withItems.counts.items).toBe(1);
+		expect(withItems.unsupported).toEqual({ 'magic-item': 1 });
+		expect(describeCounts(withItems.unsupported)).toBe('1 magic item');
+		expect(isEmpty(withItems)).toBe(false);
+	});
+
+	/** Tome ships the SRD's gear, so an SRD-marked item is left out like any other kind. */
+	it('leaves out SRD equipment unless asked', () => {
+		const rope = note(
+			'CLI/items/rope-xphb.md',
+			'json5e-item',
+			`# Rope\n*Adventuring gear*\n\n- **Cost**: 1 gp\n\nTie a knot.\n\n${srdSource}`,
+			['ttrpg-cli/item/rarity/none'],
+		);
+
+		const skipped = assemblePackage([rope], 'k');
+		expect(skipped.alreadyShipped).toBe(1);
+		expect(skipped.counts.items).toBe(0);
+		expect(assemblePackage([rope], 'k', { includeSrdContent: true }).counts.items).toBe(1);
+	});
+
+	/** One oddly named picture must not stop a whole book's import. */
+	it('imports equipment whose picture path has a stray percent sign', () => {
+		const flyer = note(
+			'CLI/items/sale-flyer-xphb.md',
+			'json5e-item',
+			"# Sale Flyer\n*Adventuring gear*\n\n![](img/50%off.png)\n\nHalf price.\n\n*Source: Player's Handbook (2024) p. 228*",
+			['ttrpg-cli/item/rarity/none'],
+		);
+
+		const report = assemblePackage([flyer], 'k');
+		expect(report.counts.items).toBe(1);
+		expect(report.failed).toEqual([]);
 	});
 
 	/** A vault holds session notes and daily notes; those are not a failure. */
@@ -150,6 +227,17 @@ describe('assemblePackage', () => {
 		expect(broken.counts.species).toBe(0);
 	});
 
+	it('reports a note whose parser throws and still assembles the rest', () => {
+		vi.mocked(parseFeat).mockImplementationOnce(() => {
+			throw new Error('boom');
+		});
+
+		const report = assemblePackage([feat, spell], 'k', { includeSrdContent: true });
+
+		expect(report.failed).toEqual(['CLI/feats/alert-xphb.md']);
+		expect(report.counts.spells).toBe(1);
+	});
+
 	/**
 	 * The default that decides what an import is worth. Tome ships SRD 5.2 and every
 	 * campaign composes on top of it, so importing the SRD again gives a campaign two
@@ -185,7 +273,7 @@ describe('assemblePackage', () => {
 			includeSrdContent: true,
 		});
 
-		expect(forced.counts).toEqual({ species: 1, backgrounds: 1, feats: 1, spells: 1, subclasses: 0 });
+		expect(forced.counts).toEqual({ species: 1, backgrounds: 1, feats: 1, spells: 1, subclasses: 0, items: 0 });
 		expect(forced.alreadyShipped).toBe(0);
 	});
 

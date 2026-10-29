@@ -6,27 +6,25 @@ import {
 } from './tomeConnectorSettings';
 import { registerBlockSendButtons } from './blockSendButton';
 import { registerCharacterContextMenu, registerCharacterSyncButton } from './syncPlayerCharacterToTome';
-import { registerFolderExportMenuItem } from './syncFolderToTome';
 import { registerSyncCommands } from './syncVaultCommands';
 import { registerImageContextMenu } from './sendImageToTome';
 
 export default class TomeConnectorPlugin extends Plugin {
 	override settings!: TomeConnectorSettings;
+	settingTab!: TomeConnectorSettingTab;
 
 	override async onload() {
 		await this.loadSettings();
 
-		this.addSettingTab(new TomeConnectorSettingTab(this.app, this));
+		this.settingTab = new TomeConnectorSettingTab(this.app, this);
+		this.addSettingTab(this.settingTab);
 
 		registerBlockSendButtons(this);
 		registerCharacterSyncButton(this);
 		registerCharacterContextMenu(this);
-		registerFolderExportMenuItem(this);
 		registerSyncCommands(this);
 		registerImageContextMenu(this);
 	}
-
-	override onunload() {}
 
 	async loadSettings() {
 		const stored = (await this.loadData()) as

@@ -2,22 +2,25 @@ import { Modal, Notice, parseYaml } from 'obsidian';
 import type { App } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
-import {
-	describeReport,
-	MAX_ATTEMPTS,
-	runBulkSend,
-	THROTTLE_MS,
-	type BulkItem,
-	type BulkReport,
-} from './bulkSend';
+import { describeReport, runBulkSend, THROTTLE_MS, type BulkReport } from './bulkSend';
 import { oneAtATime } from './oneAtATime';
-import { findSendables, summarise, type Sendable, type SendableKind } from './recognizers/noteScan';
-import { describeScope, readScope, type SyncScope } from './scopeReader';
-import { sendSendable } from './sendablePayload';
-import { loadCampaignChoice, rememberCampaign, renderCampaignSelector, type CampaignChoice } from './tomeCampaigns';
+import { summarise, type ScanWarning, type Sendable, type SendableKind } from './recognizers/noteScan';
+import { obsidianSendPorts } from './obsidianSendPorts';
+import { sendToTome } from './sendModule';
+import { describeScope, type SyncScope } from './scopeReader';
+import {
+	chosenCampaign,
+	loadCampaignChoice,
+	rememberCampaign,
+	renderCampaignSelector,
+	type CampaignChoice,
+	type TomeCampaign,
+} from './tomeCampaigns';
 import { getApiKey } from './tomeConnectorSettings';
 import { TomeProgressNotice } from './tomeProgressNotice';
 import { vaultNotes } from './vaultNotes';
+import { scanScope } from './vaultSyncSteps';
+import { describeError } from './shared';
 
 /**
  * Scanning a folder or the whole vault and sending everything found.
@@ -38,6 +41,26 @@ const KIND_NOUNS: Record<SendableKind, [string, string]> = {
 	spell: ['spell', 'spells'],
 };
 
+/** What the scan skipped or changed, listed under the note it is in. */
+function renderWarnings(contentEl: HTMLElement, warnings: ScanWarning[]): void {
+	if (warnings.length === 0) return;
+
+	const byNote = new Map<string, string[]>();
+	for (const { path, message } of warnings) {
+		const messages = byNote.get(path);
+		if (messages) messages.push(message);
+		else byNote.set(path, [message]);
+	}
+
+	contentEl.createEl('h4', { text: 'Not read in full' });
+	const list = contentEl.createEl('ul', { cls: 'tome-connector-sync-failures' });
+	for (const [path, messages] of byNote) {
+		const item = list.createEl('li', { text: path });
+		const reasons = item.createEl('ul');
+		for (const message of messages) reasons.createEl('li', { text: message });
+	}
+}
+
 /**
  * Shows what the scan found and waits for a yes.
  *
@@ -52,6 +75,7 @@ class ConfirmSyncModal extends Modal {
 	constructor(
 		app: App,
 		private readonly sendables: Sendable[],
+		private readonly warnings: ScanWarning[],
 		// Not `scope`: Modal already has one, for hotkeys.
 		private readonly syncScope: SyncScope,
 		private readonly choice: CampaignChoice,
@@ -85,6 +109,7 @@ class ConfirmSyncModal extends Modal {
 					'Looked for statblock, encounter, leaflet and zoommap blocks, notes whose ' +
 					'frontmatter declares a statblock, plus equipment, magic-item, and spell notes.',
 			});
+			renderWarnings(contentEl, this.warnings);
 			this.addButtons(contentEl, false);
 			return;
 		}
@@ -95,9 +120,10 @@ class ConfirmSyncModal extends Modal {
 		contentEl.createEl('p', {
 			cls: 'tome-connector-sync-hint',
 			text:
-				'Anything already sent from these notes will be updated rather than duplicated. ' +
-				'This can take a while for a large folder.',
+				'Anything already sent from these notes will be updated rather than duplicated.' +
+				(this.syncScope.kind === 'note' ? '' : ' This can take a while for a large folder.'),
 		});
+		renderWarnings(contentEl, this.warnings);
 
 		this.addButtons(contentEl, true);
 	}
@@ -171,11 +197,16 @@ class SyncProgressModal extends Modal {
 	}
 }
 
-/** The failures, so a run over hundreds of notes says which ones need attention. */
+/**
+ * The failures, and what the scan skipped or changed, so a run over hundreds of
+ * notes says which ones need attention.
+ */
 class SyncReportModal extends Modal {
 	constructor(
 		app: App,
 		private readonly report: BulkReport<Sendable>,
+		private readonly campaignName: string,
+		private readonly warnings: ScanWarning[],
 	) {
 		super(app);
 	}
@@ -183,8 +214,7 @@ class SyncReportModal extends Modal {
 	override onOpen(): void {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl('h3', { text: 'Sent to Tome' });
-		contentEl.createEl('p', { text: describeReport(this.report) });
+		contentEl.createEl('h3', { text: describeReport(this.report, this.campaignName) });
 
 		if (this.report.failed.length > 0) {
 			contentEl.createEl('h4', { text: 'Not sent' });
@@ -195,6 +225,7 @@ class SyncReportModal extends Modal {
 				});
 			}
 		}
+		renderWarnings(contentEl, this.warnings);
 
 		contentEl
 			.createDiv({ cls: 'tome-connector-sync-buttons' })
@@ -206,9 +237,6 @@ class SyncReportModal extends Modal {
 		this.contentEl.empty();
 	}
 }
-
-const sleep = (ms: number): Promise<void> =>
-	new Promise((resolve) => window.setTimeout(resolve, ms));
 
 /**
  * Scans, asks, sends, reports.
@@ -225,24 +253,23 @@ export const runVaultSync = oneAtATime(
 		if (choice === null) return;
 
 		const notice = new TomeProgressNotice('Tome connector: scanning…');
-		let sendables: Sendable[];
+		let scan: { sendables: Sendable[]; warnings: ScanWarning[] };
 		try {
-			const notes = await readScope(vaultNotes(plugin.app), scope, (done, total) =>
+			scan = await scanScope(vaultNotes(plugin.app), scope, parseYaml, (done, total) =>
 				notice.setProgress(done, total),
 			);
-			sendables = notes.flatMap((note) => findSendables(note, parseYaml));
 		} finally {
 			notice.hide();
 		}
 
 		// Awaited, not fired from the callback: the guard has to hold through the send.
 		const campaignId = await new Promise<string | null>((resolve) => {
-			new ConfirmSyncModal(plugin.app, sendables, scope, choice, resolve).open();
+			new ConfirmSyncModal(plugin.app, scan.sendables, scan.warnings, scope, choice, resolve).open();
 		});
 		if (campaignId === null) return;
 
 		void rememberCampaign(plugin, campaignId);
-		await send(plugin, sendables, campaignId);
+		await send(plugin, scan.sendables, scan.warnings, chosenCampaign(choice, campaignId));
 	},
 	() => new Notice('Tome connector: a sync is already running.'),
 );
@@ -250,44 +277,30 @@ export const runVaultSync = oneAtATime(
 async function send(
 	plugin: TomeConnectorPlugin,
 	sendables: Sendable[],
-	campaignId: string,
+	warnings: ScanWarning[],
+	campaign: TomeCampaign,
 ): Promise<void> {
 	const progress = new SyncProgressModal(plugin.app, sendables.length);
 	progress.open();
 
-	const apiKey = getApiKey(plugin);
-	const items: BulkItem<Sendable>[] = sendables.map((sendable) => ({
-		label: sendable.label,
-		path: sendable.path,
-		value: sendable,
-	}));
-
 	try {
+		const ports = obsidianSendPorts(plugin.app, plugin.settings.downscaleImages);
+		const destination = { baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId: campaign.id };
 		const report = await runBulkSend<Sendable>({
-			items,
+			items: sendables.map((sendable) => ({ label: sendable.label, path: sendable.path, value: sendable })),
 			sleep,
 			throttleMs: THROTTLE_MS,
-			maxAttempts: MAX_ATTEMPTS,
 			isCancelled: () => progress.isCancelled(),
 			onProgress: (done, _total, latest) => progress.update(done, latest.item.label),
-			send: async (item) => {
-				// Throwing here is how `runBulkSend` learns an item is unresolvable
-				// rather than merely refused, so it does not retry it.
-				return sendSendable(
-					plugin.app,
-					item.value,
-					{ baseUrl: plugin.settings.baseUrl, apiKey, campaignId },
-					plugin.settings.downscaleImages,
-				);
-			},
+			send: (item) => sendToTome(ports, item.value, destination),
 		});
 
 		progress.close();
-		new SyncReportModal(plugin.app, report).open();
+		new SyncReportModal(plugin.app, report, campaign.name, warnings).open();
 	} catch (error) {
 		progress.close();
 		console.error('Tome Connector: bulk sync failed', error);
-		const message = error instanceof Error ? error.message : String(error);
+		const message = describeError(error);
 		new Notice(`Tome connector: ${message}`);
 	}
 }

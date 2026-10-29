@@ -1,3 +1,4 @@
+import { basename } from './adventurePaths';
 import type { PlannedImage } from './adventurePlan';
 
 /**
@@ -24,15 +25,11 @@ import type { PlannedImage } from './adventurePlan';
  */
 const COVER_FILENAME = /cover|banner/i;
 
-function filenameOf(path: string): string {
-	return path.split('/').pop() ?? path;
-}
-
 /** The default `coverKey` for a plan whose `images` were just assembled, or null if it has none. */
 export function pickDefaultCover(images: readonly PlannedImage[]): string | null {
 	if (images.length === 0) return null;
 
-	const byFilename = images.find((image) => COVER_FILENAME.test(filenameOf(image.dmPath)));
+	const byFilename = images.find((image) => COVER_FILENAME.test(basename(image.dmPath)));
 	if (byFilename) return byFilename.key;
 
 	// `suggested` already carries `looksLikeMap`'s verdict from adventureParser.ts's

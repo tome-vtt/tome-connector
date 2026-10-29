@@ -32,9 +32,10 @@
 import { flattenLinks } from './adventureLinks';
 import { splitBlocks } from './adventureBlocks';
 import { looksLikeMap } from './adventureImages';
+import { stem } from './adventurePaths';
 import { pickDefaultCover } from './adventureCover';
 import { asRoomHeading } from './roomHeadings';
-import { preamble, sectionsAtLevel } from '../recognizers/labelledMarkdown';
+import { HEADING, preamble, sectionsAtLevel } from '../recognizers/labelledMarkdown';
 import type {
 	AdventurePlan,
 	EntityDestination,
@@ -88,8 +89,6 @@ interface RoomBlock {
 	id: string | null;
 }
 
-const HEADING = /^(#{1,6})[ \t]+(.+?)[ \t]*$/;
-
 /**
  * `## The Village Square %%tome_scene_id: 3fa85f64-...%%` - a hidden Obsidian
  * comment suffix `writeAdventureIdsToVault.ts` appends to a heading line once
@@ -103,11 +102,6 @@ export function stripSceneIdMarker(headingText: string): { title: string; id: st
 	const match = SCENE_ID_MARKER.exec(headingText);
 	if (!match?.[1]) return { title: headingText.trim(), id: null };
 	return { title: headingText.slice(0, match.index).trim(), id: match[1].trim() };
-}
-
-/** Drops a trailing `.ext`, so a fallback label built from a filename doesn't carry it. */
-function stripExtension(filename: string): string {
-	return filename.replace(/\.[^./]+$/, '');
 }
 
 /**
@@ -168,42 +162,26 @@ function destinationFor(kind: 'bestiary' | 'item' | 'unknown'): EntityDestinatio
 	return { to: 'skip' };
 }
 
-function registerEntities(
-	found: ReturnType<typeof flattenLinks>['entities'],
+function registerEntity(
+	key: string,
+	label: string,
+	destination: EntityDestination,
 	entities: Map<string, PlannedEntity>,
 ): void {
-	for (const ref of found) {
-		const existing = entities.get(ref.key);
-		if (existing) {
-			existing.occurrences += 1;
-			continue;
-		}
-		const destination = destinationFor(ref.kind);
-		entities.set(ref.key, {
-			key: ref.key,
-			label: ref.label,
-			tomeName: ref.label,
-			occurrences: 1,
-			suggested: destination,
-			chosen: destination,
-			resolvedId: null,
-		});
-	}
-}
-
-/**
- * A `[!npc]`-forced mention: unlike `registerEntities`, this destination is
- * not a guess `resolveEntityNames` might later correct - it is what the
- * author wrote, so it starts and stays `NonPlayerCharacter`.
- */
-function registerForcedEntity(key: string, label: string, entities: Map<string, PlannedEntity>): void {
 	const existing = entities.get(key);
 	if (existing) {
 		existing.occurrences += 1;
 		return;
 	}
-	const destination: EntityDestination = { to: 'NonPlayerCharacter' };
-	entities.set(key, { key, label, tomeName: label, occurrences: 1, suggested: destination, chosen: destination, resolvedId: null });
+	entities.set(key, {
+		key,
+		label,
+		tomeName: label,
+		occurrences: 1,
+		suggested: destination,
+		chosen: destination,
+		resolvedId: null,
+	});
 }
 
 function registerImage(
@@ -213,9 +191,20 @@ function registerImage(
 	playerPath: string | null,
 	suggested: ImageDestination,
 	images: Map<string, PlannedImage>,
+	destinationForced = false,
 ): void {
-	if (images.has(key)) return;
-	images.set(key, { key, label, dmPath, playerPath, suggested, chosen: suggested, resolvedId: null });
+	const existing = images.get(key);
+	if (existing) {
+		if (destinationForced && !existing.destinationForced) {
+			existing.destinationForced = true;
+			existing.suggested = suggested;
+			existing.chosen = suggested;
+		}
+		return;
+	}
+	images.set(key, { key, label, dmPath, playerPath, suggested, chosen: suggested, resolvedId: null,
+		...(destinationForced ? { destinationForced: true } : {}),
+	});
 }
 
 /**
@@ -236,8 +225,7 @@ function makeScene(title: string, body: string, id: string | null, acc: ParseAcc
 			// A picture captioned or named "map" is a battle map; everything else
 			// is scene art, which is a prop. Both are nodes either way.
 			const suggested: ImageDestination = { to: looksLikeMap(raw.alt, raw.dmPath) ? 'Map' : 'Prop' };
-			const filename = raw.dmPath.split('/').pop() ?? raw.dmPath;
-			const label = raw.alt || stripExtension(filename);
+			const label = raw.alt || stem(raw.dmPath);
 			registerImage(raw.dmPath, label, raw.dmPath, raw.playerPath, suggested, acc.images);
 			blocks.push({ kind: 'Entity', key: raw.dmPath, from: 'image', note: raw.alt || null, audience: 'Gm' });
 			continue;
@@ -245,18 +233,21 @@ function makeScene(title: string, body: string, id: string | null, acc: ParseAcc
 
 		if (raw.type === 'forced-entity') {
 			if (raw.to === 'NonPlayerCharacter') {
-				registerForcedEntity(raw.key, raw.label, acc.entities);
+				// A `[!npc]`-forced mention is what the author wrote, not a guess `resolveEntityNames` might correct.
+				registerEntity(raw.key, raw.label, { to: 'NonPlayerCharacter' }, acc.entities);
 				blocks.push({ kind: 'Entity', key: raw.key, from: 'entity', note: null, audience: 'Gm' });
 			} else {
 				const suggested: ImageDestination = { to: raw.to };
-				registerImage(raw.key, raw.label, raw.key, null, suggested, acc.images);
+				registerImage(raw.key, raw.label, raw.key, null, suggested, acc.images, true);
 				blocks.push({ kind: 'Entity', key: raw.key, from: 'image', note: null, audience: 'Gm' });
 			}
 			continue;
 		}
 
 		const flattened = flattenLinks(raw.text);
-		registerEntities(flattened.entities, acc.entities);
+		for (const mention of flattened.entities) {
+			registerEntity(mention.key, mention.label, destinationFor(mention.kind), acc.entities);
+		}
 		blocks.push({
 			kind: raw.kind,
 			audience: raw.audience,

@@ -45,12 +45,15 @@ Open **Settings -> Tome Connector** and configure:
   sent in the `X-Api-Key` header and is not stored in the plugin's `data.json`.
 - **Sync tag**: A tag such as `#tome`. Notes carrying it are included by the
   *Send notes with the sync tag to Tome* command. Leave it empty and that
-  command hides itself; the folder and vault commands never consult it.
+  command opens this setting instead; the folder and vault commands never consult it.
 - **Downscale images before sending**: On by default. See below.
 
 The API key determines the Tome account. Before every campaign-scoped import, the
 connector loads that account's campaigns and asks which one should receive the content.
 It sends the selected id in the `X-Campaign-Id` header.
+
+Every request also carries the connector's own version, from its manifest, in the
+`X-Tome-Connector-Version` header, so Tome can tell you when your connector is out of date.
 
 ### Image size
 
@@ -222,6 +225,9 @@ Payloads and API keys are not written to the developer console. Failed server
 responses may be logged to help diagnose API errors.
 
 ## Development
+
+Use Node.js 22.13 or later in the 22.x series, 24.x, or 26 and later.
+Vitest 5 no longer supports Node.js 20.
 
 Install dependencies and run the checks from this directory:
 

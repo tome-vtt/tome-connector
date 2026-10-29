@@ -70,15 +70,6 @@ describe('buildChapterPlan', () => {
 		expect(outline(plan)).toEqual(['g1 Rooms', 'c2 Cellar', 'c1 Intro']);
 	});
 
-	it('emits the folder’s own notes first when asked to', () => {
-		const plan = buildChapterPlan(
-			folder('Adventure', [note('Intro')], [folder('Rooms', [note('Cellar')])]),
-			{ notesBeforeSubfolders: true },
-		);
-
-		expect(outline(plan)).toEqual(['c1 Intro', 'g1 Rooms', 'c2 Cellar']);
-	});
-
 	it('nests three levels deep at group 1/2/3 and chapter 2/3/4', () => {
 		const plan = buildChapterPlan(
 			folder(

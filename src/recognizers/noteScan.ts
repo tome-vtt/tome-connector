@@ -13,6 +13,7 @@
  */
 
 import { extractFencedBlocks } from './markdownBlocks';
+import { asRecord } from '../shared';
 import type { SpellNote } from '../libraryItemBody';
 import { cliNoteType } from './compendium/cliNote';
 import { parseEquipmentItem, type EquipmentItem } from './compendium/equipmentItem';
@@ -21,7 +22,7 @@ import { parseSpell } from './compendium/spell';
 import { mapToEncounterPayload, type EncounterPayload } from './encounter';
 import { mapReferenceFrom, type MapReference } from './map';
 import { hasInlineStats } from './statblockCreature';
-import { noteName, type Note } from './note';
+import { noteName, type Note, type Warn } from './note';
 
 /**
  * What was recognised, by kind, each carrying its own typed parse. A creature stays
@@ -52,6 +53,23 @@ export type Sendable = SendableParse & {
 
 export type SendableKind = Sendable['kind'];
 
+/** A block the scan skipped, or an entry it changed, in the note it came from. */
+export interface ScanWarning {
+	path: string;
+	message: string;
+}
+
+/**
+ * The fences `sendableFromBlock` reads, by what a warning calls them; any other
+ * fence is someone else's and skipped quietly.
+ */
+const BLOCK_NOUNS: Partial<Record<string, string>> = {
+	statblock: 'Statblock',
+	encounter: 'Encounter',
+	leaflet: 'Map',
+	zoommap: 'Map',
+};
+
 /** Injected so this module never imports `obsidian`. Returns null on bad YAML. */
 export type YamlParser = (source: string) => unknown;
 
@@ -72,13 +90,24 @@ export function declaresStatblock(frontmatter: Record<string, unknown> | null): 
 	return true;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: null;
+/** Whether a note's text holds a fence this scan reads: statblock, encounter or map. */
+export function hasSendableFence(markdown: string): boolean {
+	return extractFencedBlocks(markdown).some((block) => BLOCK_NOUNS[block.language] !== undefined);
 }
 
-function creatureLabel(record: Record<string, unknown>, fallback: string): string {
+/**
+ * Whether a file's menu offers "Send this note to Tome": a markdown note whose
+ * frontmatter declares a statblock or whose text holds a sendable fence.
+ */
+export function offersNoteSend(
+	extension: string,
+	frontmatter: Record<string, unknown> | null,
+	holdsSendableFence: boolean,
+): boolean {
+	return extension === 'md' && (holdsSendableFence || declaresStatblock(frontmatter));
+}
+
+export function creatureLabel(record: Record<string, unknown>, fallback: string): string {
 	const name = record.name ?? record.monster;
 	return typeof name === 'string' && name.trim() !== '' ? name.trim() : fallback;
 }
@@ -93,27 +122,36 @@ function creatureLabel(record: Record<string, unknown>, fallback: string): strin
  * fence. The CLI writes both, with the fence holding the real stats and the
  * frontmatter carrying `statblock: inline` to point at it; reading both would
  * import every one of its 667 creatures twice.
+ *
+ * Every recognised block it skips, and every entry it changes, is passed to `warn`.
  */
-export function findSendables(note: Note, parseYaml: YamlParser): Sendable[] {
+export function findSendables(note: Note, parseYaml: YamlParser, warn: Warn = () => {}): Sendable[] {
 	const found: Sendable[] = [];
 	let sawStatblockFence = false;
 
 	for (const block of extractFencedBlocks(note.content)) {
 		if (block.language === 'statblock') sawStatblockFence = true;
+		const noun = BLOCK_NOUNS[block.language];
+		if (noun === undefined) continue;
 
+		const skipped = (reason: string) => warn(`${noun} block skipped: ${reason}.`);
 		let record: Record<string, unknown> | null;
 		try {
 			record = asRecord(parseYaml(block.source));
 		} catch {
+			skipped('its YAML could not be read');
 			continue;
 		}
-		if (!record) continue;
+		if (!record) {
+			skipped('it is not a set of fields');
+			continue;
+		}
 
-		const sendable = sendableFromBlock(block.language, record, note);
+		const sendable = sendableFromBlock(block.language, record, note, warn);
 		if (sendable) found.push(sendable);
 	}
 
-	const fromFrontmatter = creatureFromFrontmatter(note, sawStatblockFence);
+	const fromFrontmatter = creatureFromFrontmatter(note, sawStatblockFence, warn);
 	if (fromFrontmatter) found.push(fromFrontmatter);
 
 	const item = magicItemFrom(note) ?? equipmentItemFrom(note);
@@ -173,32 +211,43 @@ function equipmentItemFrom(note: Note): Sendable | null {
 	return { kind: 'equipmentItem', path: note.path, label: item.name, item };
 }
 
+/**
+ * The creature a statblock fence or frontmatter record describes, or null with neither stats nor a
+ * `monster:` reference. A bare `monster:` reference is included: it needs the bestiary, and
+ * whether that is available is the sender's problem to report per item rather than a reason to
+ * hide it from the count.
+ */
+function creatureSendable(record: Record<string, unknown>, note: Note, warn: Warn, where: string): Sendable | null {
+	if (!hasInlineStats(record) && typeof record.monster !== 'string') {
+		warn(`${where} skipped: it has no stats and no monster: reference.`);
+		return null;
+	}
+	return {
+		kind: 'creature',
+		path: note.path,
+		label: creatureLabel(record, noteName(note.path)),
+		block: record,
+	};
+}
+
 /** One recognised block, or null when this language or shape is not sendable. */
 function sendableFromBlock(
 	language: string,
 	record: Record<string, unknown>,
 	note: Note,
+	warn: Warn,
 ): Sendable | null {
 	switch (language) {
 		case 'statblock': {
-			// A bare `monster:` reference is included: it needs the bestiary, and
-			// whether that is available is the sender's problem to report per item
-			// rather than a reason to hide it from the count.
-			if (!hasInlineStats(record) && typeof record.monster !== 'string') return null;
-			return {
-				kind: 'creature',
-				path: note.path,
-				label: creatureLabel(record, noteName(note.path)),
-				block: record,
-			};
+			return creatureSendable(record, note, warn, 'Statblock block');
 		}
 		case 'encounter': {
-			const encounter = mapToEncounterPayload(record);
+			const encounter = mapToEncounterPayload(record, warn);
 			return encounter ? { kind: 'encounter', path: note.path, label: encounter.name, encounter } : null;
 		}
 		case 'leaflet':
 		case 'zoommap': {
-			const map = mapReferenceFrom(record);
+			const map = mapReferenceFrom(record, warn);
 			return map ? { kind: 'map', path: note.path, label: map.title, map } : null;
 		}
 		default:
@@ -213,20 +262,12 @@ function sendableFromBlock(
  * `statblock: inline` pointing at it - so taking the frontmatter as well would
  * import every one of its 667 creatures twice.
  */
-function creatureFromFrontmatter(note: Note, sawStatblockFence: boolean): Sendable | null {
+function creatureFromFrontmatter(note: Note, sawStatblockFence: boolean, warn: Warn): Sendable | null {
 	if (sawStatblockFence || !note.frontmatter || !declaresStatblock(note.frontmatter)) {
 		return null;
 	}
 
-	const record = note.frontmatter;
-	if (!hasInlineStats(record) && typeof record.monster !== 'string') return null;
-
-	return {
-		kind: 'creature',
-		path: note.path,
-		label: creatureLabel(record, noteName(note.path)),
-		block: record,
-	};
+	return creatureSendable(note.frontmatter, note, warn, 'Statblock frontmatter');
 }
 
 /** Counts by kind, for the preview. Kinds with nothing found are omitted. */

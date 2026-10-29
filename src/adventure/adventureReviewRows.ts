@@ -20,36 +20,25 @@ import type {
 	PlannedImage,
 } from './adventurePlan';
 
-export interface EntityGroup {
-	key: EntityDestination['to'];
-	label: string;
-	items: PlannedEntity[];
-}
-
-export interface ImageGroup {
-	key: ImageDestination['to'];
-	label: string;
-	items: PlannedImage[];
-}
-
 /**
  * Order fixes the dialog's reading order too: what to upload first,
  * ending on what nothing will be done with.
  */
-const ENTITY_LABELS: [EntityDestination['to'], string][] = [
-	['NonPlayerCharacter', 'creatures'],
-	['MagicItem', 'magic items'],
-	['EquipmentItem', 'equipment'],
-	['skip', 'not recognised'],
+export const ENTITY_LABELS: [EntityDestination['to'], string, string][] = [
+	['NonPlayerCharacter', 'creature', 'creatures'],
+	['MagicItem', 'magic item', 'magic items'],
+	['EquipmentItem', 'equipment', 'equipment'],
+	['skip', 'not recognised', 'not recognised'],
 ];
 
-const IMAGE_LABELS: [ImageDestination['to'], string][] = [
-	['Map', 'battlemaps'],
-	['Prop', 'illustrations and props'],
-	['skip', 'skipped'],
+export const IMAGE_LABELS: [ImageDestination['to'], string, string][] = [
+	['Map', 'battlemap', 'battlemaps'],
+	['Prop', 'illustration or prop', 'illustrations and props'],
+	['skip', 'skipped', 'skipped'],
 ];
 
-function groupBy<T, K extends string>(items: T[], keyOf: (item: T) => K, labels: [K, string][]): { key: K; label: string; items: T[] }[] {
+/** Buckets items by keyOf (the dialog passes what the parser suggested, not what a row's been changed to), in labels order, omitting empty buckets. */
+export function groupBy<T, K extends string>(items: T[], keyOf: (item: T) => K, labels: [K, string, string][]): { key: K; label: string; items: T[] }[] {
 	const buckets = new Map<K, T[]>();
 	for (const item of items) {
 		const key = keyOf(item);
@@ -57,28 +46,15 @@ function groupBy<T, K extends string>(items: T[], keyOf: (item: T) => K, labels:
 		if (list) list.push(item);
 		else buckets.set(key, [item]);
 	}
-	return labels.filter(([key]) => buckets.has(key)).map(([key, label]) => ({
+	return labels.filter(([key]) => buckets.has(key)).map(([key, singular, plural]) => ({
 		key,
-		label,
+		label: buckets.get(key)?.length === 1 ? singular : plural,
 		items: buckets.get(key) ?? [],
 	}));
 }
 
-/** Entities grouped by what the parser suggested, not by what a row's been changed to. */
-export function groupEntities(entities: PlannedEntity[]): EntityGroup[] {
-	return groupBy(entities, (entity) => entity.suggested.to, ENTITY_LABELS);
-}
-
-export function groupImages(images: PlannedImage[]): ImageGroup[] {
-	return groupBy(images, (image) => image.suggested.to, IMAGE_LABELS);
-}
-
 /** Mutates every item in the group - what a group header's set-all control calls. */
-export function setAllEntities(items: PlannedEntity[], to: EntityDestination): void {
-	for (const item of items) item.chosen = to;
-}
-
-export function setAllImages(items: PlannedImage[], to: ImageDestination): void {
+export function setAll<T extends { chosen: D }, D>(items: T[], to: D): void {
 	for (const item of items) item.chosen = to;
 }
 
