@@ -1,8 +1,8 @@
 import type { Note } from './recognizers/note';
 
 /**
- * Which notes a bulk run reads - a folder, the whole vault, or the sync tag - and
- * the reading of them.
+ * Which notes a bulk run reads - a folder, one note, the whole vault, or the sync
+ * tag - and the reading of them.
  *
  * The vault sync and the content-source import read a whole scope through
  * {@link readScope}; the adventure scan reads the one note a link points at through

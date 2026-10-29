@@ -71,6 +71,7 @@ const plugin = { app: {}, settings: {} } as unknown as TomeConnectorPlugin;
 
 /** Opens the dialog for `scope`, returns its text, and cancels it. */
 async function dialogText(scope: SyncScope): Promise<string> {
+	// Before the run, not just on open: the scan is awaited first, and a stale Cancel would close the last dialog.
 	shown.texts = [];
 	shown.buttons.clear();
 	const run = runVaultSync(plugin, scope);
