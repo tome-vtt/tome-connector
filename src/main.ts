@@ -12,11 +12,13 @@ import { registerImageContextMenu } from './sendImageToTome';
 
 export default class TomeConnectorPlugin extends Plugin {
 	override settings!: TomeConnectorSettings;
+	settingTab!: TomeConnectorSettingTab;
 
 	override async onload() {
 		await this.loadSettings();
 
-		this.addSettingTab(new TomeConnectorSettingTab(this.app, this));
+		this.settingTab = new TomeConnectorSettingTab(this.app, this);
+		this.addSettingTab(this.settingTab);
 
 		registerBlockSendButtons(this);
 		registerCharacterSyncButton(this);

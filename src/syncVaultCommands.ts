@@ -65,11 +65,10 @@ function registerSendCommands(plugin: TomeConnectorPlugin): void {
 	plugin.addCommand({
 		id: 'send-tagged-to-tome',
 		name: 'Send notes with the sync tag to Tome',
-		checkCallback: (checking: boolean) => {
+		callback: () => {
 			const tag = plugin.settings.syncTag.trim();
-			if (tag === '') return false;
-			if (!checking) void runVaultSync(plugin, { kind: 'tag', tag });
-			return true;
+			if (tag === '') plugin.settingTab.openAtSyncTag();
+			else void runVaultSync(plugin, { kind: 'tag', tag });
 		},
 	});
 }
