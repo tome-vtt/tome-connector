@@ -48,7 +48,11 @@ function openFolderMenu(): FakeMenu {
 		settings: { syncTag: '' },
 		addCommand: vi.fn(),
 		registerEvent: vi.fn(),
-		app: { workspace: { on: (_: string, h: (typeof handlers)[number]) => handlers.push(h) } },
+		app: {
+			workspace: { on: (_: string, h: (typeof handlers)[number]) => handlers.push(h), onLayoutReady: vi.fn() },
+			metadataCache: { on: vi.fn() },
+			vault: { on: vi.fn() },
+		},
 	};
 	registerSyncCommands(plugin as never);
 	const menu = fakeMenu();

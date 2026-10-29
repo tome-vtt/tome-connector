@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('obsidian', () => ({
 	TFolder: class {},
 	TFile: class {},
+	Platform: { isDesktopApp: true },
 }));
 vi.mock('../src/syncVaultToTome', () => ({ runVaultSync: vi.fn() }));
+vi.mock('../src/syncFolderToTome', () => ({ runFolderExport: vi.fn() }));
 vi.mock('../src/importContentSource', () => ({ runContentImport: vi.fn() }));
 vi.mock('../src/adventure/sendAdventureToTome', () => ({ runAdventureFolderImport: vi.fn() }));
 
