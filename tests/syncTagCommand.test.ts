@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('obsidian', () => ({ TFolder: class {} }));
 vi.mock('../src/syncVaultToTome', () => ({ runVaultSync: vi.fn() }));
-vi.mock('../src/syncFolderToTome', () => ({ referenceMenuEntry: vi.fn(() => []) }));
+vi.mock('../src/syncFolderToTome', () => ({ runFolderExport: vi.fn() }));
 vi.mock('../src/importContentSource', () => ({ runContentImport: vi.fn() }));
 vi.mock('../src/adventure/sendAdventureToTome', () => ({ runAdventureFolderImport: vi.fn() }));
 
