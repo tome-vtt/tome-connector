@@ -14,6 +14,8 @@ import type { Note } from './recognizers/note';
 export type SyncScope =
 	/** `TFolder` fits; only its path and name are read. */
 	| { kind: 'folder'; folder: { path: string; name: string } }
+	/** `TFile` fits; only its path and basename are read. */
+	| { kind: 'note'; note: { path: string; basename: string } }
 	| { kind: 'vault' }
 	| { kind: 'tag'; tag: string };
 
@@ -31,6 +33,8 @@ export function describeScope(scope: SyncScope): string {
 	switch (scope.kind) {
 		case 'folder':
 			return `"${scope.folder.name}"`;
+		case 'note':
+			return `"${scope.note.basename}"`;
 		case 'vault':
 			return 'this vault';
 		case 'tag':
@@ -50,6 +54,8 @@ function pathsInScope(notes: NoteSource, scope: SyncScope): string[] {
 			const prefix = `${scope.folder.path}/`;
 			return all.filter((path) => path === scope.folder.path || path.startsWith(prefix));
 		}
+		case 'note':
+			return all.filter((path) => path === scope.note.path);
 		case 'tag': {
 			const wanted = scope.tag.startsWith('#') ? scope.tag : `#${scope.tag}`;
 			return all.filter((path) => notes.tags(path).includes(wanted));

@@ -150,8 +150,7 @@ function registerNoteMenu(plugin: TomeConnectorPlugin): void {
 			menu.addItem((item) => {
 				item.setTitle('Send this note to Tome')
 					.setIcon('upload-cloud')
-					// A folder scope whose path is the note's own path reads just that note.
-					.onClick(() => void runVaultSync(plugin, { kind: 'folder', folder: file }));
+					.onClick(() => void runVaultSync(plugin, { kind: 'note', note: file }));
 			});
 		}),
 	);
