@@ -17,7 +17,11 @@ function setup(syncTag: string) {
 		settingTab: { openAtSyncTag },
 		addCommand: (c: Command) => commands.set(c.id, c),
 		registerEvent: vi.fn(),
-		app: { workspace: { on: vi.fn(), getActiveFile: () => null } },
+		app: {
+			workspace: { on: vi.fn(), onLayoutReady: vi.fn(), getActiveFile: () => null },
+			metadataCache: { on: vi.fn() },
+			vault: { on: vi.fn() },
+		},
 	};
 	registerSyncCommands(plugin as never);
 	return { command: commands.get('send-tagged-to-tome'), openAtSyncTag };
