@@ -45,7 +45,7 @@ Open **Settings -> Tome Connector** and configure:
   sent in the `X-Api-Key` header and is not stored in the plugin's `data.json`.
 - **Sync tag**: A tag such as `#tome`. Notes carrying it are included by the
   *Send notes with the sync tag to Tome* command. Leave it empty and that
-  command hides itself; the folder and vault commands never consult it.
+  command opens this setting instead; the folder and vault commands never consult it.
 - **Downscale images before sending**: On by default. See below.
 
 The API key determines the Tome account. Before every campaign-scoped import, the

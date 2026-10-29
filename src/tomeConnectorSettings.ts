@@ -39,7 +39,7 @@ export interface TomeConnectorSettings {
 	/**
 	 * Tag that marks a note for the "send notes with the sync tag" command.
 	 *
-	 * Empty by default, and the command hides itself while it is - a default of
+	 * Empty by default, and the command opens this setting while it is - a default of
 	 * `#tome` would look like a promise that tagging something does anything on
 	 * its own, when nothing syncs without being asked.
 	 */
@@ -76,6 +76,7 @@ export function getApiKey(plugin: TomeConnectorPlugin): string {
 
 export class TomeConnectorSettingTab extends PluginSettingTab {
 	plugin: TomeConnectorPlugin;
+	private syncTagInput: HTMLInputElement | null = null;
 
 	constructor(app: App, plugin: TomeConnectorPlugin) {
 		super(app, plugin);
@@ -113,7 +114,7 @@ export class TomeConnectorSettingTab extends PluginSettingTab {
 			},
 			{
 				name: 'Sync tag',
-				desc: 'Notes carrying this tag are included by the "Send notes with the sync tag to Tome" command. Leave it empty to hide that command; the folder and vault commands do not use it.',
+				desc: 'Notes carrying this tag are included by the "Send notes with the sync tag to Tome" command. Leave it empty and that command opens this setting instead; the folder and vault commands do not use it.',
 				aliases: ['tag', 'bulk', 'scan'],
 				render: (setting) => this.renderSyncTag(setting),
 			},
@@ -193,6 +194,16 @@ export class TomeConnectorSettingTab extends PluginSettingTab {
 		showWarning(this.plugin.settings.baseUrl);
 	}
 
+	/** Opens Obsidian's settings on this tab with the sync tag field focused. */
+	openAtSyncTag(): void {
+		// `app.setting` is not in the public typings.
+		const settings = (this.app as unknown as { setting: { open(): void; openTabById(id: string): void } }).setting;
+		settings.open();
+		settings.openTabById(this.plugin.manifest.id);
+		// The pane may render a tick after opening.
+		window.setTimeout(() => this.syncTagInput?.focus(), 50);
+	}
+
 	private renderSyncTag(setting: Setting): void {
 		const warningEl = setting.descEl.createDiv({
 			cls: 'tome-connector-transport-warning',
@@ -204,16 +215,17 @@ export class TomeConnectorSettingTab extends PluginSettingTab {
 			warningEl.toggleClass('tome-hidden', warning === null);
 		};
 
-		setting.addText((text) =>
-			text
+		setting.addText((text) => {
+			this.syncTagInput = text.inputEl;
+			return text
 				.setPlaceholder('#tome')
 				.setValue(this.plugin.settings.syncTag)
 				.onChange(async (value) => {
 					this.plugin.settings.syncTag = value.trim();
 					await this.plugin.saveSettings();
 					showWarning(this.plugin.settings.syncTag);
-				}),
-		);
+				});
+		});
 
 		showWarning(this.plugin.settings.syncTag);
 	}
