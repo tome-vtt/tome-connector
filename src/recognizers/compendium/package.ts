@@ -232,7 +232,12 @@ function sortNotes(notes: Note[], options: AssembleOptions): Sorted {
 			continue;
 		}
 
-		const result = parseNote(note, type);
+		let result: Parsed | null;
+		try {
+			result = parseNote(note, type);
+		} catch {
+			result = null;
+		}
 		if (result === null) {
 			out.failed.push(note.path);
 			continue;

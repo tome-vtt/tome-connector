@@ -4,6 +4,7 @@ import type { App, TextComponent } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { scanCompendium, suggestedKey, uploadPackage, type CompendiumScan } from './contentImport';
 import { oneAtATime } from './oneAtATime';
+import { describeError } from './shared';
 import { validateManifest, type ImportManifest } from './recognizers/compendium/importRequest';
 import {
 	describeCounts,
@@ -349,36 +350,46 @@ class ConfirmImportModal extends Modal {
  */
 export const runContentImport = oneAtATime(
 	async (plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> => {
-		const notice = new TomeProgressNotice('Tome connector: reading the compendium…');
-		let scan: CompendiumScan;
+		// Every caller fires this with `void`, so anything thrown would go unseen.
 		try {
-			scan = await scanCompendium(vaultNotes(plugin.app), scope, (done, total) =>
-				notice.setProgress(done, total),
-			);
-		} finally {
-			notice.hide();
-		}
-
-		// Awaited, not fired from a callback: the guard has to hold through the upload.
-		let options: AssembleOptions = {};
-		// Shared by every reopen: each dialog writes what is typed straight into it.
-		const typed: TypedFields = {};
-		for (;;) {
-			const report = scan.assemble(options);
-			const answer = await new Promise<ImportAnswer>((resolve) => {
-				new ConfirmImportModal(plugin.app, report, scope, options, typed, resolve).open();
-			});
-			if (answer === null) return;
-			if ('options' in answer) {
-				options = answer.options;
-				continue;
-			}
-			await upload(plugin, report, answer.manifest);
-			return;
+			await importContent(plugin, scope);
+		} catch (error) {
+			console.error('Tome Connector: content import failed', error);
+			new Notice(`Tome connector: ${describeError(error)}`);
 		}
 	},
 	() => new Notice('Tome connector: an import is already running.'),
 );
+
+async function importContent(plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> {
+	const notice = new TomeProgressNotice('Tome connector: reading the compendium…');
+	let scan: CompendiumScan;
+	try {
+		scan = await scanCompendium(vaultNotes(plugin.app), scope, (done, total) =>
+			notice.setProgress(done, total),
+		);
+	} finally {
+		notice.hide();
+	}
+
+	// Awaited, not fired from a callback: the guard has to hold through the upload.
+	let options: AssembleOptions = {};
+	// Shared by every reopen: each dialog writes what is typed straight into it.
+	const typed: TypedFields = {};
+	for (;;) {
+		const report = scan.assemble(options);
+		const answer = await new Promise<ImportAnswer>((resolve) => {
+			new ConfirmImportModal(plugin.app, report, scope, options, typed, resolve).open();
+		});
+		if (answer === null) return;
+		if ('options' in answer) {
+			options = answer.options;
+			continue;
+		}
+		await upload(plugin, report, answer.manifest);
+		return;
+	}
+}
 
 async function upload(
 	plugin: TomeConnectorPlugin,
