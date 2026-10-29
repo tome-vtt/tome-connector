@@ -12,6 +12,7 @@ import {
 	type AssembleOptions,
 	type PackageReport,
 } from './recognizers/compendium/package';
+import { suggestedAttribution } from './recognizers/compendium/sourceLine';
 import { describeScope, type SyncScope } from './scopeReader';
 import { tomeHttp } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
@@ -122,7 +123,7 @@ class ConfirmImportModal extends Modal {
 		if (skipped !== '') {
 			contentEl.createEl('p', {
 				cls: 'tome-connector-sync-hint',
-				text: `Not included: ${skipped}. Creatures and magic items go to a campaign with "Send folder to Tome" instead.`,
+				text: `Not included: ${skipped}. Creatures and magic items go to a campaign with "Import Library items to Tome" instead.`,
 			});
 		}
 
@@ -201,11 +202,12 @@ class ConfirmImportModal extends Modal {
 			return;
 		}
 
+		const books = suggestedAttribution(sources);
 		contentEl.createEl('p', {
 			cls: 'tome-connector-sync-hint',
 			text:
 				`${sources.nonSrdCount} of these notes are book content rather than SRD` +
-				`${sources.books.length > 0 ? ` (${sources.books.join('; ')})` : ''}. ` +
+				`${books === null ? '' : ` (${books})`}. ` +
 				'It stays private to your account and cannot be shared. Say what licence you hold it under.',
 		});
 	}

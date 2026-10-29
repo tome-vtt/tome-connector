@@ -87,13 +87,13 @@ describe('"Send this note to Tome" on a note\'s menu', () => {
 		expect(menuTitles(renamed)).not.toContain('Send this note to Tome');
 	});
 
-	it('sends just that note through the folder path', () => {
+	it('sends just that note', () => {
 		const { fire } = setup();
 		const goblin = note('Goblin.md');
 		fire('changed', goblin, STATBLOCK);
 		const item = { setTitle: () => item, setIcon: () => item, onClick: (run: () => void) => (run(), item) };
 		fire('file-menu', { addItem: (build: (i: typeof item) => void) => build(item) }, goblin);
 
-		expect(runVaultSync).toHaveBeenCalledWith(expect.anything(), { kind: 'folder', folder: goblin });
+		expect(runVaultSync).toHaveBeenCalledWith(expect.anything(), { kind: 'note', note: goblin });
 	});
 });

@@ -52,6 +52,12 @@ describe('readScope', () => {
 		expect(await paths(folder('Maps/Dungeon'))).toEqual(['Maps/Dungeon/Level 1.md']);
 	});
 
+	it('reads just the one note', async () => {
+		expect(await paths({ kind: 'note', note: { path: 'Bestiary/Goblin.md', basename: 'Goblin' } })).toEqual([
+			'Bestiary/Goblin.md',
+		]);
+	});
+
 	it.each([['tome'], ['#tome']])('reads the notes carrying tag %s, exactly', async (tag) => {
 		expect(await paths({ kind: 'tag', tag })).toEqual(['Maps/Keep.md', 'Maps Archive/Old Keep.md']);
 	});

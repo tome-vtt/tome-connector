@@ -120,8 +120,8 @@ class ConfirmSyncModal extends Modal {
 		contentEl.createEl('p', {
 			cls: 'tome-connector-sync-hint',
 			text:
-				'Anything already sent from these notes will be updated rather than duplicated. ' +
-				'This can take a while for a large folder.',
+				'Anything already sent from these notes will be updated rather than duplicated.' +
+				(this.syncScope.kind === 'note' ? '' : ' This can take a while for a large folder.'),
 		});
 		renderWarnings(contentEl, this.warnings);
 
