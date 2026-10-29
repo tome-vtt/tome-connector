@@ -1,10 +1,11 @@
-import { TFile, TFolder } from 'obsidian';
+import { TFile, TFolder, type Menu, type MenuItem } from 'obsidian';
 
 import { declaresStatblock } from './recognizers/noteScan';
 
 import type TomeConnectorPlugin from './main';
 import { runAdventureFolderImport } from './adventure/sendAdventureToTome';
 import { runContentImport } from './importContentSource';
+import { referenceMenuEntry } from './syncFolderToTome';
 import { runVaultSync } from './syncVaultToTome';
 
 /**
@@ -98,28 +99,37 @@ function registerImportCommands(plugin: TomeConnectorPlugin): void {
 	);
 }
 
+// Obsidian's Menu API has a working but untyped submenu.
+type SubmenuItem = MenuItem & { setSubmenu(): Menu };
+
+/**
+ * One "Tome" entry on a folder's menu, opening a submenu of the four imports.
+ * Which entries apply is not decidable without scanning the folder, so all show;
+ * grouping keeps the top-level menu to a single line. Each names what it sends:
+ * "Import Library items to Tome" scans every note and fans each one out to
+ * whichever library it belongs in, where the others turn the whole folder into
+ * a single row in one library.
+ */
 function registerFolderMenu(plugin: TomeConnectorPlugin): void {
-	// Alongside the existing "Import as a Tome Reference" folder export, which
-	// produces a PDF. Four entries on one menu needs all of them to say which is
-	// which, so each names what it sends rather than just where it sends it.
-	// "Import Library items to Tome" is the odd one among these three: it scans
-	// every note and fans each one out to whichever library it belongs in
-	// (creatures, maps, magic items, equipment...), where the other two turn the
-	// whole folder into a single row in one library.
 	plugin.registerEvent(
 		plugin.app.workspace.on('file-menu', (menu, file) => {
 			if (!(file instanceof TFolder)) return;
 
 			const entries: [string, string, (folder: TFolder) => Promise<void>][] = [
+				...referenceMenuEntry(plugin),
 				['Import Library items to Tome', 'upload-cloud', (folder) => runVaultSync(plugin, { kind: 'folder', folder })],
 				['Import as a Tome content source', 'book-open', (folder) => runContentImport(plugin, { kind: 'folder', folder })],
 				['Import as a Tome Storybook adventure', 'book-marked', (folder) => runAdventureFolderImport(plugin, folder)],
 			];
-			for (const [title, icon, run] of entries) {
-				menu.addItem((item) => {
-					item.setTitle(title).setIcon(icon).onClick(() => void run(file));
-				});
-			}
+			menu.addItem((top) => {
+				top.setTitle('Tome').setIcon('upload-cloud');
+				const sub = (top as SubmenuItem).setSubmenu();
+				for (const [title, icon, run] of entries) {
+					sub.addItem((item) => {
+						item.setTitle(title).setIcon(icon).onClick(() => void run(file));
+					});
+				}
+			});
 		}),
 	);
 }
