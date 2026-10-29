@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Note } from '../src/recognizers/note';
-import { declaresStatblock, findSendables, summarise } from '../src/recognizers/noteScan';
+import { declaresStatblock, findSendables, hasSendableFence, offersNoteSend, summarise } from '../src/recognizers/noteScan';
 
 /**
  * A stub parser rather than a real one.
@@ -242,5 +242,29 @@ describe('summarise', () => {
 			equipmentItem: 0,
 			spell: 0,
 		});
+	});
+});
+
+describe('offering "Send this note to Tome"', () => {
+	const fenced = (language: string) => ['# Note', '', '~~~' + language, 'name: x', '~~~', ''].join('\n');
+
+	it('offers a note with a statblock fence', () => {
+		expect(offersNoteSend('md', null, hasSendableFence(fenced('statblock')))).toBe(true);
+	});
+
+	it('does not offer a note whose only fence is dataview', () => {
+		expect(offersNoteSend('md', null, hasSendableFence(fenced('dataview')))).toBe(false);
+	});
+
+	it('offers a note whose frontmatter declares a statblock', () => {
+		expect(offersNoteSend('md', { statblock: 'inline' }, false)).toBe(true);
+	});
+
+	it('does not offer a file that is not a note', () => {
+		expect(offersNoteSend('png', { statblock: true }, true)).toBe(false);
+	});
+
+	it.each(['encounter', 'leaflet', 'zoommap'])('finds a %s fence', (language) => {
+		expect(hasSendableFence(fenced(language))).toBe(true);
 	});
 });
