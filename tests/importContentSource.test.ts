@@ -262,6 +262,16 @@ describe('Import a content source', () => {
 		expect(posted[0]).toMatch(/name="license"\r\n\r\nMyLicence-2\r\n/);
 	});
 
+	it('shows a notice when the import fails unexpectedly', async () => {
+		vi.spyOn(vault, 'read').mockRejectedValueOnce(new Error('"CLI/gone.md" no longer exists in the vault.'));
+
+		run = runContentImport(plugin, { kind: 'vault' });
+		await run;
+
+		expect(notices).toEqual(['Tome connector: "CLI/gone.md" no longer exists in the vault.']);
+		expect(posted).toHaveLength(0);
+	});
+
 	it('names every kind the reader takes in the nothing-found text', () => {
 		expect(describeReadKinds()).toBe('species, backgrounds, feats, spells, subclasses and equipment');
 	});

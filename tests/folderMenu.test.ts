@@ -10,6 +10,9 @@ vi.mock('../src/adventure/sendAdventureToTome', () => ({ runAdventureFolderImpor
 import { TFolder } from 'obsidian';
 import { registerSyncCommands } from '../src/syncVaultCommands';
 import { runContentImport } from '../src/importContentSource';
+import { runVaultSync } from '../src/syncVaultToTome';
+import { runFolderExport } from '../src/syncFolderToTome';
+import { runAdventureFolderImport } from '../src/adventure/sendAdventureToTome';
 
 interface FakeMenu {
 	titles: string[];
@@ -41,6 +44,8 @@ function fakeMenu(): FakeMenu {
 	return menu;
 }
 
+const folder = new TFolder();
+
 /** Opens a folder's menu and returns what the plugin put on it. */
 function openFolderMenu(): FakeMenu {
 	const handlers: ((menu: FakeMenu, file: unknown) => void)[] = [];
@@ -56,7 +61,7 @@ function openFolderMenu(): FakeMenu {
 	};
 	registerSyncCommands(plugin as never);
 	const menu = fakeMenu();
-	for (const h of handlers) h(menu, new TFolder());
+	for (const h of handlers) h(menu, folder);
 	return menu;
 }
 
@@ -84,7 +89,34 @@ describe('the folder menu', () => {
 			'Import as a Tome content source',
 			'Import as a Tome Storybook adventure',
 		]);
-		menu.clicks[1]?.();
-		expect(runContentImport).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ kind: 'folder' }));
+	});
+
+	it('runs the matching import with the folder for each desktop entry', () => {
+		platform.isDesktopApp = true;
+		const clicks = openFolderMenu().submenus[0]?.clicks ?? [];
+		expect(clicks).toHaveLength(4);
+
+		clicks[0]?.();
+		expect(runFolderExport).toHaveBeenCalledWith(expect.anything(), folder);
+		clicks[1]?.();
+		expect(runVaultSync).toHaveBeenCalledWith(expect.anything(), { kind: 'folder', folder });
+		clicks[2]?.();
+		expect(runContentImport).toHaveBeenCalledWith(expect.anything(), { kind: 'folder', folder });
+		clicks[3]?.();
+		expect(runAdventureFolderImport).toHaveBeenCalledWith(expect.anything(), folder);
+	});
+
+	it('runs the matching import with the folder for each mobile entry', () => {
+		platform.isDesktopApp = false;
+		const { clicks } = openFolderMenu();
+		expect(clicks).toHaveLength(3);
+
+		clicks[0]?.();
+		expect(runVaultSync).toHaveBeenCalledWith(expect.anything(), { kind: 'folder', folder });
+		clicks[1]?.();
+		expect(runContentImport).toHaveBeenCalledWith(expect.anything(), { kind: 'folder', folder });
+		clicks[2]?.();
+		expect(runAdventureFolderImport).toHaveBeenCalledWith(expect.anything(), folder);
+		expect(runFolderExport).not.toHaveBeenCalled();
 	});
 });

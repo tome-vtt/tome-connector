@@ -1,12 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Note } from '../src/recognizers/note';
+import { parseFeat } from '../src/recognizers/compendium/feat';
 import {
 	assemblePackage,
 	describeCounts,
 	isEmpty,
 	packageKeyFrom,
 } from '../src/recognizers/compendium/package';
+
+// The real parser, wrapped so one test can make it throw.
+vi.mock('../src/recognizers/compendium/feat', async (importOriginal) => {
+	const real = await importOriginal<typeof import('../src/recognizers/compendium/feat')>();
+	return { ...real, parseFeat: vi.fn(real.parseFeat) };
+});
 
 const srdSource =
 	"*Source: Player's Handbook (2024) p. 185. Available in the <span title='Systems Reference Document (5.2)'>SRD</span> and the Free Rules (2024)*";
@@ -218,6 +225,17 @@ describe('assemblePackage', () => {
 
 		expect(broken.failed).toEqual(['CLI/races/broken.md']);
 		expect(broken.counts.species).toBe(0);
+	});
+
+	it('reports a note whose parser throws and still assembles the rest', () => {
+		vi.mocked(parseFeat).mockImplementationOnce(() => {
+			throw new Error('boom');
+		});
+
+		const report = assemblePackage([feat, spell], 'k', { includeSrdContent: true });
+
+		expect(report.failed).toEqual(['CLI/feats/alert-xphb.md']);
+		expect(report.counts.spells).toBe(1);
 	});
 
 	/**
