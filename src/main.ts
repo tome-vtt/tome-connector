@@ -6,7 +6,6 @@ import {
 } from './tomeConnectorSettings';
 import { registerBlockSendButtons } from './blockSendButton';
 import { registerCharacterContextMenu, registerCharacterSyncButton } from './syncPlayerCharacterToTome';
-import { registerFolderExportMenuItem } from './syncFolderToTome';
 import { registerSyncCommands } from './syncVaultCommands';
 import { registerImageContextMenu } from './sendImageToTome';
 
@@ -21,7 +20,6 @@ export default class TomeConnectorPlugin extends Plugin {
 		registerBlockSendButtons(this);
 		registerCharacterSyncButton(this);
 		registerCharacterContextMenu(this);
-		registerFolderExportMenuItem(this);
 		registerSyncCommands(this);
 		registerImageContextMenu(this);
 	}

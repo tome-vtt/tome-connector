@@ -36,32 +36,18 @@ function canStartFolderExport(plugin: TomeConnectorPlugin): boolean {
 }
 
 /**
- * Adds "Import as a Tome Reference" to a folder's context menu in the File
- * Explorer. The folder's notes are compiled into one PDF, with each note a
- * chapter in the bookmark outline, and pushed to the campaign's Reference
- * library - phrased to match the other two imports on the same folder's menu
- * ("Import as a Tome content source", "Import as a Tome Storybook adventure"),
- * naming which library this one fills rather than just where it goes.
+ * The "Import as a Tome Reference" entry for the folder menu, which
+ * `syncVaultCommands` groups with the other Tome entries under one submenu.
+ * The folder's notes are compiled into one PDF, with each note a chapter in the
+ * bookmark outline, and pushed to the campaign's Reference library.
+ * Printing goes through Electron's <webview>, which only exists in the desktop
+ * app; on mobile there is no entry.
  */
-export function registerFolderExportMenuItem(plugin: TomeConnectorPlugin): void {
-	plugin.registerEvent(
-		plugin.app.workspace.on('file-menu', (menu, file) => {
-			// The same event fires for notes and for menus opened from links.
-			if (!(file instanceof TFolder)) return;
-			// Printing goes through Electron's <webview>, which only exists in
-			// the desktop app; on mobile the item is simply absent.
-			if (!Platform.isDesktopApp) return;
-
-			menu.addItem((item) =>
-				item
-					.setTitle(MENU_TITLE)
-					.setIcon(MENU_ICON)
-					.onClick(() => {
-						void runFolderExport(plugin, file);
-					}),
-			);
-		}),
-	);
+export function referenceMenuEntry(
+	plugin: TomeConnectorPlugin,
+): [string, string, (folder: TFolder) => Promise<void>][] {
+	if (!Platform.isDesktopApp) return [];
+	return [[MENU_TITLE, MENU_ICON, (folder) => runFolderExport(plugin, folder)]];
 }
 
 /**
