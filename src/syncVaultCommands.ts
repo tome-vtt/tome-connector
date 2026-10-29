@@ -1,4 +1,6 @@
-import { TFolder } from 'obsidian';
+import { TFile, TFolder } from 'obsidian';
+
+import { declaresStatblock } from './recognizers/noteScan';
 
 import type TomeConnectorPlugin from './main';
 import { runAdventureFolderImport } from './adventure/sendAdventureToTome';
@@ -20,6 +22,7 @@ export function registerSyncCommands(plugin: TomeConnectorPlugin): void {
 	registerSendCommands(plugin);
 	registerImportCommands(plugin);
 	registerFolderMenu(plugin);
+	registerNoteMenu(plugin);
 }
 
 /**
@@ -118,6 +121,34 @@ function registerFolderMenu(plugin: TomeConnectorPlugin): void {
 					item.setTitle(title).setIcon(icon).onClick(() => void run(file));
 				});
 			}
+		}),
+	);
+}
+
+/**
+ * "Send this note to Tome" on a note that may hold a statblock, encounter or map block.
+ *
+ * `file-menu` handlers are synchronous and the metadata cache does not say which
+ * language a code block is in, so the check is frontmatter declaring a statblock or
+ * any fenced code block. ponytail: a note with only an unrelated code block still
+ * shows the item, and the confirm dialog then says there is nothing to send.
+ */
+function registerNoteMenu(plugin: TomeConnectorPlugin): void {
+	plugin.registerEvent(
+		plugin.app.workspace.on('file-menu', (menu, file) => {
+			if (!(file instanceof TFile) || file.extension !== 'md') return;
+			const cache = plugin.app.metadataCache.getFileCache(file);
+			const mayHoldBlock =
+				declaresStatblock(cache?.frontmatter ?? null) ||
+				cache?.sections?.some((section) => section.type === 'code');
+			if (!mayHoldBlock) return;
+
+			menu.addItem((item) => {
+				item.setTitle('Send this note to Tome')
+					.setIcon('upload-cloud')
+					// A folder scope whose path is the note's own path reads just that note.
+					.onClick(() => void runVaultSync(plugin, { kind: 'folder', folder: file }));
+			});
 		}),
 	);
 }
