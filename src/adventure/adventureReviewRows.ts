@@ -24,21 +24,21 @@ import type {
  * Order fixes the dialog's reading order too: what to upload first,
  * ending on what nothing will be done with.
  */
-export const ENTITY_LABELS: [EntityDestination['to'], string][] = [
-	['NonPlayerCharacter', 'creatures'],
-	['MagicItem', 'magic items'],
-	['EquipmentItem', 'equipment'],
-	['skip', 'not recognised'],
+export const ENTITY_LABELS: [EntityDestination['to'], string, string][] = [
+	['NonPlayerCharacter', 'creature', 'creatures'],
+	['MagicItem', 'magic item', 'magic items'],
+	['EquipmentItem', 'equipment', 'equipment'],
+	['skip', 'not recognised', 'not recognised'],
 ];
 
-export const IMAGE_LABELS: [ImageDestination['to'], string][] = [
-	['Map', 'battlemaps'],
-	['Prop', 'illustrations and props'],
-	['skip', 'skipped'],
+export const IMAGE_LABELS: [ImageDestination['to'], string, string][] = [
+	['Map', 'battlemap', 'battlemaps'],
+	['Prop', 'illustration or prop', 'illustrations and props'],
+	['skip', 'skipped', 'skipped'],
 ];
 
 /** Buckets items by keyOf (the dialog passes what the parser suggested, not what a row's been changed to), in labels order, omitting empty buckets. */
-export function groupBy<T, K extends string>(items: T[], keyOf: (item: T) => K, labels: [K, string][]): { key: K; label: string; items: T[] }[] {
+export function groupBy<T, K extends string>(items: T[], keyOf: (item: T) => K, labels: [K, string, string][]): { key: K; label: string; items: T[] }[] {
 	const buckets = new Map<K, T[]>();
 	for (const item of items) {
 		const key = keyOf(item);
@@ -46,9 +46,9 @@ export function groupBy<T, K extends string>(items: T[], keyOf: (item: T) => K, 
 		if (list) list.push(item);
 		else buckets.set(key, [item]);
 	}
-	return labels.filter(([key]) => buckets.has(key)).map(([key, label]) => ({
+	return labels.filter(([key]) => buckets.has(key)).map(([key, singular, plural]) => ({
 		key,
-		label,
+		label: buckets.get(key)?.length === 1 ? singular : plural,
 		items: buckets.get(key) ?? [],
 	}));
 }
