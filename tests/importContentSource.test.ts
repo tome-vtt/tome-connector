@@ -266,6 +266,49 @@ describe('Import a content source', () => {
 		expect(describeReadKinds()).toBe('species, backgrounds, feats, spells, subclasses and equipment');
 	});
 
+	it('sends creatures to the folder menu entry that exists', async () => {
+		files['CLI/bestiary/goblin.md'] = { cssclass: 'json5e-monster', tags: [], content: '# Goblin' };
+		try {
+			const open = nextOpen();
+			run = runContentImport(plugin, { kind: 'vault' });
+			await open;
+
+			expect(shown.texts.join('\n')).toContain('"Import Library items to Tome"');
+		} finally {
+			delete files['CLI/bestiary/goblin.md'];
+		}
+	});
+
+	it('names the one book in full in the licence notice', async () => {
+		const open = nextOpen();
+		run = runContentImport(plugin, { kind: 'vault' });
+		await open;
+
+		expect(shown.texts.join('\n')).toContain("book content rather than SRD (Player's Handbook).");
+	});
+
+	it('shortens the licence notice for many books', async () => {
+		const books = ['A', 'B', 'C', 'D', 'E', 'F'];
+		for (const book of books) {
+			files[`CLI/feats/${book}.md`] = {
+				cssclass: 'json5e-feat',
+				tags: [],
+				content: `# Feat ${book}\n*Source: Book ${book} p. 1*\n\nA benefit.`,
+			};
+		}
+		try {
+			const open = nextOpen();
+			run = runContentImport(plugin, { kind: 'vault' });
+			await open;
+
+			expect(shown.texts.join('\n')).toContain(
+				"book content rather than SRD (Player's Handbook; Book A; Book B and 4 more).",
+			);
+		} finally {
+			for (const book of books) delete files[`CLI/feats/${book}.md`];
+		}
+	});
+
 	it('updates the counts and notices when a toggle changes them', async () => {
 		const firstOpen = nextOpen();
 		run = runContentImport(plugin, { kind: 'vault' });
