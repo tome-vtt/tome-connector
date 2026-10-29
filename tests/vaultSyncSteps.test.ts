@@ -48,6 +48,12 @@ describe('scanScope', () => {
 		expect(progress).toEqual([[1, 1]]);
 	});
 
+	it('sends only the one note when the scope is that note’s own path', async () => {
+		const note = { kind: 'folder' as const, folder: { path: 'Bestiary/Goblin.md', name: 'Goblin.md' } };
+
+		expect(labels(await scanScope(notes, note, JSON.parse))).toEqual(['Goblin']);
+	});
+
 	/** The 2026-10-27 test run: each of these was skipped or narrowed without a word. */
 	it('lists every block it skips and every entry it changes, under its note', async () => {
 		const fence = (language: string, block: Record<string, unknown>) =>
