@@ -35,6 +35,13 @@ describe('size-based image suggestions before review', () => {
 		expect(plan.images.map((image) => image.chosen.to)).toEqual(['Prop', 'Map']);
 	});
 
+	it('respects an explicit prop even after an earlier ordinary mention', async () => {
+		const plan = adventure('![Hall](art/hall.png)\n\n> [!prop]\n> ![Hall](art/hall.png)');
+		await suggestMapsBySize(plan, async () => ({ width: 1600, height: 1000 }));
+		expect(plan.images).toHaveLength(1);
+		expect(plan.images[0]?.chosen.to).toBe('Prop');
+	});
+
 	it('keeps unreadable images as props and continues with later images', async () => {
 		const plan = adventure('![Missing](art/missing.png)\n\n![Hall](art/hall.png)');
 		await suggestMapsBySize(plan, async (path) => {

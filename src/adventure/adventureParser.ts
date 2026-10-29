@@ -193,7 +193,15 @@ function registerImage(
 	images: Map<string, PlannedImage>,
 	destinationForced = false,
 ): void {
-	if (images.has(key)) return;
+	const existing = images.get(key);
+	if (existing) {
+		if (destinationForced && !existing.destinationForced) {
+			existing.destinationForced = true;
+			existing.suggested = suggested;
+			existing.chosen = suggested;
+		}
+		return;
+	}
 	images.set(key, { key, label, dmPath, playerPath, suggested, chosen: suggested, resolvedId: null,
 		...(destinationForced ? { destinationForced: true } : {}),
 	});
