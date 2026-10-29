@@ -69,10 +69,28 @@ vi.mock('obsidian', () => {
 		setDesc(): this {
 			return this;
 		}
-		addText(build: (text: unknown) => void): this {
+		addDropdown(build: (menu: unknown) => void): this {
 			const field: Field = { value: '', onChange: () => undefined };
 			shown.fields.set(this.name, field);
+			const menu = {
+				addOption: () => menu,
+				setValue: (value: string) => ((field.value = value), menu),
+				onChange: (listener: (value: string) => void) => {
+					field.onChange = (value) => ((field.value = value), listener(value));
+					return menu;
+				},
+			};
+			build(menu);
+			return this;
+		}
+		addText(build: (text: unknown) => void): this {
+			const field: Field = { value: '', onChange: () => undefined };
+			// The box beside a dropdown ("Other") is its own field.
+			shown.fields.set(shown.fields.has(this.name) ? `${this.name} (other)` : this.name, field);
 			const text = {
+				inputEl: { toggle: () => undefined },
+				getValue: () => field.value,
+				setPlaceholder: () => text,
 				setValue: (value: string) => ((field.value = value), text),
 				onChange: (listener: (value: string) => void) => {
 					field.onChange = (value) => ((field.value = value), listener(value));
@@ -155,6 +173,7 @@ const vault: NoteSource = {
 vi.mock('../src/vaultNotes', () => ({ vaultNotes: () => vault }));
 
 const { runContentImport } = await import('../src/importContentSource');
+const { describeReadKinds } = await import('../src/recognizers/compendium/package');
 
 const plugin = { app: {}, settings: { baseUrl: 'http://tome.test' } } as unknown as TomeConnectorPlugin;
 
@@ -223,6 +242,26 @@ describe('Import a content source', () => {
 			expect(posted[0]).toMatch(/name="key"\r\n\r\nmy-books\r\n/);
 		},
 	);
+
+	it('offers the common licences and takes anything else under Other', async () => {
+		const open = nextOpen();
+		run = runContentImport(plugin, { kind: 'vault' });
+		await open;
+
+		// Book content arrives blank, so it starts on the private choice.
+		expect(shown.fields.get('Licence')?.value).toBe('personal-use');
+
+		type('Licence', 'other');
+		type('Licence (other)', 'MyLicence-2');
+		shown.buttons.get('Import')?.();
+		await run;
+
+		expect(posted[0]).toMatch(/name="license"\r\n\r\nMyLicence-2\r\n/);
+	});
+
+	it('names every kind the reader takes in the nothing-found text', () => {
+		expect(describeReadKinds()).toBe('species, backgrounds, feats, spells, subclasses and equipment');
+	});
 
 	it('updates the counts and notices when a toggle changes them', async () => {
 		const firstOpen = nextOpen();

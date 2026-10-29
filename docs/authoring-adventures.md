@@ -61,8 +61,12 @@ reading a secret out loud.
 
 **A picture standing alone on its own line** - `![[file.png]]` or `![alt](file.png)`, nothing else
 on that line - becomes its own Map or Prop node rather than staying words on the page. Tome guesses
-Map when the filename or caption says so (`floorplan`, `battlemap`, a `-dm`/`-player` naming pair)
-and Prop otherwise. A picture that shares its line with something else (a table cell, a list item)
+Map when the filename or caption says so (`map`, `battlemap`, a `-dm`/`-player` naming pair),
+or when an image is wider than it is tall and at least 1,000 pixels wide and 600 pixels high.
+This size rule is a guess: large landscape art can qualify too. Other images default to Prop;
+an unreadable image keeps its filename/caption guess. Explicit map/prop callouts take precedence
+over the size rule, and every row's choice remains editable in the review.
+A picture that shares its line with something else (a table cell, a list item)
 stays put and flattens to its caption text.
 
 **A wikilink to one of your own notes** - `[[Goblin Boss]]` - becomes an entity mention. Tome reads

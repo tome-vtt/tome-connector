@@ -36,6 +36,16 @@ function image(overrides: Partial<PlannedImage> = {}): PlannedImage {
 }
 
 describe('groupBy with the entity labels', () => {
+	it.each([
+		['NonPlayerCharacter', 'creature', 'creatures'],
+		['MagicItem', 'magic item', 'magic items'],
+		['EquipmentItem', 'equipment', 'equipment'],
+		['skip', 'not recognised', 'not recognised'],
+	] as const)('uses the right count label for %s', (to, singular, plural) => {
+		const row = entity({ suggested: { to } });
+		expect(groupBy([row], (e) => e.suggested.to, ENTITY_LABELS)[0]?.label).toBe(singular);
+		expect(groupBy([row, row], (e) => e.suggested.to, ENTITY_LABELS)[0]?.label).toBe(plural);
+	});
 	it('groups by suggested destination, in creatures/items/equipment/unrecognised order', () => {
 		const goblin = entity();
 		const item = entity({
@@ -75,6 +85,15 @@ describe('groupBy with the entity labels', () => {
 });
 
 describe('groupBy with the image labels', () => {
+	it.each([
+		['Map', 'battlemap', 'battlemaps'],
+		['Prop', 'illustration or prop', 'illustrations and props'],
+		['skip', 'skipped', 'skipped'],
+	] as const)('uses the right count label for %s', (to, singular, plural) => {
+		const row = image({ suggested: { to } });
+		expect(groupBy([row], (i) => i.suggested.to, IMAGE_LABELS)[0]?.label).toBe(singular);
+		expect(groupBy([row, row], (i) => i.suggested.to, IMAGE_LABELS)[0]?.label).toBe(plural);
+	});
 	it('groups battlemaps and illustrations separately', () => {
 		const map = image();
 		const illustration = image({ key: 'art/npc.png', suggested: { to: 'Prop' }, chosen: { to: 'Prop' } });

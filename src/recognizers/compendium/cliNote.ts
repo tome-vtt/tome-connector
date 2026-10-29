@@ -122,14 +122,14 @@ export function cliNoteType(frontmatter: Record<string, unknown> | null): CliNot
  * **`item` means gear only.** A content source has no place for magic items, so
  * the package leaves out the ones `magicItem.ts`'s `isMagic` picks. See `package.ts`.
  */
-const IMPORTABLE = new Set<CliNoteType>([
+export const IMPORTABLE: readonly CliNoteType[] = [
 	'species',
 	'background',
 	'feat',
 	'spell',
 	'subclass',
 	'item',
-]);
+];
 
 /**
  * Whether this note can be turned into content-package data yet.
@@ -139,5 +139,5 @@ const IMPORTABLE = new Set<CliNoteType>([
  * what it cannot handle reads as a preview that did not find it.
  */
 export function isImportable(type: CliNoteType | null): boolean {
-	return type !== null && IMPORTABLE.has(type);
+	return type !== null && IMPORTABLE.includes(type);
 }
