@@ -23,9 +23,9 @@ import { vaultNotes } from './vaultNotes';
  *
  * The sibling of `syncVaultToTome`, and deliberately not the same thing. That one
  * sends N notes as N requests, because a creature is a row in a library. This
- * sends one request: species, backgrounds, feats and spells are not rows, they are
- * *a ruleset*, and the server takes them as a single package it can switch on and
- * off for a campaign.
+ * sends one request: species, backgrounds, feats, spells, subclasses and equipment
+ * are not rows, they are *a ruleset*, and the server takes them as a single package
+ * it can switch on and off for a campaign.
  *
  * The parsing, the assembly and the licence reading are all in
  * `recognizers/compendium/`, tested against the real corpus. This file scans,
@@ -276,15 +276,15 @@ class ConfirmImportModal extends Modal {
 
 	/** The common licences, plus "Other" for a box that takes anything else. */
 	private renderLicence(contentEl: HTMLElement): void {
-		// A blank licence (book content) starts on the private choice, never on a shareable one.
-		if (this.manifest.license === '') this.setLicence('personal-use');
 		const current = this.manifest.license;
-		const common = LICENCES.includes(current);
+		// Blank (book content) stays unpicked, so `validateManifest` stops the import until one is chosen.
+		const common = current === '' || LICENCES.includes(current);
 		let other: TextComponent | null = null;
 		new Setting(contentEl)
 			.setName('Licence')
 			.setDesc('CC-BY-4.0 for SRD content, or own-work if it is yours.')
 			.addDropdown((menu) => {
+				menu.addOption('', 'Choose a licence');
 				for (const value of LICENCES) menu.addOption(value, value);
 				menu
 					.addOption(OTHER, 'Other')
