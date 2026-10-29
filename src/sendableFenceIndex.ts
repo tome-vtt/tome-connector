@@ -12,12 +12,19 @@ import { hasSendableFence } from './recognizers/noteScan';
 export function watchSendableFences(plugin: TomeConnectorPlugin): ReadonlySet<string> {
 	const { metadataCache, vault, workspace } = plugin.app;
 	const paths = new Set<string>();
+	// Notes `changed` has already reported, so the layout-ready read never overwrites newer text.
+	const reported = new Set<string>();
 	const update = (path: string, text: string) => {
 		if (hasSendableFence(text)) paths.add(path);
 		else paths.delete(path);
 	};
 
-	plugin.registerEvent(metadataCache.on('changed', (file, text) => update(file.path, text)));
+	plugin.registerEvent(
+		metadataCache.on('changed', (file, text) => {
+			reported.add(file.path);
+			update(file.path, text);
+		}),
+	);
 	plugin.registerEvent(vault.on('delete', (file) => paths.delete(file.path)));
 	plugin.registerEvent(
 		vault.on('rename', (file, oldPath) => {
@@ -33,7 +40,7 @@ export function watchSendableFences(plugin: TomeConnectorPlugin): ReadonlySet<st
 			if (!sections?.some((section) => section.type === 'code')) continue;
 			try {
 				const text = await vault.cachedRead(file);
-				if (vault.getFileByPath(file.path)) update(file.path, text);
+				if (!reported.has(file.path) && vault.getFileByPath(file.path)) update(file.path, text);
 			} catch {
 				// Deleted or unreadable since the list was taken: nothing to offer.
 			}

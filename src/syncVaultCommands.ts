@@ -126,12 +126,12 @@ function registerFolderMenu(plugin: TomeConnectorPlugin): void {
 
 /** "Send this note to Tome" on a note holding a statblock, encounter or map block. */
 function registerNoteMenu(plugin: TomeConnectorPlugin): void {
-	const withFence = watchSendableFences(plugin);
+	const pathsWithFence = watchSendableFences(plugin);
 	plugin.registerEvent(
 		plugin.app.workspace.on('file-menu', (menu, file) => {
 			if (!(file instanceof TFile)) return;
 			const frontmatter = plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
-			if (!offersNoteSend(file.extension, frontmatter, withFence.has(file.path))) return;
+			if (!offersNoteSend(file.extension, frontmatter, pathsWithFence.has(file.path))) return;
 
 			menu.addItem((item) => {
 				item.setTitle('Send this note to Tome')
