@@ -1,5 +1,5 @@
 import { Modal, Notice, Setting } from 'obsidian';
-import type { App } from 'obsidian';
+import type { App, TextComponent } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
 import { scanCompendium, suggestedKey, uploadPackage, type CompendiumScan } from './contentImport';
@@ -7,6 +7,7 @@ import { oneAtATime } from './oneAtATime';
 import { validateManifest, type ImportManifest } from './recognizers/compendium/importRequest';
 import {
 	describeCounts,
+	describeReadKinds,
 	isEmpty,
 	type AssembleOptions,
 	type PackageReport,
@@ -30,6 +31,9 @@ import { vaultNotes } from './vaultNotes';
  * `recognizers/compendium/`, tested against the real corpus. This file scans,
  * asks, posts and reports.
  */
+
+const LICENCES = ['CC-BY-4.0', 'OGL-1.0a', 'personal-use', 'own-work'];
+const OTHER = 'other';
 
 /** What the person has typed, carried over when a toggle reopens the dialog. */
 type TypedFields = Partial<ImportManifest>;
@@ -106,8 +110,8 @@ class ConfirmImportModal extends Modal {
 		contentEl.createEl('p', {
 			cls: 'tome-connector-sync-hint',
 			text:
-				'Looked for notes written by ttrpg-convert-cli: species, backgrounds, feats and ' +
-				'spells, identified by their cssclasses.',
+				'Looked for notes written by ttrpg-convert-cli: ' +
+				`${describeReadKinds()}, identified by their cssclasses.`,
 		});
 		this.addButtons(contentEl, false);
 	}
@@ -254,13 +258,13 @@ class ConfirmImportModal extends Modal {
 		const fields = [
 			['key', 'Key', 'Re-importing the same key replaces this source.'],
 			['name', 'Name', 'What it is called in the content list.'],
-			['license', 'Licence', 'CC-BY-4.0 for SRD content, or own-work if it is yours.'],
 			['attribution', 'Attribution', 'Who to credit.'],
 			['version', 'Version', 'Your own version for this package.'],
 			['publisher', 'Publisher', 'Optional.'],
 		] as const;
 
 		for (const [property, name, description] of fields) {
+			if (property === 'attribution') this.renderLicence(contentEl);
 			new Setting(contentEl).setName(name).setDesc(description).addText((text) =>
 				text.setValue(this.manifest[property] ?? '').onChange((value) => {
 					this.manifest[property] = value;
@@ -268,6 +272,39 @@ class ConfirmImportModal extends Modal {
 				}),
 			);
 		}
+	}
+
+	/** The common licences, plus "Other" for a box that takes anything else. */
+	private renderLicence(contentEl: HTMLElement): void {
+		// A blank licence (book content) starts on the private choice, never on a shareable one.
+		if (this.manifest.license === '') this.setLicence('personal-use');
+		const current = this.manifest.license;
+		const common = LICENCES.includes(current);
+		let other: TextComponent | null = null;
+		new Setting(contentEl)
+			.setName('Licence')
+			.setDesc('CC-BY-4.0 for SRD content, or own-work if it is yours.')
+			.addDropdown((menu) => {
+				for (const value of LICENCES) menu.addOption(value, value);
+				menu
+					.addOption(OTHER, 'Other')
+					.setValue(common ? current : OTHER)
+					.onChange((value) => {
+						other?.inputEl.toggle(value === OTHER);
+						this.setLicence(value === OTHER ? (other?.getValue() ?? '') : value);
+					});
+			})
+			.addText((text) => {
+				other = text;
+				text.setPlaceholder('Licence name').setValue(common ? '' : current);
+				text.inputEl.toggle(!common);
+				text.onChange((value) => this.setLicence(value));
+			});
+	}
+
+	private setLicence(value: string): void {
+		this.manifest.license = value;
+		this.typed.license = value;
 	}
 
 	private addButtons(contentEl: HTMLElement, canImport: boolean): void {

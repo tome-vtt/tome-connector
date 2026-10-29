@@ -12,7 +12,7 @@
 
 import { noteName, type Note } from '../note';
 import { slug, titleCase } from '../labelledMarkdown';
-import { cliNoteType, isImportable, type CliNoteType } from './cliNote';
+import { cliNoteType, IMPORTABLE, isImportable, type CliNoteType } from './cliNote';
 import { parseBackground, type Background } from './background';
 import { parseEquipmentItem } from './equipmentItem';
 import { isMagic } from './magicItem';
@@ -374,4 +374,20 @@ export function describeCounts(counts: Record<string, number>): string {
  */
 export function packageKeyFrom(name: string): string {
 	return slug(name) || 'my-compendium';
+}
+
+/** What a person calls each kind the reader takes, for saying what a scan looked for. */
+const READ_KIND_NAMES: Partial<Record<CliNoteType, string>> = {
+	species: 'species',
+	background: 'backgrounds',
+	feat: 'feats',
+	spell: 'spells',
+	subclass: 'subclasses',
+	item: 'equipment',
+};
+
+/** `species, backgrounds, ... and equipment`, from the reader's own list. */
+export function describeReadKinds(): string {
+	const names = IMPORTABLE.map((type) => READ_KIND_NAMES[type] ?? type);
+	return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
