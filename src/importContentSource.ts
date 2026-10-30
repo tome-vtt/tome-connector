@@ -1,17 +1,20 @@
 import { Modal, Notice, Setting } from 'obsidian';
-import type { App } from 'obsidian';
+import type { App, TextComponent } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
 import { scanCompendium, suggestedKey, uploadPackage, type CompendiumScan } from './contentImport';
 import { oneAtATime } from './oneAtATime';
+import { describeError } from './shared';
 import { validateManifest, type ImportManifest } from './recognizers/compendium/importRequest';
 import {
 	describeCounts,
+	describeReadKinds,
 	describeUnavailableFeats,
 	isEmpty,
 	type AssembleOptions,
 	type PackageReport,
 } from './recognizers/compendium/package';
+import { suggestedAttribution } from './recognizers/compendium/sourceLine';
 import { describeScope, type SyncScope } from './scopeReader';
 import { tomeHttp } from './tomeApiClient';
 import { getApiKey } from './tomeConnectorSettings';
@@ -23,14 +26,20 @@ import { vaultNotes } from './vaultNotes';
  *
  * The sibling of `syncVaultToTome`, and deliberately not the same thing. That one
  * sends N notes as N requests, because a creature is a row in a library. This
- * sends one request: species, backgrounds, feats and spells are not rows, they are
- * *a ruleset*, and the server takes them as a single package it can switch on and
- * off for a campaign.
+ * sends one request: species, backgrounds, feats, spells, subclasses and equipment
+ * are not rows, they are *a ruleset*, and the server takes them as a single package
+ * it can switch on and off for a campaign.
  *
  * The parsing, the assembly and the licence reading are all in
  * `recognizers/compendium/`, tested against the real corpus. This file scans,
  * asks, posts and reports.
  */
+
+const LICENCES = ['CC-BY-4.0', 'OGL-1.0a', 'personal-use', 'own-work'];
+const OTHER = 'other';
+
+/** What the person has typed, carried over when a toggle reopens the dialog. */
+type TypedFields = Partial<ImportManifest>;
 
 /** Import on a yes, reassemble on a toggle, null on Cancel or Close. */
 type ImportAnswer = { manifest: ImportManifest } | { options: AssembleOptions } | null;
@@ -56,6 +65,8 @@ class ConfirmImportModal extends Modal {
 		private readonly importScope: SyncScope,
 		/** The options this report was built with, so the toggles show their state. */
 		private readonly options: AssembleOptions,
+		/** Wins over the defaults; a field left alone still follows the new report. */
+		private readonly typed: TypedFields,
 		private readonly onDone: (answer: ImportAnswer) => void,
 	) {
 		super(app);
@@ -70,6 +81,7 @@ class ConfirmImportModal extends Modal {
 			license: report.suggested.license ?? '',
 			attribution: report.suggested.attribution ?? '',
 			url: '',
+			...typed,
 		};
 	}
 
@@ -102,8 +114,8 @@ class ConfirmImportModal extends Modal {
 		contentEl.createEl('p', {
 			cls: 'tome-connector-sync-hint',
 			text:
-				'Looked for notes written by ttrpg-convert-cli: species, backgrounds, feats and ' +
-				'spells, identified by their cssclasses.',
+				'Looked for notes written by ttrpg-convert-cli: ' +
+				`${describeReadKinds()}, identified by their cssclasses.`,
 		});
 		this.addButtons(contentEl, false);
 	}
@@ -114,7 +126,7 @@ class ConfirmImportModal extends Modal {
 		if (skipped !== '') {
 			contentEl.createEl('p', {
 				cls: 'tome-connector-sync-hint',
-				text: `Not included: ${skipped}. Creatures go to the bestiary with "Send folder to Tome" instead.`,
+				text: `Not included: ${skipped}. Creatures and magic items go to a campaign with "Import Library items to Tome" instead.`,
 			});
 		}
 
@@ -193,11 +205,12 @@ class ConfirmImportModal extends Modal {
 			return;
 		}
 
+		const books = suggestedAttribution(sources);
 		contentEl.createEl('p', {
 			cls: 'tome-connector-sync-hint',
 			text:
 				`${sources.nonSrdCount} of these notes are book content rather than SRD` +
-				`${sources.books.length > 0 ? ` (${sources.books.join('; ')})` : ''}. ` +
+				`${books === null ? '' : ` (${books})`}. ` +
 				'It stays private to your account and cannot be shared. Say what licence you hold it under.',
 		});
 	}
@@ -217,7 +230,7 @@ class ConfirmImportModal extends Modal {
 					control.setValue(value).onChange((on) => {
 						// Reopened on a fresh report rather than patched in place: the
 						// counts, the licence notice and the prefilled fields all move
-						// together.
+						// together. What the person typed is carried over.
 						this.nextOptions = apply(on);
 						this.close();
 					}),
@@ -250,16 +263,17 @@ class ConfirmImportModal extends Modal {
 		const fields = [
 			['key', 'Key', 'Re-importing the same key replaces this source.'],
 			['name', 'Name', 'What it is called in the content list.'],
-			['license', 'Licence', 'CC-BY-4.0 for SRD content, or own-work if it is yours.'],
 			['attribution', 'Attribution', 'Who to credit.'],
 			['version', 'Version', 'Your own version for this package.'],
 			['publisher', 'Publisher', 'Optional.'],
 		] as const;
 
 		for (const [property, name, description] of fields) {
+			if (property === 'attribution') this.renderLicence(contentEl);
 			new Setting(contentEl).setName(name).setDesc(description).addText((text) =>
 				text.setValue(this.manifest[property] ?? '').onChange((value) => {
 					this.manifest[property] = value;
+					this.typed[property] = value;
 				}),
 			);
 		}
@@ -278,6 +292,39 @@ class ConfirmImportModal extends Modal {
 					this.nextOptions = { ...this.options, generalLegacyFeats: on };
 					this.close();
 				}));
+	}
+
+	/** The common licences, plus "Other" for a box that takes anything else. */
+	private renderLicence(contentEl: HTMLElement): void {
+		const current = this.manifest.license;
+		// Blank (book content) stays unpicked, so `validateManifest` stops the import until one is chosen.
+		const common = current === '' || LICENCES.includes(current);
+		let other: TextComponent | null = null;
+		new Setting(contentEl)
+			.setName('Licence')
+			.setDesc('CC-BY-4.0 for SRD content, or own-work if it is yours.')
+			.addDropdown((menu) => {
+				menu.addOption('', 'Choose a licence');
+				for (const value of LICENCES) menu.addOption(value, value);
+				menu
+					.addOption(OTHER, 'Other')
+					.setValue(common ? current : OTHER)
+					.onChange((value) => {
+						other?.inputEl.toggle(value === OTHER);
+						this.setLicence(value === OTHER ? (other?.getValue() ?? '') : value);
+					});
+			})
+			.addText((text) => {
+				other = text;
+				text.setPlaceholder('Licence name').setValue(common ? '' : current);
+				text.inputEl.toggle(!common);
+				text.onChange((value) => this.setLicence(value));
+			});
+	}
+
+	private setLicence(value: string): void {
+		this.manifest.license = value;
+		this.typed.license = value;
 	}
 
 	private addButtons(contentEl: HTMLElement, canImport: boolean): void {
@@ -322,34 +369,46 @@ class ConfirmImportModal extends Modal {
  */
 export const runContentImport = oneAtATime(
 	async (plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> => {
-		const notice = new TomeProgressNotice('Tome connector: reading the compendium…');
-		let scan: CompendiumScan;
+		// Every caller fires this with `void`, so anything thrown would go unseen.
 		try {
-			scan = await scanCompendium(vaultNotes(plugin.app), scope, (done, total) =>
-				notice.setProgress(done, total),
-			);
-		} finally {
-			notice.hide();
-		}
-
-		// Awaited, not fired from a callback: the guard has to hold through the upload.
-		let options: AssembleOptions = {};
-		for (;;) {
-			const report = scan.assemble(options);
-			const answer = await new Promise<ImportAnswer>((resolve) => {
-				new ConfirmImportModal(plugin.app, report, scope, options, resolve).open();
-			});
-			if (answer === null) return;
-			if ('options' in answer) {
-				options = answer.options;
-				continue;
-			}
-			await upload(plugin, report, answer.manifest);
-			return;
+			await importContent(plugin, scope);
+		} catch (error) {
+			console.error('Tome Connector: content import failed', error);
+			new Notice(`Tome connector: ${describeError(error)}`);
 		}
 	},
 	() => new Notice('Tome connector: an import is already running.'),
 );
+
+async function importContent(plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> {
+	const notice = new TomeProgressNotice('Tome connector: reading the compendium…');
+	let scan: CompendiumScan;
+	try {
+		scan = await scanCompendium(vaultNotes(plugin.app), scope, (done, total) =>
+			notice.setProgress(done, total),
+		);
+	} finally {
+		notice.hide();
+	}
+
+	// Awaited, not fired from a callback: the guard has to hold through the upload.
+	let options: AssembleOptions = {};
+	// Shared by every reopen: each dialog writes what is typed straight into it.
+	const typed: TypedFields = {};
+	for (;;) {
+		const report = scan.assemble(options);
+		const answer = await new Promise<ImportAnswer>((resolve) => {
+			new ConfirmImportModal(plugin.app, report, scope, options, typed, resolve).open();
+		});
+		if (answer === null) return;
+		if ('options' in answer) {
+			options = answer.options;
+			continue;
+		}
+		await upload(plugin, report, answer.manifest);
+		return;
+	}
+}
 
 async function upload(
 	plugin: TomeConnectorPlugin,

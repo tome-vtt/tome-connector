@@ -1,8 +1,11 @@
-import { TFolder } from 'obsidian';
+import { Platform, TFile, TFolder, type Menu, type MenuItem } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
 import { runAdventureFolderImport } from './adventure/sendAdventureToTome';
 import { runContentImport } from './importContentSource';
+import { offersNoteSend } from './recognizers/noteScan';
+import { watchSendableFences } from './sendableFenceIndex';
+import { runFolderExport } from './syncFolderToTome';
 import { runVaultSync } from './syncVaultToTome';
 
 /**
@@ -20,6 +23,7 @@ export function registerSyncCommands(plugin: TomeConnectorPlugin): void {
 	registerSendCommands(plugin);
 	registerImportCommands(plugin);
 	registerFolderMenu(plugin);
+	registerNoteMenu(plugin);
 }
 
 /**
@@ -62,11 +66,10 @@ function registerSendCommands(plugin: TomeConnectorPlugin): void {
 	plugin.addCommand({
 		id: 'send-tagged-to-tome',
 		name: 'Send notes with the sync tag to Tome',
-		checkCallback: (checking: boolean) => {
+		callback: () => {
 			const tag = plugin.settings.syncTag.trim();
-			if (tag === '') return false;
-			if (!checking) void runVaultSync(plugin, { kind: 'tag', tag });
-			return true;
+			if (tag === '') plugin.settingTab.openAtSyncTag();
+			else void runVaultSync(plugin, { kind: 'tag', tag });
 		},
 	});
 }
@@ -96,28 +99,59 @@ function registerImportCommands(plugin: TomeConnectorPlugin): void {
 	);
 }
 
+// Obsidian's Menu API has an untyped submenu, which does not open in the mobile app.
+type SubmenuItem = MenuItem & { setSubmenu(): Menu };
+type FolderMenuEntry = [title: string, icon: string, run: (folder: TFolder) => Promise<void>];
+
+/**
+ * The Tome imports on a folder's menu, grouped under one "Tome" submenu on
+ * desktop and listed flat on mobile. Which entries apply is not decidable
+ * without scanning the folder, so every entry the platform supports shows.
+ * Each names what it sends: "Import Library items to Tome" scans every note and
+ * fans each one out to whichever library it belongs in, where the others turn
+ * the whole folder into a single row in one library. The Reference import prints through Electron, so
+ * it is desktop only.
+ */
 function registerFolderMenu(plugin: TomeConnectorPlugin): void {
-	// Alongside the existing "Import as a Tome Reference" folder export, which
-	// produces a PDF. Four entries on one menu needs all of them to say which is
-	// which, so each names what it sends rather than just where it sends it.
-	// "Import Library items to Tome" is the odd one among these three: it scans
-	// every note and fans each one out to whichever library it belongs in
-	// (creatures, maps, magic items, equipment...), where the other two turn the
-	// whole folder into a single row in one library.
 	plugin.registerEvent(
 		plugin.app.workspace.on('file-menu', (menu, file) => {
 			if (!(file instanceof TFolder)) return;
 
-			const entries: [string, string, (folder: TFolder) => Promise<void>][] = [
+			const entries: FolderMenuEntry[] = [
 				['Import Library items to Tome', 'upload-cloud', (folder) => runVaultSync(plugin, { kind: 'folder', folder })],
 				['Import as a Tome content source', 'book-open', (folder) => runContentImport(plugin, { kind: 'folder', folder })],
 				['Import as a Tome Storybook adventure', 'book-marked', (folder) => runAdventureFolderImport(plugin, folder)],
 			];
+			let target: Menu = menu;
+			if (Platform.isDesktopApp) {
+				entries.unshift(['Import as a Tome Reference', 'upload-cloud', (folder) => runFolderExport(plugin, folder)]);
+				menu.addItem((top) => {
+					target = (top.setTitle('Tome').setIcon('upload-cloud') as SubmenuItem).setSubmenu();
+				});
+			}
 			for (const [title, icon, run] of entries) {
-				menu.addItem((item) => {
+				target.addItem((item) => {
 					item.setTitle(title).setIcon(icon).onClick(() => void run(file));
 				});
 			}
+		}),
+	);
+}
+
+/** "Send this note to Tome" on a note holding a statblock, encounter or map block. */
+function registerNoteMenu(plugin: TomeConnectorPlugin): void {
+	const pathsWithFence = watchSendableFences(plugin);
+	plugin.registerEvent(
+		plugin.app.workspace.on('file-menu', (menu, file) => {
+			if (!(file instanceof TFile)) return;
+			const frontmatter = plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
+			if (!offersNoteSend(file.extension, frontmatter, pathsWithFence.has(file.path))) return;
+
+			menu.addItem((item) => {
+				item.setTitle('Send this note to Tome')
+					.setIcon('upload-cloud')
+					.onClick(() => void runVaultSync(plugin, { kind: 'note', note: file }));
+			});
 		}),
 	);
 }

@@ -8,6 +8,7 @@
  */
 
 import { FIELD_LINE, parseLabelledValues, proseBody, slug, titleOf } from '../labelledMarkdown';
+import { PrerequisiteRule, readPrerequisiteRule } from './prerequisiteRule';
 import { readSourceLine } from './sourceLine';
 import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
 
@@ -27,7 +28,8 @@ export interface Feat {
 	/** `Origin`, `General`, `Fighting Style` or `Epic Boon` - see {@link readType}. */
 	type: string | null;
 	prerequisite: string | null;
-	prerequisiteRule?: { kind: 'level'; minimum: number };
+	/** What Tome checks; null when there is no prerequisite or it is one {@link readPrerequisiteRule} cannot read. */
+	prerequisiteRule: PrerequisiteRule | null;
 	benefits: Benefit[];
 }
 
@@ -146,9 +148,10 @@ export function parseFeat(markdown: string, key: string, fallbackName: string, g
 	const desc = readDescription(markdown);
 	if (desc === '' && benefits.length === 0) return null;
 	const convert = generalLegacyFeats && readSourceLine(markdown).year !== 2024;
-	// Do not replace an unparsed prerequisite with a partial rule: that would
-	// suppress Tome's "check this prerequisite yourself" warning.
-	const levelOnly = convert && (!prerequisite?.trim() || /^none\.?$/i.test(prerequisite.trim()));
+	// The 2024 wording, so the rule reader adds the level check to whatever else it reads.
+	const filed = convert
+		? `4th${!prerequisite?.trim() || /^none\.?$/i.test(prerequisite.trim()) ? '' : `; ${prerequisite}`}`
+		: prerequisite;
 
 	return {
 		key,
@@ -156,10 +159,9 @@ export function parseFeat(markdown: string, key: string, fallbackName: string, g
 		desc,
 		// The source line dates the note: 2024 books print "(2024)" in the title and
 		// the 2014 ones print no year at all.
-		type: convert
-			? 'General' : readType(prerequisite, readSourceLine(markdown).year === 2024),
-		prerequisite: convert ? `Level 4+${levelOnly ? '' : `; ${prerequisite}`}` : prerequisite,
-		...(levelOnly ? { prerequisiteRule: { kind: 'level' as const, minimum: 4 } } : {}),
+		type: convert ? 'General' : readType(prerequisite, readSourceLine(markdown).year === 2024),
+		prerequisite: filed,
+		prerequisiteRule: readPrerequisiteRule(filed),
 		benefits,
 	};
 }

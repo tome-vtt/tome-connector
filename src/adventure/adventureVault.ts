@@ -1,8 +1,10 @@
-import { App, TFile, TFolder, parseYaml } from 'obsidian';
+import { App, TFile, TFolder, normalizePath, parseYaml } from 'obsidian';
 
 import { fallbackChapterTitle, orderByFilenamePrefix, parseAdventureIndex } from './adventureIndex';
 import { findWikiLinks } from './adventureLinks';
 import { parseAdventure } from './adventureParser';
+import { suggestMapsBySize } from './adventureImageSuggestions';
+import { pickDefaultCover } from './adventureCover';
 import type { AdventureSource, ChapterSource } from './adventureParser';
 import type { AdventurePlan, EntityDestination, PlannedEntity } from './adventurePlan';
 import { parseEquipmentItem } from '../recognizers/compendium/equipmentItem';
@@ -251,5 +253,16 @@ export async function buildAdventurePlan(
 	onProgress?: (done: number, total: number) => void,
 ): Promise<AdventurePlan> {
 	const source = await readAdventureSource(app, folder);
-	return resolveEntityNames(app, parseAdventure(source), onProgress);
+	const plan = await resolveEntityNames(app, parseAdventure(source), onProgress);
+	await suggestMapsBySize(plan, async (path) => {
+		const bytes = await app.vault.adapter.readBinary(normalizePath(path));
+		const bitmap = await createImageBitmap(new Blob([bytes]));
+		try {
+			return { width: bitmap.width, height: bitmap.height };
+		} finally {
+			bitmap.close();
+		}
+	});
+	plan.coverKey = pickDefaultCover(plan.images);
+	return plan;
 }

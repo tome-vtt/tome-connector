@@ -12,8 +12,10 @@
 
 import { noteName, type Note } from '../note';
 import { slug, titleCase } from '../labelledMarkdown';
-import { cliNoteType, isImportable, type CliNoteType } from './cliNote';
+import { cliNoteType, IMPORTABLE, isImportable, type CliNoteType } from './cliNote';
 import { parseBackground, type Background } from './background';
+import { parseEquipmentItem } from './equipmentItem';
+import { isMagic } from './magicItem';
 import { parseFeat, type Feat } from './feat';
 import { parseSpecies, type Species } from './species';
 import { parseSpell, type Spell } from './spell';
@@ -26,6 +28,22 @@ import {
 	type ParsedSubclass,
 	type Subclass,
 } from './subclass';
+
+/**
+ * A piece of gear, as the server's `Srd2024Item`. Magic items are not among them:
+ * Tome keeps those in a catalogue of their own that a content source cannot add to.
+ */
+export interface PackageItem {
+	key: string;
+	name: string;
+	desc: string;
+	/** A slug, as the shipped catalogue writes it: `adventuring-gear`. */
+	category: string | null;
+	/** In gold pieces. */
+	cost: number | null;
+	/** In pounds. */
+	weight: number | null;
+}
 
 /** A class entry that adds subclasses without redefining the class. */
 export interface ClassPatch {
@@ -64,6 +82,7 @@ export interface ContentPackage {
 	 * whole and layer these subclasses into it. See `subclass.ts`.
 	 */
 	classes: ClassPatch[];
+	items: PackageItem[];
 }
 
 /** What a scan found, including what it could not use. */
@@ -71,7 +90,7 @@ export interface PackageReport {
 	package: ContentPackage;
 	/** How many of each type went in. */
 	counts: Record<string, number>;
-	/** Types recognised but with no parser - `955 items` rather than silence. */
+	/** Types recognised but not imported - `955 creatures` rather than silence. */
 	unsupported: Record<string, number>;
 	/** Notes whose type was right but which would not parse, by path. */
 	failed: string[];
@@ -145,8 +164,20 @@ function nameFor(key: string): string {
 
 interface Parsed {
 	type: CliNoteType;
-	value: Species | Background | Feat | Spell | ParsedSubclass;
+	value: Species | Background | Feat | Spell | ParsedSubclass | PackageItem;
 	source: NoteSource;
+}
+
+function toPackageItem(markdown: string, key: string, name: string): PackageItem {
+	const item = parseEquipmentItem(markdown, key, name);
+	return {
+		key,
+		name: item.name,
+		desc: item.desc ?? '',
+		category: item.category === null ? null : slug(item.category),
+		cost: item.cost,
+		weight: item.weight,
+	};
 }
 
 function parseNote(note: Note, type: CliNoteType, options: AssembleOptions): Parsed | null {
@@ -164,7 +195,9 @@ function parseNote(note: Note, type: CliNoteType, options: AssembleOptions): Par
 						? parseSpell(note.content, note.frontmatter, key, name)
 						: type === 'subclass'
 							? parseSubclass(note.content, note.frontmatter, key, name)
-							: null;
+							: type === 'item'
+								? toPackageItem(note.content, key, name)
+								: null;
 
 	return value === null ? null : { type, value, source: readSourceLine(note.content) };
 }
@@ -196,12 +229,22 @@ function sortNotes(notes: Note[], options: AssembleOptions): Sorted {
 		const type = cliNoteType(note.frontmatter);
 		if (type === null || type === 'index') continue;
 
-		if (!isImportable(type)) {
-			out.unsupported[type] = (out.unsupported[type] ?? 0) + 1;
+		// A magic item has no place in a content source, so it is reported under its own
+		// name rather than as the gear its note type shares.
+		const magic = type === 'item' && isMagic(note.frontmatter);
+		if (!isImportable(type) || magic) {
+			const kind = magic ? 'magic-item' : type;
+			out.unsupported[kind] = (out.unsupported[kind] ?? 0) + 1;
 			continue;
 		}
 
-		const result = parseNote(note, type, options);
+		let result: Parsed | null;
+		try {
+			result = parseNote(note, type, options);
+		} catch (error) {
+			console.error(`Tome Connector: could not parse ${note.path}`, error);
+			result = null;
+		}
 		if (result === null) {
 			out.failed.push(note.path);
 			continue;
@@ -261,6 +304,7 @@ export function assemblePackage(
 	const backgrounds = of<Background>('background');
 	const feats = of<Feat>('feat');
 	const spells = of<Spell>('spell');
+	const items = of<PackageItem>('item');
 
 	const subclasses = of<ParsedSubclass>('subclass');
 	const attachable = subclasses.filter(hasShippedClass);
@@ -281,6 +325,7 @@ export function assemblePackage(
 			feats,
 			spells,
 			classes,
+			items,
 		},
 		counts: {
 			species: species.length,
@@ -290,6 +335,7 @@ export function assemblePackage(
 			// The subclasses, not the patches: "36 subclasses" is what was found, and
 			// "9 classes" would be a count of the envelopes they arrived in.
 			subclasses: attachable.length,
+			items: items.length,
 		},
 		unsupported,
 		failed,
@@ -298,10 +344,7 @@ export function assemblePackage(
 		legacyFeats: parsed.filter((entry) => entry.type === 'feat' && entry.source.year !== 2024).length,
 		...subclassAvailability(subclasses, attachable),
 		sources,
-		suggested: {
-			license,
-			attribution: suggestedAttribution(sources),
-		},
+		suggested: { license, attribution: suggestedAttribution(sources) },
 	};
 }
 
@@ -334,7 +377,8 @@ const TYPE_NOUNS: Record<string, [string, string]> = {
 	'legendary-group': ['legendary group', 'legendary groups'],
 	object: ['object', 'objects'],
 	vehicle: ['vehicle', 'vehicles'],
-	item: ['item', 'items'],
+	items: ['item', 'items'],
+	'magic-item': ['magic item', 'magic items'],
 	class: ['class', 'classes'],
 	'optional-feature': ['optional feature', 'optional features'],
 };
@@ -358,4 +402,20 @@ export function describeCounts(counts: Record<string, number>): string {
  */
 export function packageKeyFrom(name: string): string {
 	return slug(name) || 'my-compendium';
+}
+
+/** What a person calls each kind the reader takes, for saying what a scan looked for. */
+const READ_KIND_NAMES: Partial<Record<CliNoteType, string>> = {
+	species: 'species',
+	background: 'backgrounds',
+	feat: 'feats',
+	spell: 'spells',
+	subclass: 'subclasses',
+	item: 'equipment',
+};
+
+/** `species, backgrounds, ... and equipment`, from the reader's own list. */
+export function describeReadKinds(): string {
+	const names = IMPORTABLE.map((type) => READ_KIND_NAMES[type] ?? type);
+	return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }

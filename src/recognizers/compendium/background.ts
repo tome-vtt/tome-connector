@@ -35,7 +35,7 @@ export interface Background {
 }
 
 /** The three-letter keys the builder indexes abilities by. */
-const ABILITIES: Record<string, string> = {
+export const ABILITIES: Record<string, string> = {
 	strength: 'str',
 	dexterity: 'dex',
 	constitution: 'con',

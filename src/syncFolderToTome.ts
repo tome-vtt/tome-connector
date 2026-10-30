@@ -1,4 +1,4 @@
-import { Component, Notice, Platform, TFile, TFolder } from 'obsidian';
+import { Component, Notice, TFile, TFolder } from 'obsidian';
 import type TomeConnectorPlugin from './main';
 import { getApiKey } from './tomeConnectorSettings';
 import {
@@ -18,9 +18,7 @@ import { TomeProgressNotice } from './tomeProgressNotice';
 import { oneAtATime } from './oneAtATime';
 import { chooseCampaign } from './tomeCampaigns';
 import { describeError } from './shared';
-
-const MENU_TITLE = 'Import as a Tome Reference';
-const MENU_ICON = 'upload-cloud';
+import { sentTo } from './tomeHttp';
 
 function canStartFolderExport(plugin: TomeConnectorPlugin): boolean {
 	if (!plugin.settings.baseUrl) {
@@ -32,35 +30,6 @@ function canStartFolderExport(plugin: TomeConnectorPlugin): boolean {
 		return false;
 	}
 	return true;
-}
-
-/**
- * Adds "Import as a Tome Reference" to a folder's context menu in the File
- * Explorer. The folder's notes are compiled into one PDF, with each note a
- * chapter in the bookmark outline, and pushed to the campaign's Reference
- * library - phrased to match the other two imports on the same folder's menu
- * ("Import as a Tome content source", "Import as a Tome Storybook adventure"),
- * naming which library this one fills rather than just where it goes.
- */
-export function registerFolderExportMenuItem(plugin: TomeConnectorPlugin): void {
-	plugin.registerEvent(
-		plugin.app.workspace.on('file-menu', (menu, file) => {
-			// The same event fires for notes and for menus opened from links.
-			if (!(file instanceof TFolder)) return;
-			// Printing goes through Electron's <webview>, which only exists in
-			// the desktop app; on mobile the item is simply absent.
-			if (!Platform.isDesktopApp) return;
-
-			menu.addItem((item) =>
-				item
-					.setTitle(MENU_TITLE)
-					.setIcon(MENU_ICON)
-					.onClick(() => {
-						void runFolderExport(plugin, file);
-					}),
-			);
-		}),
-	);
 }
 
 /**
@@ -100,15 +69,20 @@ function warnUninlinedResources(bodyHtml: string): void {
 }
 
 /**
+ * "Import as a Tome Reference": the folder's notes are compiled into one PDF,
+ * with each note a chapter in the bookmark outline, and pushed to the campaign's
+ * Reference library. Printing goes through Electron's <webview>, which only
+ * exists in the desktop app.
+ *
  * Only one export at a time. Each run stands up a print guest and holds the
  * whole compiled book in memory twice - once as a DOM tree, once as markup -
  * so a concurrent second run would double both for no benefit.
  */
-const runFolderExport = oneAtATime(
+export const runFolderExport = oneAtATime(
 	async (plugin: TomeConnectorPlugin, folder: TFolder): Promise<void> => {
 		if (!canStartFolderExport(plugin)) return;
-		const campaignId = await chooseCampaign(plugin, 'Import');
-		if (campaignId === null) return;
+		const campaign = await chooseCampaign(plugin, 'Import');
+		if (campaign === null) return;
 
 		// A vault-root folder has an empty name; use the vault's name.
 		const title = folder.name || plugin.app.vault.getName();
@@ -146,11 +120,11 @@ const runFolderExport = oneAtATime(
 
 			progress.setMessage(`Tome connector: uploading "${title}" (${formatBytes(pdf.byteLength)})…`);
 			progress.setProgress(total + 1, totalSteps);
-			await uploadReferencePdf(plugin, pdf, title, campaignId);
+			await uploadReferencePdf(plugin, pdf, title, campaign.id);
 			progress.setProgress(totalSteps, totalSteps);
 
 			progress.hide();
-			reportSuccess(title, total, built);
+			reportSuccess(title, total, built, campaign.name);
 		} catch (error) {
 			progress.hide();
 			console.error('Tome Connector: failed to export folder', error);
@@ -170,9 +144,10 @@ function reportSuccess(
 	title: string,
 	total: number,
 	built: BuiltDocument,
+	campaignName: string,
 ): void {
 	const { failures, skipped } = built;
-	const noteCount = `${total} note${total === 1 ? '' : 's'}`;
+	const sent = sentTo(`"${title}" (${total} note${total === 1 ? '' : 's'})`, campaignName);
 	// Only worth saying when the optimizer actually shrank something, which is
 	// also the answer to "why is this export so much smaller than the vault".
 	const saved =
@@ -194,11 +169,11 @@ function reportSuccess(
 		}
 		const problems = failures.length + skipped.length;
 		new Notice(
-			`Sent "${title}" (${noteCount}) to Tome.${saved} ${problems} item${problems === 1 ? '' : 's'} could not be included — see the console.`,
+			`Tome connector: ${sent}.${saved} ${problems} item${problems === 1 ? '' : 's'} could not be included — see the console.`,
 			10000,
 		);
 		return;
 	}
 
-	new Notice(`Sent "${title}" (${noteCount}) to Tome.${saved}`);
+	new Notice(`Tome connector: ${sent}.${saved}`);
 }

@@ -24,7 +24,16 @@ it('offers an older feat as General when the importer opts in', () => {
 it('adds a level-4 rule to an older feat without other prerequisites', () => {
 	const note = { ...elvenAccuracy, content: '# Dungeon Delver\n*Source: Player\'s Handbook*\n\nYou spot traps.' };
 	const feat = assemblePackage([note], 'phb', { generalLegacyFeats: true }).package.feats[0];
-	expect(feat).toMatchObject({ type: 'General', prerequisite: 'Level 4+', prerequisiteRule: { kind: 'level', minimum: 4 } });
+	expect(feat).toMatchObject({ type: 'General', prerequisite: '4th', prerequisiteRule: { kind: 'level', minimum: 4 } });
+});
+
+it('checks both level 4 and an older feat\'s ability prerequisite', () => {
+	const note = { ...elvenAccuracy, content: elvenAccuracy.content.replace('Elf or half-elf', 'Strength 13 or higher') };
+	const feat = assemblePackage([note], 'phb', { generalLegacyFeats: true }).package.feats[0];
+	expect(feat?.prerequisiteRule).toMatchObject({
+		kind: 'all',
+		children: [{ kind: 'level', minimum: 4 }, { kind: 'ability', ability: 'str', minimum: 13 }],
+	});
 });
 
 it('sends an unlabelled ability increase as a benefit Tome can apply', () => {
@@ -45,8 +54,8 @@ it('keeps uncheckable racial prerequisites visible instead of replacing them wit
 	for (const prerequisite of ['Elf or half-elf', 'Halfling']) {
 		const note = { ...elvenAccuracy, content: elvenAccuracy.content.replace('Elf or half-elf', prerequisite) };
 		const feat = assemblePackage([note], 'xge', { generalLegacyFeats: true }).package.feats[0];
-		expect(feat?.prerequisite).toBe(`Level 4+; ${prerequisite}`);
-		expect(feat?.prerequisiteRule).toBeUndefined();
+		expect(feat?.prerequisite).toBe(`4th; ${prerequisite}`);
+		expect(feat?.prerequisiteRule).toBeNull();
 	}
 });
 

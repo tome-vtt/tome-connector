@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
+// The version every request reports, from the manifest a release bumps.
+import { version as manifestVersion } from '../manifest.json';
 import { runBulkSend } from '../src/bulkSend';
 import { TOME_ROUTES } from '../src/routes';
 import {
 	NOT_CONFIGURED,
 	createTomeHttp,
 	describeFailure,
+	describeResult,
 	type TomeRequest,
 	type TomeResponse,
 	type TomeTransport,
@@ -39,6 +42,7 @@ describe('postJson', () => {
 					'Content-Type': 'application/json',
 					'X-Api-Key': 'key-1',
 					'X-Campaign-Id': 'camp-1',
+					'X-Tome-Connector-Version': manifestVersion,
 				},
 				body: '{"a":1}',
 			},
@@ -55,6 +59,7 @@ describe('postJson', () => {
 		expect(transport.sent[0]?.headers).toEqual({
 			'Content-Type': 'application/json',
 			'X-Api-Key': 'key-1',
+			'X-Tome-Connector-Version': manifestVersion,
 		});
 	});
 
@@ -166,7 +171,11 @@ describe('postMultipart', () => {
 			url: 'https://tome.example.com/api/import',
 			method: 'POST',
 			contentType: 'multipart/form-data; boundary=xyz',
-			headers: { 'Content-Type': 'multipart/form-data; boundary=xyz', 'X-Api-Key': 'key-1' },
+			headers: {
+				'Content-Type': 'multipart/form-data; boundary=xyz',
+				'X-Api-Key': 'key-1',
+				'X-Tome-Connector-Version': manifestVersion,
+			},
 			body,
 		});
 		expect(result).toEqual({ ok: true, status: 200, id: 'pkg-1', message: null, retryable: false });
@@ -204,7 +213,11 @@ describe('getJson', () => {
 		const result = await createTomeHttp(transport).getJson(campaignsTarget);
 
 		expect(transport.sent).toEqual([
-			{ url: 'https://tome.example.com/api/campaigns', method: 'GET', headers: { 'X-Api-Key': 'key-1' } },
+			{
+				url: 'https://tome.example.com/api/campaigns',
+				method: 'GET',
+				headers: { 'X-Api-Key': 'key-1', 'X-Tome-Connector-Version': manifestVersion },
+			},
 		]);
 		expect(result).toEqual({ ok: true, value: campaigns });
 	});
@@ -241,7 +254,12 @@ describe('postJsonAndRead', () => {
 				url: 'https://tome.example.com/api/Storybook/ImportAdventure',
 				method: 'POST',
 				contentType: 'application/json',
-				headers: { 'Content-Type': 'application/json', 'X-Api-Key': 'key-1', 'X-Campaign-Id': 'camp-1' },
+				headers: {
+					'Content-Type': 'application/json',
+					'X-Api-Key': 'key-1',
+					'X-Campaign-Id': 'camp-1',
+					'X-Tome-Connector-Version': manifestVersion,
+				},
 				body: '{"title":"Book"}',
 			},
 		]);
@@ -281,6 +299,18 @@ describe('describeFailure', () => {
 		expect(describeFailure({ ok: false, status: 500, id: null, message: null, retryable: true })).toBe(
 			'The server responded with status 500.',
 		);
+	});
+});
+
+describe('describeResult', () => {
+	it('names the item and the campaign it went to', () => {
+		const result = { ok: true, status: 200, id: 'abc', message: null, retryable: false };
+		expect(describeResult(result, 'Old Keep', 'Test 2')).toBe('Tome connector: "Old Keep" sent to Test 2.');
+	});
+
+	it("gives a refusal the server's own message", () => {
+		const result = { ok: false, status: 409, id: null, message: 'That name is taken.', retryable: false };
+		expect(describeResult(result, 'Old Keep', 'Test 2')).toBe('Tome connector: That name is taken.');
 	});
 });
 

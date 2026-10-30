@@ -1,6 +1,6 @@
 {
 	"name": "tome-connector",
-	"version": "1.1.1",
+	"version": "1.2.0",
 	"description": "Send note content from Obsidian to a Tome server via a configurable HTTP endpoint.",
 	"main": "main.js",
 	"type": "module",
@@ -18,17 +18,22 @@
 	"author": "Tome Gaming",
 	"license": "MIT",
 	"devDependencies": {
-		"@eslint/js": "^9.39.5",
-		"@types/node": "^22.20.5",
+		"@eslint/js": "^10.0.1",
+		"@types/node": "^26.6.5",
 		"esbuild": "0.28.2",
-		"eslint": "^9.39.5",
+		"eslint": "^10.13.0",
 		"eslint-plugin-obsidianmd": "^0.4.2",
 		"globals": "^17.13.0",
 		"jiti": "^2.7.0",
 		"obsidian": "^1.14.4",
-		"typescript": "^5.9.3",
-		"typescript-eslint": "^8.71.2",
+		"typescript": "^6.0.3",
+		"typescript-eslint": "^8.72.0",
 		"vitest": "5.0.5",
 		"yaml": "^2.9.1"
+	},
+	"overrides": {
+		"eslint-plugin-obsidianmd": {
+			"moment": "2.31.0"
+		}
 	}
 }

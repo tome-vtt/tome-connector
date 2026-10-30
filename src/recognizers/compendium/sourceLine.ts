@@ -137,12 +137,19 @@ export function suggestedLicense(summary: SourceSummary): string | null {
 	return summary.allSrd ? SRD_LICENSE : null;
 }
 
+const ATTRIBUTION_BOOKS_SHOWN = 3;
+
 /**
  * The attribution line to prefill, naming the books the content came from.
  *
  * The SRD's CC-BY-4.0 term is attribution, so this is not a courtesy - it is the
- * condition the licence is granted on.
+ * condition the licence is granted on. A folder drawn from many books lists the
+ * first few and counts the rest, so the field stays readable; the user can extend it.
  */
 export function suggestedAttribution(summary: SourceSummary): string | null {
-	return summary.books.length === 0 ? null : summary.books.join('; ');
+	const { books } = summary;
+	if (books.length === 0) return null;
+	const shown = books.slice(0, ATTRIBUTION_BOOKS_SHOWN).join('; ');
+	const more = books.length - ATTRIBUTION_BOOKS_SHOWN;
+	return more > 0 ? `${shown} and ${more} more` : shown;
 }

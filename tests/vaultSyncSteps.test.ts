@@ -27,7 +27,7 @@ const notes = vault({
 	'Session 1.md': { content: 'Nothing to send here.' },
 });
 
-const labels = (found: Sendable[]) => found.map((sendable) => sendable.label);
+const labels = (found: { sendables: Sendable[] }) => found.sendables.map((sendable) => sendable.label);
 
 describe('scanScope', () => {
 	it('finds the sendables in the whole vault', async () => {
@@ -44,8 +44,43 @@ describe('scanScope', () => {
 
 		const found = await scanScope(notes, folder, JSON.parse, (done, total) => progress.push([done, total]));
 
-		expect(found).toEqual([]);
+		expect(found).toEqual({ sendables: [], warnings: [] });
 		expect(progress).toEqual([[1, 1]]);
+	});
+
+	it('sends only the one note when the scope is that note’s own path', async () => {
+		const note = { kind: 'folder' as const, folder: { path: 'Bestiary/Goblin.md', name: 'Goblin.md' } };
+
+		expect(labels(await scanScope(notes, note, JSON.parse))).toEqual(['Goblin']);
+	});
+
+	/** The 2026-10-27 test run: each of these was skipped or narrowed without a word. */
+	it('lists every block it skips and every entry it changes, under its note', async () => {
+		const fence = (language: string, block: Record<string, unknown>) =>
+			'```' + language + '\n' + JSON.stringify(block) + '\n```\n';
+		const swamp = vault({
+			'Swamp.md': {
+				content:
+					fence('encounter', { name: ' ', creatures: ['Goblin'] }) +
+					fence('encounter', { name: 'Frogs', creatures: [{ '2d4': 'Giant Frog' }, { Ogre: { hp: 70 } }, 42] }) +
+					fence('statblock', { layout: 'Basic 5e Layout' }) +
+					fence('leaflet', { id: 'swamp-map' }) +
+					'```zoommap\n{not yaml\n```\n',
+			},
+		});
+
+		const found = await scanScope(swamp, { kind: 'vault' }, JSON.parse);
+
+		expect(labels(found)).toEqual(['Frogs']);
+		expect(found.warnings).toEqual([
+			{ path: 'Swamp.md', message: 'Encounter block skipped: it has no name.' },
+			{ path: 'Swamp.md', message: 'Frogs: "2d4: Giant Frog" sent as 1 Giant Frog, since dice are not rolled.' },
+			{ path: 'Swamp.md', message: 'Frogs: Ogre sent without its overrides, which Tome does not keep.' },
+			{ path: 'Swamp.md', message: 'Frogs: creature entry 42 skipped: it names no creature.' },
+			{ path: 'Swamp.md', message: 'Statblock block skipped: it has no stats and no monster: reference.' },
+			{ path: 'Swamp.md', message: 'Map block skipped: it names no image.' },
+			{ path: 'Swamp.md', message: 'Map block skipped: its YAML could not be read.' },
+		]);
 	});
 });
 
@@ -69,7 +104,7 @@ function sendSendables(options: {
 
 describe('sendSendables', () => {
 	const sleep = () => Promise.resolve();
-	const scan = () => scanScope(notes, { kind: 'vault' }, JSON.parse);
+	const scan = async () => (await scanScope(notes, { kind: 'vault' }, JSON.parse)).sendables;
 
 	it('sends each through the ports and reports progress per item', async () => {
 		const { ports, sent } = inMemorySendPorts();

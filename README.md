@@ -45,12 +45,15 @@ Open **Settings -> Tome Connector** and configure:
   sent in the `X-Api-Key` header and is not stored in the plugin's `data.json`.
 - **Sync tag**: A tag such as `#tome`. Notes carrying it are included by the
   *Send notes with the sync tag to Tome* command. Leave it empty and that
-  command hides itself; the folder and vault commands never consult it.
+  command opens this setting instead; the folder and vault commands never consult it.
 - **Downscale images before sending**: On by default. See below.
 
 The API key determines the Tome account. Before every campaign-scoped import, the
 connector loads that account's campaigns and asks which one should receive the content.
 It sends the selected id in the `X-Campaign-Id` header.
+
+Every request also carries the connector's own version, from its manifest, in the
+`X-Tome-Connector-Version` header, so Tome can tell you when your connector is out of date.
 
 ### Image size
 
@@ -190,10 +193,11 @@ notice say how many imported feats have no category and will not be offered when
 levelling up.
 
 Unlabelled ability-increase bullets are imported as benefits, including the choice
-of abilities and the maximum score. Feats without another prerequisite receive a
-level-4 rule. Tome cannot yet check racial prerequisites automatically: those and
-other unparsed prerequisites remain visible for the player to check. The connector
-does not replace them with a rule that checks only level.
+of abilities and the maximum score. Each filed feat gets a level-4 prerequisite,
+checked together with any ability score prerequisite it already had. Tome cannot
+yet check racial prerequisites, so a feat with one keeps its text and no rule, and
+Tome does not offer it. The connector never replaces a prerequisite with a rule
+that checks only level.
 
 ## Data And Privacy
 

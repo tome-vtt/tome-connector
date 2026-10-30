@@ -7,11 +7,14 @@
  * and a fake in the tests.
  */
 
+import { version as CONNECTOR_VERSION } from '../manifest.json';
 import { describeError } from './shared';
 
 /** Header name the Tome server expects the API key under (see TomeVTT.Server.Auth.ApiKeyAuthenticationDefaults). */
 export const API_KEY_HEADER_NAME = 'X-Api-Key';
 export const CAMPAIGN_HEADER_NAME = 'X-Campaign-Id';
+/** Tells Tome which connector release sent the request, so it can say when one is out of date. */
+export const VERSION_HEADER_NAME = 'X-Tome-Connector-Version';
 
 /** What every caller says when a request is refused before it is sent. */
 export const NOT_CONFIGURED = 'Set a base URL and an API key in the plugin settings first.';
@@ -78,6 +81,25 @@ export function describeFailure(result: SendResult): string {
 	return result.message ?? `The server responded with status ${result.status}.`;
 }
 
+/**
+ * The one wording every send result uses: what went, and the campaign (or My Characters) it
+ * went to. A send that names neither reads as success while the items sit in a campaign the
+ * user is not looking at.
+ */
+export function sentTo(what: string, where: string): string {
+	return `${what} sent to ${where}`;
+}
+
+/** The Notice for one send: what went where on success, the server's reason otherwise. */
+export function describeResult(result: SendResult, name: string, where: string): string {
+	if (result.ok) return `Tome connector: ${sentTo(`"${name}"`, where)}.`;
+	// The server explains itself - a duplicated character name, a plan limit, a
+	// title already taken - and those are things the person syncing can fix.
+	return result.message
+		? `Tome connector: ${result.message}`
+		: `Tome connector: server responded with status ${result.status}. Check the console for the response body.`;
+}
+
 export function createTomeHttp(transport: TomeTransport) {
 	return {
 		postJson: async (target: TomeTarget, payload: string) =>
@@ -107,6 +129,15 @@ async function readJson<T>(sent: Promise<{ result: SendResult; text: string }>):
 	}
 }
 
+/** The headers every request carries; a POST also names its content type. */
+function headersFor(target: TomeTarget, contentType?: string): Record<string, string> {
+	const headers: Record<string, string> = contentType ? { 'Content-Type': contentType } : {};
+	headers[API_KEY_HEADER_NAME] = target.apiKey;
+	headers[VERSION_HEADER_NAME] = CONNECTOR_VERSION;
+	if (target.campaignId) headers[CAMPAIGN_HEADER_NAME] = target.campaignId;
+	return headers;
+}
+
 /** Sends one request; a POST when `post` is given, otherwise a GET. */
 async function send(
 	transport: TomeTransport,
@@ -117,9 +148,7 @@ async function send(
 		return { result: { ok: false, status: 0, id: null, message: NOT_CONFIGURED, retryable: false }, text: '' };
 	}
 
-	const headers: Record<string, string> = post ? { 'Content-Type': post.contentType } : {};
-	headers[API_KEY_HEADER_NAME] = target.apiKey;
-	if (target.campaignId) headers[CAMPAIGN_HEADER_NAME] = target.campaignId;
+	const headers = headersFor(target, post?.contentType);
 
 	let response: TomeResponse;
 	try {
