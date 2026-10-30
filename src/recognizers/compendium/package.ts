@@ -107,7 +107,10 @@ export interface PackageReport {
 	 * the builder can never grant. 2014 subclasses filed under a 2024 class.
 	 */
 	unreachableSubclasses: string[];
-	/** Included feats with no category, so level-up cannot offer them. */
+	/**
+	 * Included feats level-up cannot offer: no category, or prerequisite text with
+	 * no rule, which Tome refuses.
+	 */
 	unavailableFeats: number;
 	/** Included feats eligible for the older-book conversion option. */
 	legacyFeats: number;
@@ -340,7 +343,8 @@ export function assemblePackage(
 		unsupported,
 		failed,
 		alreadyShipped,
-		unavailableFeats: feats.filter((feat) => feat.type === null).length,
+		unavailableFeats: feats.filter((feat) =>
+			feat.type === null || (feat.prerequisite?.trim() && feat.prerequisiteRule === null)).length,
 		legacyFeats: parsed.filter((entry) => entry.type === 'feat' && entry.source.year !== 2024).length,
 		...subclassAvailability(subclasses, attachable),
 		sources,
@@ -358,7 +362,7 @@ export function describeUnavailableFeats(report: PackageReport): string {
 	const count = report.unavailableFeats;
 	if (count === 0) return '';
 	return `${describeCounts({ feats: count })} will not be offered when levelling up ` +
-		`because ${count === 1 ? 'it has' : 'they have'} no category.`;
+		`because ${count === 1 ? 'it has' : 'they have'} no category or a prerequisite Tome cannot check.`;
 }
 
 /**

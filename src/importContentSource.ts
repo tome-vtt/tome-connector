@@ -285,7 +285,7 @@ class ConfirmImportModal extends Modal {
 		if (this.report.legacyFeats === 0) return;
 		new Setting(contentEl)
 			.setName('Offer older-book feats at level 4')
-			.setDesc('File older feats as General feats. Feats needing a particular race are still not offered.')
+			.setDesc('File older feats as General feats. Feats with a prerequisite Tome cannot check, such as a race, are still not offered.')
 			.addToggle((control) => control
 				.setValue(this.options.generalLegacyFeats === true)
 				.onChange((on) => {

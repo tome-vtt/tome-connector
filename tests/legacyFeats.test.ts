@@ -54,7 +54,7 @@ it('reports how many imported feats will not be offered with the option off', ()
 	const report = assemblePackage([elvenAccuracy], 'xge');
 	expect(report.unavailableFeats).toBe(1);
 	expect(report.legacyFeats).toBe(1);
-	expect(describeUnavailableFeats(report)).toBe('1 feat will not be offered when levelling up because it has no category.');
+	expect(describeUnavailableFeats(report)).toBe('1 feat will not be offered when levelling up because it has no category or a prerequisite Tome cannot check.');
 });
 
 it('keeps uncheckable racial prerequisites visible instead of replacing them with a partial rule', () => {
@@ -66,10 +66,20 @@ it('keeps uncheckable racial prerequisites visible instead of replacing them wit
 	}
 });
 
-it('counts only included uncategorised feats and preserves 2024 categories', () => {
+it('reports an older feat filed as General that is still refused for an uncheckable prerequisite', () => {
+	const report = assemblePackage([elvenAccuracy], 'xge', { generalLegacyFeats: true });
+	expect(report.package.feats[0]?.type).toBe('General');
+	expect(report.unavailableFeats).toBe(1);
+	expect(describeUnavailableFeats(report)).toBe(
+		'1 feat will not be offered when levelling up because it has no category or a prerequisite Tome cannot check.',
+	);
+});
+
+it('counts only included feats Tome cannot offer and preserves 2024 categories', () => {
 	const modern = { ...elvenAccuracy, content: '# Alert\n*Source: Player\'s Handbook (2024)*\n\nYou act quickly.' };
 	const srd = { ...elvenAccuracy, content: elvenAccuracy.content.replace('p. 74*', 'p. 74. Available in the SRD*') };
-	const report = assemblePackage([elvenAccuracy, modern, srd], 'mixed', { generalLegacyFeats: true });
+	const delver = { ...elvenAccuracy, content: '# Dungeon Delver\n*Source: Player\'s Handbook*\n\nYou spot traps.' };
+	const report = assemblePackage([delver, modern, srd], 'mixed', { generalLegacyFeats: true });
 	expect(report.package.feats.map((feat) => feat.type)).toEqual(['General', 'Origin']);
 	expect(report.legacyFeats).toBe(1);
 	expect(report.unavailableFeats).toBe(0);
