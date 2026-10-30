@@ -9,6 +9,7 @@ import { validateManifest, type ImportManifest } from './recognizers/compendium/
 import {
 	describeCounts,
 	describeReadKinds,
+	describeUnavailableFeats,
 	isEmpty,
 	type AssembleOptions,
 	type PackageReport,
@@ -101,6 +102,7 @@ class ConfirmImportModal extends Modal {
 		this.renderNotImported(contentEl);
 		this.renderLicenceNotice(contentEl);
 		this.renderToggles(contentEl);
+		this.renderLegacyFeats(contentEl);
 		this.renderFields(contentEl);
 		this.addButtons(contentEl, true);
 	}
@@ -277,6 +279,21 @@ class ConfirmImportModal extends Modal {
 		}
 	}
 
+	private renderLegacyFeats(contentEl: HTMLElement): void {
+		const warning = describeUnavailableFeats(this.report);
+		if (warning) contentEl.createEl('p', { cls: 'tome-connector-sync-hint', text: warning });
+		if (this.report.legacyFeats === 0) return;
+		new Setting(contentEl)
+			.setName('Offer older-book feats at level 4')
+			.setDesc('File older feats as General feats. Feats needing a particular race are still not offered.')
+			.addToggle((control) => control
+				.setValue(this.options.generalLegacyFeats === true)
+				.onChange((on) => {
+					this.nextOptions = { ...this.options, generalLegacyFeats: on };
+					this.close();
+				}));
+	}
+
 	/** The common licences, plus "Other" for a box that takes anything else. */
 	private renderLicence(contentEl: HTMLElement): void {
 		const current = this.manifest.license;
@@ -413,8 +430,11 @@ async function upload(
 
 	if (outcome.ok) {
 		new Notice(
-			`Tome connector: imported ${describeCounts(report.counts)}. ` +
+			[
+				`Tome connector: imported ${describeCounts(report.counts)}.`,
+				describeUnavailableFeats(report),
 				'Switch it on for a campaign in Tome to use it.',
+			].filter(Boolean).join(' '),
 		);
 		return;
 	}
