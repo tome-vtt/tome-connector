@@ -84,7 +84,8 @@ export function readType(prerequisite: string | null, is2024: boolean): string |
 }
 
 /**
- * The feat's benefits: the bold-labelled paragraphs after the intro.
+ * The feat's benefits: the bold-labelled paragraphs after the intro, and the
+ * unlabelled "Increase ... by 1, to a maximum of N" bullets older books use.
  *
  * A feat writes `**Initiative Proficiency.** When you roll…` in exactly the shape
  * a species writes a stat, which is why `parseLabelledValues` returns everything
@@ -109,7 +110,7 @@ export function readBenefits(markdown: string): Benefit[] {
 	// Older books put the increase in an ordinary bullet, without a bold label.
 	for (const line of markdown.split(/\r?\n/)) {
 		if (FIELD_LINE.test(line)) continue;
-		const desc = stripMarkdownFromString(line).replace(/^\s*[-*+]\s+/, '').trim();
+		const desc = stripMarkdownFromString(line);
 		if (!/^Increase .+? by 1, to a maximum of \d+/i.test(desc)) continue;
 		benefits.push({
 			key: `${benefits.length + 1}-ability-score-increase`,

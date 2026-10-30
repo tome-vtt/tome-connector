@@ -189,8 +189,8 @@ Two limitations worth knowing:
 
 Select **Offer older-book feats at level 4** to file feats from pre-2024 books as
 General feats. This option is off by default. The confirmation and completed-import
-notice say how many imported feats have no category and will not be offered when
-levelling up.
+notice say how many imported feats will not be offered when levelling up, because
+they have no category or a prerequisite Tome cannot check.
 
 Unlabelled ability-increase bullets are imported as benefits, including the choice
 of abilities and the maximum score. Each filed feat gets a level-4 prerequisite,
