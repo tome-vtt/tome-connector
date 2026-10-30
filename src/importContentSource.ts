@@ -285,7 +285,7 @@ class ConfirmImportModal extends Modal {
 		if (this.report.legacyFeats === 0) return;
 		new Setting(contentEl)
 			.setName('Offer older-book feats at level 4')
-			.setDesc('File older feats as General feats. Race and other prerequisites still need to be checked by the player.')
+			.setDesc('File older feats as General feats. Feats needing a particular race are still not offered.')
 			.addToggle((control) => control
 				.setValue(this.options.generalLegacyFeats === true)
 				.onChange((on) => {
@@ -430,9 +430,11 @@ async function upload(
 
 	if (outcome.ok) {
 		new Notice(
-			`Tome connector: imported ${describeCounts(report.counts)}. ` +
-				`${describeUnavailableFeats(report)} ` +
+			[
+				`Tome connector: imported ${describeCounts(report.counts)}.`,
+				describeUnavailableFeats(report),
 				'Switch it on for a campaign in Tome to use it.',
+			].filter(Boolean).join(' '),
 		);
 		return;
 	}

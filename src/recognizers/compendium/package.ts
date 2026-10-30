@@ -357,7 +357,7 @@ export function isEmpty(report: PackageReport): boolean {
 export function describeUnavailableFeats(report: PackageReport): string {
 	const count = report.unavailableFeats;
 	if (count === 0) return '';
-	return `${count} ${count === 1 ? 'feat' : 'feats'} will not be offered when levelling up ` +
+	return `${describeCounts({ feats: count })} will not be offered when levelling up ` +
 		`because ${count === 1 ? 'it has' : 'they have'} no category.`;
 }
 

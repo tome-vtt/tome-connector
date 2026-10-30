@@ -27,6 +27,12 @@ it('adds a level-4 rule to an older feat without other prerequisites', () => {
 	expect(feat).toMatchObject({ type: 'General', prerequisite: '4th', prerequisiteRule: { kind: 'level', minimum: 4 } });
 });
 
+it('reads a "None" prerequisite as no prerequisite', () => {
+	const note = { ...elvenAccuracy, content: elvenAccuracy.content.replace('Elf or half-elf', 'None') };
+	const feat = assemblePackage([note], 'xge', { generalLegacyFeats: true }).package.feats[0];
+	expect(feat).toMatchObject({ prerequisite: '4th', prerequisiteRule: { kind: 'level', minimum: 4 } });
+});
+
 it('checks both level 4 and an older feat\'s ability prerequisite', () => {
 	const note = { ...elvenAccuracy, content: elvenAccuracy.content.replace('Elf or half-elf', 'Strength 13 or higher') };
 	const feat = assemblePackage([note], 'phb', { generalLegacyFeats: true }).package.feats[0];
@@ -47,6 +53,7 @@ it('sends an unlabelled ability increase as a benefit Tome can apply', () => {
 it('reports how many imported feats will not be offered with the option off', () => {
 	const report = assemblePackage([elvenAccuracy], 'xge');
 	expect(report.unavailableFeats).toBe(1);
+	expect(report.legacyFeats).toBe(1);
 	expect(describeUnavailableFeats(report)).toBe('1 feat will not be offered when levelling up because it has no category.');
 });
 

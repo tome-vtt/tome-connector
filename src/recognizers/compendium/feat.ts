@@ -147,19 +147,19 @@ export function parseFeat(markdown: string, key: string, fallbackName: string, g
 	const benefits = readBenefits(markdown);
 	const desc = readDescription(markdown);
 	if (desc === '' && benefits.length === 0) return null;
-	const convert = generalLegacyFeats && readSourceLine(markdown).year !== 2024;
+	// The source line dates the note: 2024 books print "(2024)" in the title and
+	// the 2014 ones print no year at all.
+	const is2024 = readSourceLine(markdown).year === 2024;
+	const fileAsGeneral = generalLegacyFeats && !is2024;
+	const none = !prerequisite?.trim() || /^none\.?$/i.test(prerequisite.trim());
 	// The 2024 wording, so the rule reader adds the level check to whatever else it reads.
-	const filed = convert
-		? `4th${!prerequisite?.trim() || /^none\.?$/i.test(prerequisite.trim()) ? '' : `; ${prerequisite}`}`
-		: prerequisite;
+	const filed = !fileAsGeneral ? prerequisite : none ? '4th' : `4th; ${prerequisite}`;
 
 	return {
 		key,
 		name: titleOf(markdown, fallbackName),
 		desc,
-		// The source line dates the note: 2024 books print "(2024)" in the title and
-		// the 2014 ones print no year at all.
-		type: convert ? 'General' : readType(prerequisite, readSourceLine(markdown).year === 2024),
+		type: fileAsGeneral ? 'General' : readType(prerequisite, is2024),
 		prerequisite: filed,
 		prerequisiteRule: readPrerequisiteRule(filed),
 		benefits,
