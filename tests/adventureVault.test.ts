@@ -89,14 +89,18 @@ describe('building the adventure plan', () => {
 
 	it('reports progress while the illustrations are checked', async () => {
 		vi.stubGlobal('Image', FakeImage);
-		const { app, folder } = adventureFolder('# Hall\n\n![Scene](art/scene.png)\n\n![Dungeon](art/dungeon.png)');
+		const { app, folder } = adventureFolder(
+			'# Hall\n\nA [[Goblin]] waits.\n\n![Scene](art/scene.png)\n\n![Dungeon](art/dungeon.png)',
+		);
 		const progress: [number, number][] = [];
 
 		await buildAdventurePlan(app, folder, (done, total) => progress.push([done, total]));
 
+		// One bar: the entity name first, then each illustration.
 		expect(progress).toEqual([
-			[1, 2],
-			[2, 2],
+			[1, 3],
+			[2, 3],
+			[3, 3],
 		]);
 	});
 });
