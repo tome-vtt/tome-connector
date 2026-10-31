@@ -4,8 +4,10 @@ import type { AdventurePlan } from './adventurePlan';
 export async function suggestMapsBySize(
 	plan: AdventurePlan,
 	readSize: (path: string) => Promise<{ width: number; height: number }>,
+	onProgress?: (done: number, total: number) => void,
 ): Promise<void> {
-	for (const image of plan.images) {
+	for (const [index, image] of plan.images.entries()) {
+		onProgress?.(index + 1, plan.images.length);
 		if (image.destinationForced || image.suggested.to !== 'Prop') continue;
 		try {
 			const { width, height } = await readSize(image.dmPath);
