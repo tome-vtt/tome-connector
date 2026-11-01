@@ -1,5 +1,11 @@
 # Obsidian community plugin
 
+## Tests
+
+- Every test is my responsibility.
+- A single failing test is akin to project failure.
+- The only thing worse than project failure is a reduction in test coverage.
+
 ## Project overview
 
 - Target: Obsidian Community Plugin (TypeScript → bundled JavaScript).
