@@ -246,23 +246,37 @@ export async function resolveEntityNames(
 	return { ...plan, entities };
 }
 
-/** Reads the folder, parses it, and resolves every entity name. Ready for the review dialog. */
+/**
+ * Width and height from an `<img>` on the vault's resource URL. The browser
+ * reads them from the file header and decodes the picture only when it is
+ * drawn, which this one never is - unlike `createImageBitmap`, which decoded
+ * every full-size map just to measure it.
+ */
+function readImageSize(app: App, path: string): Promise<{ width: number; height: number }> {
+	return new Promise((resolve, reject) => {
+		const img = new Image();
+		img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+		img.onerror = () => reject(new Error(`Could not load "${path}".`));
+		img.src = app.vault.adapter.getResourcePath(normalizePath(path));
+	});
+}
+
+/** Reads the folder, parses it, resolves every entity name and guesses maps by size. Ready for the review dialog. */
 export async function buildAdventurePlan(
 	app: App,
 	folder: TFolder,
 	onProgress?: (done: number, total: number) => void,
 ): Promise<AdventurePlan> {
 	const source = await readAdventureSource(app, folder);
-	const plan = await resolveEntityNames(app, parseAdventure(source), onProgress);
-	await suggestMapsBySize(plan, async (path) => {
-		const bytes = await app.vault.adapter.readBinary(normalizePath(path));
-		const bitmap = await createImageBitmap(new Blob([bytes]));
-		try {
-			return { width: bitmap.width, height: bitmap.height };
-		} finally {
-			bitmap.close();
-		}
-	});
+	const parsed = parseAdventure(source);
+	// One bar for both passes: entity names first, then the illustrations.
+	const total = parsed.entities.length + parsed.images.length;
+	const plan = await resolveEntityNames(app, parsed, (done) => onProgress?.(done, total));
+	await suggestMapsBySize(
+		plan,
+		(path) => readImageSize(app, path),
+		(done) => onProgress?.(plan.entities.length + done, total),
+	);
 	plan.coverKey = pickDefaultCover(plan.images);
 	return plan;
 }
