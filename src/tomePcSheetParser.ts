@@ -356,8 +356,39 @@ function parseSkills(section: Section | undefined): PcSkill[] {
 	return skills;
 }
 
-function parseAttacks(section: Section | undefined): PcAttack[] {
+/**
+ * The Core Stats table's proficiency bonus. Undefined when the note has no
+ * Core Stats table, so spell rows then keep the bonus the note gives.
+ */
+function parseProficiencyBonus(section: Section | undefined): number | undefined {
+	if (!section) return undefined;
+	const table = findTable(section.lines);
+	const row = table?.rows[0];
+	if (!table || !row) return undefined;
+	return toIntSafe(cellAt(row, columnIndex(table.headers, 'proficiency')));
+}
+
+/**
+ * A spell row's bonus. The exporter writes it as the modifier of that spell's
+ * own casting ability alone (Radnads' Sorcerous Burst reads +3, his Charisma
+ * modifier), so adding the proficiency bonus gives the spell attack bonus,
+ * whichever ability a class or feat casts the spell with.
+ * ponytail: assumes the exporter keeps leaving proficiency out; drop this if it starts adding it.
+ */
+function spellAttackBonus(cell: string, proficiency: number | undefined): string {
+	const modifier = toIntSafe(cell);
+	if (modifier === undefined || proficiency === undefined) return cell;
+	const bonus = modifier + proficiency;
+	return bonus < 0 ? `${bonus}` : `+${bonus}`;
+}
+
+function parseAttacks(
+	section: Section | undefined,
+	spells: PcSpell[],
+	proficiency: number | undefined,
+): PcAttack[] {
 	if (!section) return [];
+	const spellNames = new Set(spells.map((spell) => spell.name.toLowerCase()));
 	const table = findTable(section.lines);
 	if (!table) return [];
 
@@ -373,7 +404,9 @@ function parseAttacks(section: Section | undefined): PcAttack[] {
 		if (name === '') continue;
 		attacks.push({
 			name: name,
-			attackBonus: cellAt(row, bonusCol),
+			attackBonus: spellNames.has(name.toLowerCase())
+				? spellAttackBonus(cellAt(row, bonusCol), proficiency)
+				: cellAt(row, bonusCol),
 			damage: cellAt(row, damageCol),
 			range: cellAt(row, rangeCol),
 			notes: cellAt(row, notesCol),
@@ -555,13 +588,15 @@ function parseLabelledLines(section: Section | undefined): Map<string, string> {
 export function parsePcSheet(content: string): PcSheet {
 	const sections = splitSections(stripFrontmatter(content));
 	const proficiencies = parseLabelledLines(findSection(sections, 'Proficiencies & Languages'));
+	const coreStats = findSection(sections, 'Core Stats');
+	const spells = parseSpells(findSection(sections, 'Spells'));
 
 	return {
-		initiative: parseInitiative(findSection(sections, 'Core Stats')),
+		initiative: parseInitiative(coreStats),
 		saves: parseSaves(findSection(sections, 'Saving Throws')),
 		skills: parseSkills(findSection(sections, 'Skills')),
-		attacks: parseAttacks(findSection(sections, 'Actions & Attacks')),
-		spells: parseSpells(findSection(sections, 'Spells')),
+		attacks: parseAttacks(findSection(sections, 'Actions & Attacks'), spells, parseProficiencyBonus(coreStats)),
+		spells: spells,
 		features: parseFeatures(findSection(sections, 'Features & Traits')),
 		equipment: parseEquipment(findSection(sections, 'Equipment')),
 		currency: parseCurrency(findSection(sections, 'Currency')),

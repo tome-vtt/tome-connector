@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { cleanCell, findTable, parsePcSheet, splitSections, stripFrontmatter } from '../src/tomePcSheetParser';
 
 /**
@@ -278,5 +280,58 @@ describe('parsePcSheet - caster', () => {
 
 	it('omits an absent currency table rather than inventing an empty purse', () => {
 		expect(sheet.currency).toBeUndefined();
+	});
+});
+
+/**
+ * Radnads, the D&D Beyond note the connector sent in the 2026-10-27 test run
+ * (Sorcerer 2, Charisma 17, proficiency +2). The exporter writes each spell
+ * row's ATK Bonus as the casting ability's modifier alone (+3), so its spell
+ * attack bonus of +5 has to be worked out here.
+ */
+describe('parsePcSheet - spell attack rows', () => {
+	const radnads = readFileSync(join(import.meta.dirname, 'fixtures', 'connector-run-fixture-radnads.md'), 'utf8');
+	const attacks = parsePcSheet(radnads).attacks;
+	const bonusOf = (name: string) => attacks.find((attack) => attack.name === name)?.attackBonus;
+
+	it('gives a spell row the proficiency bonus plus its casting ability modifier', () => {
+		expect(bonusOf('Sorcerous Burst')).toBe('+5');
+		expect(bonusOf('Acid Splash')).toBe('+5');
+		expect(bonusOf('Shocking Grasp')).toBe('+5');
+		expect(bonusOf('Chill Touch')).toBe('+5');
+	});
+
+	it('keeps the bonus the note gives a weapon row', () => {
+		expect(bonusOf('Unarmed Strike')).toBe('+2');
+	});
+
+	it('works the bonus out from the row itself, so a feat spell keeps its own ability', () => {
+		// Magic Initiate cast with Intelligence (+1) beside a Charisma class spell (+3).
+		const note = `## Core Stats
+
+| HP | AC | Speed | Initiative | Proficiency Bonus |
+|:---:|:---:|:---:|:---:|:---:|
+| 14 / 14 | 10 | 30 ft | +0 | +2 |
+
+## Actions & Attacks
+
+| Name | ATK Bonus | Damage | Range | Notes |
+| :--- | :---: | :--- | :---: | :--- |
+| ✨ Sorcerous Burst | +3 | — | 120 ft | Evocation |
+| ✨ Fire Bolt | +1 | 1d10 | 120 ft | Evocation |
+
+## Spells
+
+### Cantrips
+
+| Spell | School | Cast Time | Range | Conc. | Prepared |
+|:---|:---|:---|:---|:---:|:---:|
+| **Sorcerous Burst** | Evocation | 1 Action | 120 ft | — | — |
+| **Fire Bolt** | Evocation | 1 Action | 120 ft | — | — |
+`;
+		expect(parsePcSheet(note).attacks.map((attack) => [attack.name, attack.attackBonus])).toEqual([
+			['Sorcerous Burst', '+5'],
+			['Fire Bolt', '+3'],
+		]);
 	});
 });
