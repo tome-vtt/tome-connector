@@ -79,7 +79,7 @@ function toTier(value: unknown): UsesTier | null {
 /** Checks a parsed block against ADR-0016, with its tiers put in level order. */
 function toUses(value: unknown): FeatureUses | null {
 	const { cost, summary, tiers } = asRecord(value) ?? {};
-	if (!isOneOf(COSTS, cost) || typeof summary !== 'string') return null;
+	if (!isOneOf(COSTS, cost) || typeof summary !== 'string' || summary.trim() === '') return null;
 	if (!Array.isArray(tiers) || tiers.length === 0) return null;
 
 	const read = tiers.map(toTier);

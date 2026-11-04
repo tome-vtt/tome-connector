@@ -94,6 +94,31 @@ ${JSON.stringify(PORTENT_USES, null, 2)}
 		expect(features[0]?.uses?.tiers.map((tier) => tier.from)).toEqual([3, 14]);
 	});
 
+	it('accepts the highest level and counts Tome allows', () => {
+		const uses = {
+			cost: 'none',
+			summary: 'At the top.',
+			tiers: [
+				{ from: 19, count: { fixed: 99 }, shortRest: 'none' },
+				{ from: 20, count: { perLevel: 99 }, shortRest: 'all' },
+			],
+		};
+		const { features } = featuresOf(diviner(`\`\`\`tome-uses\n${JSON.stringify(uses)}\n\`\`\``));
+
+		expect(features[0]?.uses).toEqual(uses);
+	});
+
+	it('reads a note saved with Windows line endings', () => {
+		const note = diviner(
+			`${portentProse}\n\n\`\`\`tome-uses\n${JSON.stringify(PORTENT_USES, null, 2)}\n\`\`\`\nYou use each foretelling roll once.`,
+		);
+		const { features } = featuresOf({ ...note, content: note.content.replace(/\n/g, '\r\n') });
+
+		expect(features[0]?.uses).toEqual(PORTENT_USES);
+		expect(features[0]?.desc).toContain('You use each foretelling roll once.');
+		expect(features[0]?.desc).not.toContain('tome-uses');
+	});
+
 	it('accepts every count kind the ADR names', () => {
 		const counts = [
 			{ fixed: 1 },
@@ -133,6 +158,16 @@ describe('a uses block Tome would refuse', () => {
 		['is not JSON', '{ cost: none'],
 		['has an unknown cost', JSON.stringify({ ...PORTENT_USES, cost: 'free' })],
 		['has no summary', JSON.stringify({ cost: 'none', tiers: PORTENT_USES.tiers })],
+		['has an empty summary', JSON.stringify({ ...PORTENT_USES, summary: '' })],
+		['has a summary of only spaces', JSON.stringify({ ...PORTENT_USES, summary: '  ' })],
+		[
+			'starts a tier at a fractional level',
+			JSON.stringify({ ...PORTENT_USES, tiers: [{ from: 3.5, count: { fixed: 2 }, shortRest: 'none' }] }),
+		],
+		[
+			'has a fractional count',
+			JSON.stringify({ ...PORTENT_USES, tiers: [{ from: 3, count: { fixed: 2.5 }, shortRest: 'none' }] }),
+		],
 		['has no tiers', JSON.stringify({ ...PORTENT_USES, tiers: [] })],
 		[
 			'has two tiers at one level',

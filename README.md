@@ -224,6 +224,7 @@ Glimpses of the future begin to press on your awareness.
 ````
 
 - `cost` is `action`, `attack`, `bonus`, `reaction` or `none`.
+- `summary` is a short line saying what a use does; it cannot be empty.
 - Each tier starts at a level (`from`, 1 to 20) and says how many uses (`count`) and how
   many come back on a Short Rest (`shortRest`: `none`, `one` or `all`).
 - `count` is one of `{ "fixed": 2 }`, `{ "proficiency": true }` (the proficiency
