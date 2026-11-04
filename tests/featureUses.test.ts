@@ -115,8 +115,7 @@ ${JSON.stringify(PORTENT_USES, null, 2)}
 		const { features } = featuresOf({ ...note, content: note.content.replace(/\n/g, '\r\n') });
 
 		expect(features[0]?.uses).toEqual(PORTENT_USES);
-		expect(features[0]?.desc).toContain('You use each foretelling roll once.');
-		expect(features[0]?.desc).not.toContain('tome-uses');
+		expect(features[0]?.desc).toBe(`${portentProse}\n\nYou use each foretelling roll once.`);
 	});
 
 	it('accepts every count kind the ADR names', () => {
