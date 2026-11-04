@@ -358,18 +358,17 @@ function parseSkills(section: Section | undefined): PcSkill[] {
 }
 
 /**
- * The ability each class casts its spells with. Fighter and Rogue cast only
- * through a subclass (Eldritch Knight, Arcane Trickster), both Intelligence.
+ * The ability each class casts its spells with. Fighter and Rogue are left
+ * out: they cast only through Intelligence subclasses (Eldritch Knight, Arcane
+ * Trickster), where the exporter's own Intelligence-based bonus is already right.
  */
 const CASTING_ABILITY: Record<string, string> = {
 	artificer: 'INT',
 	bard: 'CHA',
 	cleric: 'WIS',
 	druid: 'WIS',
-	fighter: 'INT',
 	paladin: 'CHA',
 	ranger: 'WIS',
-	rogue: 'INT',
 	sorcerer: 'CHA',
 	warlock: 'CHA',
 	wizard: 'INT',

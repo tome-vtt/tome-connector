@@ -339,8 +339,8 @@ describe('parsePcSheet - spell attack rows', () => {
 		]);
 	});
 
-	it('uses the first spellcasting class of a multiclass line', () => {
-		expect(rows(cleric('Barbarian 1 / Cleric 4'))).toEqual([
+	it('uses the first spellcasting class of a multiclass line, skipping a Rogue', () => {
+		expect(rows(cleric('Rogue 1 / Cleric 4'))).toEqual([
 			['Mace', '+5'],
 			['Sacred Flame', '+6'],
 		]);
