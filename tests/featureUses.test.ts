@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Note } from '../src/recognizers/note';
 import { assemblePackage } from '../src/recognizers/compendium/package';
@@ -68,6 +68,23 @@ ${JSON.stringify(PORTENT_USES, null, 2)}
 		expect(features[0]?.desc).toBe(portentProse);
 	});
 
+	it('keeps the text written after the block', () => {
+		const { features } = featuresOf(
+			diviner(`${portentProse}\n\`\`\`tome-uses\n${JSON.stringify(PORTENT_USES)}\n\`\`\`\nYou use each foretelling roll once.`),
+		);
+
+		expect(features[0]?.desc).toBe(`${portentProse}\nYou use each foretelling roll once.`);
+	});
+
+	it('sends only the tier fields Tome reads', () => {
+		const noted = { ...PORTENT_USES, tiers: [{ ...PORTENT_USES.tiers[0], note: 'two d20s' }] };
+		const { features } = featuresOf(
+			diviner(`\`\`\`tome-uses\n${JSON.stringify(noted)}\n\`\`\``),
+		);
+
+		expect(features[0]?.uses?.tiers).toEqual([PORTENT_USES.tiers[0]]);
+	});
+
 	it('puts tiers in increasing level order, since Tome refuses any other', () => {
 		const reversed = { ...PORTENT_USES, tiers: [...PORTENT_USES.tiers].reverse() };
 		const { features } = featuresOf(
@@ -108,6 +125,10 @@ describe('a feature whose note states nothing', () => {
 });
 
 describe('a uses block Tome would refuse', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it.each([
 		['is not JSON', '{ cost: none'],
 		['has an unknown cost', JSON.stringify({ ...PORTENT_USES, cost: 'free' })],
@@ -130,6 +151,18 @@ describe('a uses block Tome would refuse', () => {
 			JSON.stringify({ ...PORTENT_USES, tiers: [{ from: 3, count: { column: 'Rages' }, shortRest: 'none' }] }),
 		],
 		[
+			'starts a tier below level 1',
+			JSON.stringify({ ...PORTENT_USES, tiers: [{ from: 0, count: { fixed: 2 }, shortRest: 'none' }] }),
+		],
+		[
+			'has a per-level count out of range',
+			JSON.stringify({ ...PORTENT_USES, tiers: [{ from: 3, count: { perLevel: 100 }, shortRest: 'none' }] }),
+		],
+		[
+			'sets a yes-or-no count to false',
+			JSON.stringify({ ...PORTENT_USES, tiers: [{ from: 3, count: { proficiency: false }, shortRest: 'none' }] }),
+		],
+		[
 			'has a fixed count out of range',
 			JSON.stringify({ ...PORTENT_USES, tiers: [{ from: 3, count: { fixed: 100 }, shortRest: 'none' }] }),
 		],
@@ -150,6 +183,13 @@ describe('a uses block Tome would refuse', () => {
 		expect(report.failed).toEqual([note.path]);
 		expect(report.package.classes).toEqual([]);
 		expect(String(error.mock.calls[0]?.[1])).toContain('Portent');
-		error.mockRestore();
+	});
+
+	it('leaves the subclass out when a feature states its uses twice', () => {
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+		const block = `\`\`\`tome-uses\n${JSON.stringify(PORTENT_USES)}\n\`\`\``;
+		const note = diviner(`${block}\n\n${block}`);
+
+		expect(featuresOf(note).report.failed).toEqual([note.path]);
 	});
 });

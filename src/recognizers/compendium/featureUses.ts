@@ -14,99 +14,103 @@
  * Pure and `obsidian`-free.
  */
 
-import { findFencedBlock } from '../markdownBlocks';
+import { asRecord } from '../../shared';
+import { extractFencedBlocks } from '../markdownBlocks';
 
-export const USES_LANGUAGE = 'tome-uses';
+const USES_LANGUAGE = 'tome-uses';
+
+const COSTS = ['action', 'attack', 'bonus', 'reaction', 'none'] as const;
+const REFILLS = ['none', 'one', 'all'] as const;
+const ABILITIES = ['str', 'dex', 'con', 'int', 'wis', 'cha'] as const;
+
+const isOneOf = <T extends string>(list: readonly T[], value: unknown): value is T =>
+	(list as readonly unknown[]).includes(value);
 
 export type UsesCount =
 	| { fixed: number }
 	| { proficiency: true }
-	| { modifier: 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha' }
+	| { modifier: (typeof ABILITIES)[number] }
 	| { perLevel: number }
 	| { unlimited: true };
 
 export interface UsesTier {
 	from: number;
 	count: UsesCount;
-	shortRest: 'none' | 'one' | 'all';
+	shortRest: (typeof REFILLS)[number];
 }
 
 /** Mirrors the server's declared feature uses (ADR-0016). */
 export interface FeatureUses {
-	cost: 'action' | 'attack' | 'bonus' | 'reaction' | 'none';
+	cost: (typeof COSTS)[number];
 	summary: string;
 	tiers: UsesTier[];
 }
 
-const COSTS = ['action', 'attack', 'bonus', 'reaction', 'none'];
-const REFILLS = ['none', 'one', 'all'];
-const ABILITIES = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === 'object' && value !== null && !Array.isArray(value);
-
-const inRange = (value: unknown, low: number, high: number): boolean =>
+const inRange = (value: unknown, low: number, high: number): value is number =>
 	Number.isInteger(value) && (value as number) >= low && (value as number) <= high;
 
-function isCount(count: unknown): count is UsesCount {
-	if (!isRecord(count)) return false;
+function isCount(value: unknown): value is UsesCount {
+	const count = asRecord(value);
+	if (count === null) return false;
 	const kinds = Object.keys(count);
 	if (kinds.length !== 1) return false;
-	const value = count[kinds[0]!];
+	const amount = count[kinds[0]!];
 	switch (kinds[0]) {
 		case 'fixed':
 		case 'perLevel':
-			return inRange(value, 1, 99);
+			return inRange(amount, 1, 99);
 		case 'proficiency':
 		case 'unlimited':
-			return value === true;
+			return amount === true;
 		case 'modifier':
-			return ABILITIES.includes(value as string);
+			return isOneOf(ABILITIES, amount);
 		default:
 			return false;
 	}
 }
 
-function isTier(tier: unknown): tier is UsesTier {
-	return (
-		isRecord(tier) &&
-		inRange(tier['from'], 1, 20) &&
-		isCount(tier['count']) &&
-		REFILLS.includes(tier['shortRest'] as string)
-	);
+/** One tier with only the fields Tome reads, or null when Tome would refuse it. */
+function toTier(value: unknown): UsesTier | null {
+	const { from, count, shortRest } = asRecord(value) ?? {};
+	if (!inRange(from, 1, 20) || !isCount(count) || !isOneOf(REFILLS, shortRest)) return null;
+	return { from, count, shortRest };
 }
 
 /** Checks a parsed block against ADR-0016, with its tiers put in level order. */
-function toUses(block: unknown): FeatureUses | null {
-	if (!isRecord(block)) return null;
-	const { cost, summary, tiers } = block;
-	if (!COSTS.includes(cost as string) || typeof summary !== 'string') return null;
-	if (!Array.isArray(tiers) || tiers.length === 0 || !tiers.every(isTier)) return null;
+function toUses(value: unknown): FeatureUses | null {
+	const { cost, summary, tiers } = asRecord(value) ?? {};
+	if (!isOneOf(COSTS, cost) || typeof summary !== 'string') return null;
+	if (!Array.isArray(tiers) || tiers.length === 0) return null;
 
-	const sorted = [...tiers].sort((a, b) => a.from - b.from);
+	const read = tiers.map(toTier);
+	if (read.some((tier) => tier === null)) return null;
+	const sorted = (read as UsesTier[]).sort((a, b) => a.from - b.from);
 	if (sorted.some((tier, index) => index > 0 && tier.from === sorted[index - 1]!.from)) return null;
-	return { cost: cost as FeatureUses['cost'], summary, tiers: sorted };
+	return { cost, summary, tiers: sorted };
 }
 
 /**
  * The feature's text without its `tome-uses` block, and the uses the block states.
  *
- * @throws When the block is not one Tome would accept.
+ * @throws When the block is not one Tome would accept, or there is more than one.
  */
 export function readFeatureUses(
 	body: string,
 	featureName: string,
 ): { body: string; uses: FeatureUses | null } {
-	const block = findFencedBlock(body, USES_LANGUAGE);
-	if (block === null) return { body, uses: null };
+	const blocks = extractFencedBlocks(body).filter((block) => block.language === USES_LANGUAGE);
+	if (blocks.length === 0) return { body, uses: null };
+	const refused = new Error(`The ${USES_LANGUAGE} block under ${featureName} is not one Tome accepts.`);
+	if (blocks.length > 1) throw refused;
+	const block = blocks[0]!;
 
 	let uses: FeatureUses | null = null;
 	try {
 		uses = toUses(JSON.parse(block.source));
 	} catch {
-		// Not JSON: reported below with the shape errors.
+		// Not JSON: refused below, like a block of the wrong shape.
 	}
-	if (uses === null) throw new Error(`The ${USES_LANGUAGE} block under ${featureName} is not one Tome accepts.`);
+	if (uses === null) throw refused;
 
 	const lines = body.split(/\r?\n/);
 	// The opening fence, the block's lines and the closing fence.

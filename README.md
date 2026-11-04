@@ -232,8 +232,9 @@ Glimpses of the future begin to press on your awareness.
 
 The connector puts tiers in level order and keeps the block out of the feature's
 text. A feature without a block imports with no uses, and Tome falls back to its own
-list or a Custom use. A block Tome would refuse leaves its subclass out of the import,
-and the import lists that note as one it could not read.
+list or a Custom use. Write the block on its own, not inside a callout, and once per
+feature. A block Tome would refuse, or a second one under the same feature, leaves its
+subclass out of the import, and the import lists that note as one it could not read.
 
 ## Data And Privacy
 
