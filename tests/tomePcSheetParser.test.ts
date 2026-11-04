@@ -353,3 +353,30 @@ describe('parsePcSheet - spell attack rows', () => {
 		]);
 	});
 });
+
+describe('parsePcSheet - a weak caster\'s spell attack', () => {
+	it('rounds an odd low score down and keeps the minus sign', () => {
+		// Charisma 5 is -3 (not -2), plus proficiency +2 makes -1.
+		const note = `> **Warlock 1** • Human • Level 1
+
+## Core Stats
+
+| HP | AC | Speed | Initiative | Proficiency Bonus |
+|:---:|:---:|:---:|:---:|:---:|
+| 9 / 9 | 11 | 30 ft | +1 | +2 |
+
+## Ability Scores
+
+| STR | DEX | CON | INT | WIS | CHA |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 10 (+0) | 12 (+1) | 14 (+2) | 10 (+0) | 10 (+0) | 5 (-3) |
+
+## Actions & Attacks
+
+| Name | ATK Bonus | Damage | Range | Notes |
+| :--- | :---: | :--- | :---: | :--- |
+| ✨ Eldritch Blast | +2 | — | 120 ft | Evocation |
+`;
+		expect(parsePcSheet(note).attacks.map((attack) => attack.attackBonus)).toEqual(['-1']);
+	});
+});
