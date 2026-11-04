@@ -358,21 +358,22 @@ function parseSkills(section: Section | undefined): PcSkill[] {
 }
 
 /**
- * The ability each class casts its spells with. Fighter and Rogue are left
- * out: they cast only through Intelligence subclasses (Eldritch Knight, Arcane
- * Trickster), where the exporter's own Intelligence-based bonus is already right.
+ * The ability each class casts its spells with. Fighter and Rogue cast only
+ * through a subclass (Eldritch Knight, Arcane Trickster), both Intelligence.
  */
-const CASTING_ABILITY: Record<string, string> = {
-	artificer: 'INT',
-	bard: 'CHA',
-	cleric: 'WIS',
-	druid: 'WIS',
-	paladin: 'CHA',
-	ranger: 'WIS',
-	sorcerer: 'CHA',
-	warlock: 'CHA',
-	wizard: 'INT',
-};
+const CASTING_ABILITY = new Map([
+	['artificer', 'INT'],
+	['bard', 'CHA'],
+	['cleric', 'WIS'],
+	['druid', 'WIS'],
+	['fighter', 'INT'],
+	['paladin', 'CHA'],
+	['ranger', 'WIS'],
+	['rogue', 'INT'],
+	['sorcerer', 'CHA'],
+	['warlock', 'CHA'],
+	['wizard', 'INT'],
+]);
 
 /**
  * The bonus every spell row should carry: proficiency plus the casting
@@ -381,16 +382,20 @@ const CASTING_ABILITY: Record<string, string> = {
  * The exporter writes a spell row as Intelligence modifier plus proficiency
  * whatever the class casts with, and lists only class spells as attack rows
  * (a feat's spells never become one), so the class line, `> **Sorcerer 2** • …`,
- * names the ability.
- * ponytail: a multiclass note does not say which class a cantrip is from, so the first casting class listed wins.
+ * names the ability. A multiclass whose casting classes use different
+ * abilities is left as the note has it: the note does not say whose spell a
+ * row is.
  */
 function spellAttackBonus(body: string, sections: Section[]): string | undefined {
 	const classLine = body.match(/^>\s*\*\*(.+?)\*\*/m)?.[1] ?? '';
-	const ability = classLine
-		.split('/')
-		.map((part) => CASTING_ABILITY[part.replace(/\d+/g, '').trim().toLowerCase()])
-		.find((found) => found !== undefined);
-	if (ability === undefined) return undefined;
+	const abilities = new Set(
+		classLine
+			.split('/')
+			.map((part) => CASTING_ABILITY.get(part.replace(/\d+/g, '').trim().toLowerCase()))
+			.filter((found) => found !== undefined),
+	);
+	const [ability] = abilities;
+	if (ability === undefined || abilities.size > 1) return undefined;
 
 	const score = firstRowNumber(findSection(sections, 'Ability Scores'), ability);
 	const proficiency = firstRowNumber(findSection(sections, 'Core Stats'), 'proficiency');

@@ -339,8 +339,8 @@ describe('parsePcSheet - spell attack rows', () => {
 		]);
 	});
 
-	it('uses the first spellcasting class of a multiclass line, skipping a Rogue', () => {
-		expect(rows(cleric('Rogue 1 / Cleric 4'))).toEqual([
+	it('uses the one spellcasting class of a multiclass line', () => {
+		expect(rows(cleric('Barbarian 1 / Cleric 4'))).toEqual([
 			['Mace', '+5'],
 			['Sacred Flame', '+6'],
 		]);
@@ -351,6 +351,24 @@ describe('parsePcSheet - spell attack rows', () => {
 			['Mace', '+5'],
 			['Sacred Flame', '+2'],
 		]);
+		expect(rows(cleric('Constructor 5'))).toEqual([
+			['Mace', '+5'],
+			['Sacred Flame', '+2'],
+		]);
+	});
+
+	it('keeps the note\'s bonus when casting classes disagree, since the note does not say whose spell it is', () => {
+		// An Eldritch Knight's Intelligence cantrip is right as the exporter wrote it.
+		expect(rows(cleric('Fighter 3 / Cleric 2'))).toEqual([
+			['Mace', '+5'],
+			['Sacred Flame', '+2'],
+		]);
+	});
+
+	it('keeps the note\'s bonus when the note has no class line or no ability scores', () => {
+		const note = cleric('Cleric 5');
+		expect(rows(note.replace(/^> .*$/m, ''))[1]).toEqual(['Sacred Flame', '+2']);
+		expect(rows(note.replace('## Ability Scores', '## Scores'))[1]).toEqual(['Sacred Flame', '+2']);
 	});
 });
 
