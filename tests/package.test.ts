@@ -314,6 +314,41 @@ describe('assemblePackage', () => {
 		expect(report.package.weapons).toEqual([]);
 	});
 
+	/** A bow's range rides on its ammunition property, as the shipped catalogue writes it. */
+	it('gives an ammunition weapon its range', () => {
+		const bow = note(
+			'CLI/items/elm-bow-tdcsr.md',
+			'json5e-item',
+			"# Elm Bow\n*Martial weapon*\n\n- **Damage**: 1d8 piercing\n- **Range**: 150/600\n- **Properties**: [Ammunition](rules/item-properties.md#Ammunition), [Heavy](rules/item-properties.md#Heavy)\n- **Cost**: 50 gp\n\n*Source: Tal'Dorei Campaign Setting Reborn p. 5*",
+			['ttrpg-cli/item/rarity/none'],
+		);
+
+		const [weapon] = assemblePackage([bow], 'k').package.weapons;
+
+		expect(weapon?.range).toBe(150);
+		expect(weapon?.longRange).toBe(600);
+		expect(weapon?.properties).toEqual([
+			{ property: 'srd-2024_ammunition-wp', detail: 'Range 150/600' },
+			{ property: 'srd-2024_heavy-wp', detail: null },
+		]);
+	});
+
+	/** A field left blank is read as blank, never as the number on the line after it. */
+	it('does not read a blank strength line from the next line', () => {
+		const plate = note(
+			'CLI/items/odd-plate-tdcsr.md',
+			'json5e-item',
+			"# Odd Plate\n*Heavy armor*\n\n- **Armor Class**: 17\n- **Strength**:\n- **Cost**: 900 gp\n\n*Source: Tal'Dorei Campaign Setting Reborn p. 6*",
+			['ttrpg-cli/item/rarity/none'],
+		);
+
+		const [armor] = assemblePackage([plate], 'k').package.armor;
+
+		expect(armor?.acBase).toBe(17);
+		expect(armor?.acAddDexMod).toBe(false);
+		expect(armor?.strengthScoreRequired).toBeNull();
+	});
+
 	/** Tome ships the SRD's gear, so an SRD-marked item is left out like any other kind. */
 	it('leaves out SRD equipment unless asked', () => {
 		const rope = note(

@@ -11,8 +11,8 @@
  * Pure and `obsidian`-free.
  */
 
-import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
-import { slug } from '../labelledMarkdown';
+import { labelMap, slug } from '../labelledMarkdown';
+import { SUBTITLE } from './magicItem';
 
 /** Mirrors the server's `Srd2024Weapon`. */
 export interface PackageWeapon {
@@ -41,15 +41,10 @@ export interface PackageArmor {
 	grantsStealthDisadvantage: boolean;
 }
 
-const DAMAGE = /^\s*-\s*\*\*Damage\*\*:[ \t]*(.*)$/m;
-const ONE_HANDED = /^\s*-\s*One-handed:\s*(.+)$/m;
-const TWO_HANDED = /^\s*-\s*Two-handed:\s*(\S+)/m;
+const ONE_HANDED = /^[ \t]*-[ \t]*One-handed:[ \t]*(.+)$/m;
+const TWO_HANDED = /^[ \t]*-[ \t]*Two-handed:[ \t]*(\S+)/m;
 const DICE_AND_TYPE = /^(\S+)\s+([a-z]+)/i;
-const RANGE = /^\s*-\s*\*\*Range\*\*:\s*(\d+)\s*\/\s*(\d+)/m;
-const PROPERTIES = /^\s*-\s*\*\*Properties\*\*:\s*(.+)$/m;
-const ARMOR_CLASS = /^\s*-\s*\*\*Armor Class\*\*:\s*\+?(\d+)(.*)$/m;
-const STRENGTH = /^\s*-\s*\*\*Strength\*\*:\D*(\d+)/m;
-const STEALTH = /^\s*-\s*\*\*Stealth\*\*:/m;
+const RANGE = /^(\d+)\s*\/\s*(\d+)/;
 
 /**
  * The 2024 SRD's weapon properties, by the key the shipped catalogue gives each. A
@@ -60,57 +55,54 @@ const SHIPPED_PROPERTIES = new Set([
 	'ammunition', 'finesse', 'heavy', 'light', 'loading', 'reach', 'thrown', 'two-handed', 'versatile',
 ]);
 
-function readProperties(body: string, versatileDice: string | null, range: string | null) {
-	const line = PROPERTIES.exec(body)?.[1] ?? '';
-	return stripMarkdownFromString(line)
-		.split(',')
-		.map((name) => slug(name.trim()))
-		.filter((name) => SHIPPED_PROPERTIES.has(name))
-		.map((name) => ({
-			property: `srd-2024_${name}-wp`,
-			detail:
-				name === 'versatile'
-					? versatileDice
-					: name === 'thrown' || name === 'ammunition'
-						? range
-						: null,
-		}));
+/** What a property's `detail` carries: the versatile die, or the thrown or ammunition range. */
+function propertyDetail(name: string, versatileDice: string | null, range: string | null): string | null {
+	if (name === 'versatile') return versatileDice;
+	if (name === 'thrown' || name === 'ammunition') return range;
+	return null;
 }
 
-/** The weapon a note describes, or null when it has no damage line. */
-export function readWeapon(body: string, subtitle: string, key: string, name: string): PackageWeapon | null {
-	const damage = DAMAGE.exec(body);
-	if (!damage) return null;
+/** The weapon a note's preamble describes, or null when it has no damage line. */
+export function readWeapon(body: string, key: string, name: string): PackageWeapon | null {
+	const fields = labelMap(body);
+	const damage = fields.get('damage');
+	if (damage === undefined) return null;
 
-	const oneHanded = damage[1]?.trim() || ONE_HANDED.exec(body)?.[1] || '';
+	const oneHanded = damage || ONE_HANDED.exec(body)?.[1] || '';
 	const [, dice = null, type = null] = DICE_AND_TYPE.exec(oneHanded.trim()) ?? [];
-	const range = RANGE.exec(body);
+	const range = RANGE.exec(fields.get('range') ?? '');
+	const rangeDetail = range ? `Range ${range[1]}/${range[2]}` : null;
+	const versatileDice = TWO_HANDED.exec(body)?.[1] ?? null;
 
 	return {
 		key,
 		name,
 		damageDice: dice,
-		damageType: type?.toLowerCase() ?? null,
+		damageType: type,
 		range: Number(range?.[1] ?? 0),
 		longRange: Number(range?.[2] ?? 0),
 		distanceUnit: null,
-		isSimple: /\bsimple\b/i.test(subtitle),
+		isSimple: /\bsimple\b/i.test(SUBTITLE.exec(body)?.[1] ?? ''),
 		isImprovised: false,
-		properties: readProperties(
-			body,
-			TWO_HANDED.exec(body)?.[1] ?? null,
-			range ? `Range ${range[1]}/${range[2]}` : null,
-		),
+		properties: (fields.get('properties') ?? '')
+			.split(',')
+			.map((property) => slug(property.trim()))
+			.filter((property) => SHIPPED_PROPERTIES.has(property))
+			.map((property) => ({
+				property: `srd-2024_${property}-wp`,
+				detail: propertyDetail(property, versatileDice, rangeDetail),
+			})),
 	};
 }
 
-/** The armour a note describes, or null when it has no armour class line. */
+/** The armour a note's preamble describes, or null when it has no armour class line. */
 export function readArmor(body: string, key: string, name: string): PackageArmor | null {
-	const armorClass = ARMOR_CLASS.exec(body);
+	const fields = labelMap(body);
+	const armorClass = /^\+?(\d+)(.*)$/.exec(fields.get('armor class') ?? '');
 	if (!armorClass) return null;
 
 	const rest = armorClass[2] ?? '';
-	const strength = STRENGTH.exec(body)?.[1];
+	const strength = /\d+/.exec(fields.get('strength') ?? '')?.[0];
 	const cap = /max of \+(\d+)/i.exec(rest)?.[1];
 
 	return {
@@ -120,6 +112,6 @@ export function readArmor(body: string, key: string, name: string): PackageArmor
 		acAddDexMod: /\bDex\b/i.test(rest),
 		acCapDexMod: cap === undefined ? null : Number(cap),
 		strengthScoreRequired: strength === undefined ? null : Number(strength),
-		grantsStealthDisadvantage: STEALTH.test(body),
+		grantsStealthDisadvantage: fields.has('stealth'),
 	};
 }

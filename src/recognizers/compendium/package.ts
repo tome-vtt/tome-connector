@@ -16,7 +16,7 @@ import { cliNoteType, IMPORTABLE, isImportable, type CliNoteType } from './cliNo
 import { parseBackground, type Background } from './background';
 import { parseEquipmentItem } from './equipmentItem';
 import { readArmor, readWeapon, type PackageArmor, type PackageWeapon } from './gearStats';
-import { isMagic, SUBTITLE } from './magicItem';
+import { isMagic } from './magicItem';
 import { parseFeat, type Feat } from './feat';
 import { parseSpecies, type Species } from './species';
 import { parseSpell, type Spell } from './spell';
@@ -195,8 +195,8 @@ function categoryOf(printed: string | null, weapon: PackageWeapon | null, armor:
 function toPackageGear(markdown: string, key: string, name: string): PackageGear {
 	const item = parseEquipmentItem(markdown, key, name);
 	const body = preamble(markdown);
-	const weapon = readWeapon(body, SUBTITLE.exec(body)?.[1] ?? '', key, item.name);
-	const armor = weapon === null ? readArmor(body, key, item.name) : null;
+	const weapon = readWeapon(body, key, item.name);
+	const armor = readArmor(body, key, item.name);
 
 	return {
 		item: {
@@ -319,8 +319,8 @@ function toPatches(attachable: ParsedSubclass[], options: AssembleOptions): Clas
 function splitGear(gear: PackageGear[]): Pick<ContentPackage, 'items' | 'weapons' | 'armor'> {
 	return {
 		items: gear.map((entry) => entry.item),
-		weapons: gear.flatMap((entry) => (entry.weapon === null ? [] : [entry.weapon])),
-		armor: gear.flatMap((entry) => (entry.armor === null ? [] : [entry.armor])),
+		weapons: gear.flatMap((entry) => entry.weapon ?? []),
+		armor: gear.flatMap((entry) => entry.armor ?? []),
 	};
 }
 
