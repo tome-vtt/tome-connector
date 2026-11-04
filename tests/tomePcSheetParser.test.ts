@@ -283,18 +283,19 @@ describe('parsePcSheet - caster', () => {
 	});
 });
 
+
 /**
  * Radnads, the D&D Beyond note the connector sent in the 2026-10-27 test run
- * (Sorcerer 2, Charisma 17, proficiency +2). The exporter writes each spell
- * row's ATK Bonus as the casting ability's modifier alone (+3), so its spell
- * attack bonus of +5 has to be worked out here.
+ * (Sorcerer 2, Intelligence 13, Charisma 17, proficiency +2). The exporter
+ * writes every spell row as Intelligence modifier plus proficiency (+3),
+ * whatever the class casts with, so the real bonus (+5) is worked out here.
  */
 describe('parsePcSheet - spell attack rows', () => {
 	const radnads = readFileSync(join(import.meta.dirname, 'fixtures', 'connector-run-fixture-radnads.md'), 'utf8');
 	const attacks = parsePcSheet(radnads).attacks;
 	const bonusOf = (name: string) => attacks.find((attack) => attack.name === name)?.attackBonus;
 
-	it('gives a spell row the proficiency bonus plus its casting ability modifier', () => {
+	it('gives a spell row the proficiency bonus plus the class casting ability modifier', () => {
 		expect(bonusOf('Sorcerous Burst')).toBe('+5');
 		expect(bonusOf('Acid Splash')).toBe('+5');
 		expect(bonusOf('Shocking Grasp')).toBe('+5');
@@ -305,33 +306,50 @@ describe('parsePcSheet - spell attack rows', () => {
 		expect(bonusOf('Unarmed Strike')).toBe('+2');
 	});
 
-	it('works the bonus out from the row itself, so a feat spell keeps its own ability', () => {
-		// Magic Initiate cast with Intelligence (+1) beside a Charisma class spell (+3).
-		const note = `## Core Stats
+	/** A cleric with Intelligence 8 and Wisdom 16: the exporter's cell is 8's -1 plus proficiency. */
+	const cleric = (classLine: string) => `# Brother Ash
+
+> **${classLine}** • Human • Level 5
+
+## Core Stats
 
 | HP | AC | Speed | Initiative | Proficiency Bonus |
 |:---:|:---:|:---:|:---:|:---:|
-| 14 / 14 | 10 | 30 ft | +0 | +2 |
+| 38 / 38 | 18 | 30 ft | +0 | +3 |
+
+## Ability Scores
+
+| STR | DEX | CON | INT | WIS | CHA |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 14 (+2) | 10 (+0) | 14 (+2) | 8 (-1) | 16 (+3) | 12 (+1) |
 
 ## Actions & Attacks
 
 | Name | ATK Bonus | Damage | Range | Notes |
 | :--- | :---: | :--- | :---: | :--- |
-| ✨ Sorcerous Burst | +3 | — | 120 ft | Evocation |
-| ✨ Fire Bolt | +1 | 1d10 | 120 ft | Evocation |
-
-## Spells
-
-### Cantrips
-
-| Spell | School | Cast Time | Range | Conc. | Prepared |
-|:---|:---|:---|:---|:---:|:---:|
-| **Sorcerous Burst** | Evocation | 1 Action | 120 ft | — | — |
-| **Fire Bolt** | Evocation | 1 Action | 120 ft | — | — |
+| ⚔️ Mace | +5 | 1d6+2 | 5 ft | Bludgeoning |
+| ✨ Sacred Flame | +2 | — | 60 ft | Evocation |
 `;
-		expect(parsePcSheet(note).attacks.map((attack) => [attack.name, attack.attackBonus])).toEqual([
-			['Sorcerous Burst', '+5'],
-			['Fire Bolt', '+3'],
+	const rows = (note: string) => parsePcSheet(note).attacks.map((attack) => [attack.name, attack.attackBonus]);
+
+	it('reads the casting ability off the class, not Intelligence', () => {
+		expect(rows(cleric('Cleric 5'))).toEqual([
+			['Mace', '+5'],
+			['Sacred Flame', '+6'],
+		]);
+	});
+
+	it('uses the first spellcasting class of a multiclass line', () => {
+		expect(rows(cleric('Barbarian 1 / Cleric 4'))).toEqual([
+			['Mace', '+5'],
+			['Sacred Flame', '+6'],
+		]);
+	});
+
+	it('keeps the note\'s bonus when no class says which ability casts the spell', () => {
+		expect(rows(cleric('Monk 5'))).toEqual([
+			['Mace', '+5'],
+			['Sacred Flame', '+2'],
 		]);
 	});
 });

@@ -288,17 +288,18 @@ function cellAt(row: string[], index: number): string {
 }
 
 /**
- * Reads the one value in `## Core Stats` that frontmatter does not already
- * carry. Everything else in that table (HP, AC, speed, proficiency bonus) is
- * duplicated from frontmatter, which is the more reliable source because it is
- * typed rather than formatted.
+ * Reads one number out of a one-row table: initiative and the proficiency
+ * bonus from `## Core Stats`, an ability score from `## Ability Scores`. Of
+ * these only initiative is sent as its own field; the rest is duplicated from
+ * frontmatter, the more reliable source because it is typed rather than
+ * formatted, and read here only to work out spell attack bonuses.
  */
-function parseInitiative(section: Section | undefined): number | undefined {
+function firstRowNumber(section: Section | undefined, header: string): number | undefined {
 	if (!section) return undefined;
 	const table = findTable(section.lines);
 	const row = table?.rows[0];
 	if (!table || !row) return undefined;
-	return toIntSafe(cellAt(row, columnIndex(table.headers, 'initiative')));
+	return toIntSafe(cellAt(row, columnIndex(table.headers, header)));
 }
 
 /**
@@ -357,38 +358,53 @@ function parseSkills(section: Section | undefined): PcSkill[] {
 }
 
 /**
- * The Core Stats table's proficiency bonus. Undefined when the note has no
- * Core Stats table, so spell rows then keep the bonus the note gives.
+ * The ability each class casts its spells with. Fighter and Rogue cast only
+ * through a subclass (Eldritch Knight, Arcane Trickster), both Intelligence.
  */
-function parseProficiencyBonus(section: Section | undefined): number | undefined {
-	if (!section) return undefined;
-	const table = findTable(section.lines);
-	const row = table?.rows[0];
-	if (!table || !row) return undefined;
-	return toIntSafe(cellAt(row, columnIndex(table.headers, 'proficiency')));
-}
+const CASTING_ABILITY: Record<string, string> = {
+	artificer: 'INT',
+	bard: 'CHA',
+	cleric: 'WIS',
+	druid: 'WIS',
+	fighter: 'INT',
+	paladin: 'CHA',
+	ranger: 'WIS',
+	rogue: 'INT',
+	sorcerer: 'CHA',
+	warlock: 'CHA',
+	wizard: 'INT',
+};
 
 /**
- * A spell row's bonus. The exporter writes it as the modifier of that spell's
- * own casting ability alone (Radnads' Sorcerous Burst reads +3, his Charisma
- * modifier), so adding the proficiency bonus gives the spell attack bonus,
- * whichever ability a class or feat casts the spell with.
- * ponytail: assumes the exporter keeps leaving proficiency out; drop this if it starts adding it.
+ * The bonus every spell row should carry: proficiency plus the casting
+ * ability's modifier, or undefined when the note does not say enough.
+ *
+ * The exporter writes a spell row as Intelligence modifier plus proficiency
+ * whatever the class casts with, and lists only class spells as attack rows
+ * (a feat's spells never become one), so the class line, `> **Sorcerer 2** • …`,
+ * names the ability.
+ * ponytail: a multiclass note does not say which class a cantrip is from, so the first casting class listed wins.
  */
-function spellAttackBonus(cell: string, proficiency: number | undefined): string {
-	const modifier = toIntSafe(cell);
-	if (modifier === undefined || proficiency === undefined) return cell;
-	const bonus = modifier + proficiency;
+function spellAttackBonus(body: string, sections: Section[]): string | undefined {
+	const classLine = body.match(/^>\s*\*\*(.+?)\*\*/m)?.[1] ?? '';
+	const ability = classLine
+		.split('/')
+		.map((part) => CASTING_ABILITY[part.replace(/\d+/g, '').trim().toLowerCase()])
+		.find((found) => found !== undefined);
+	if (ability === undefined) return undefined;
+
+	const score = firstRowNumber(findSection(sections, 'Ability Scores'), ability);
+	const proficiency = firstRowNumber(findSection(sections, 'Core Stats'), 'proficiency');
+	if (score === undefined || proficiency === undefined) return undefined;
+	const bonus = Math.floor((score - 10) / 2) + proficiency;
 	return bonus < 0 ? `${bonus}` : `+${bonus}`;
 }
 
-function parseAttacks(
-	section: Section | undefined,
-	spells: PcSpell[],
-	proficiency: number | undefined,
-): PcAttack[] {
+/** The exporter marks a spell row with this badge and a weapon row with `⚔️`. */
+const SPELL_ROW_MARK = '✨';
+
+function parseAttacks(section: Section | undefined, spellBonus: string | undefined): PcAttack[] {
 	if (!section) return [];
-	const spellNames = new Set(spells.map((spell) => spell.name.toLowerCase()));
 	const table = findTable(section.lines);
 	if (!table) return [];
 
@@ -400,13 +416,13 @@ function parseAttacks(
 
 	const attacks: PcAttack[] = [];
 	for (const row of table.rows) {
-		const name = stripLeadingSymbols(cellAt(row, nameCol));
+		const rawName = cellAt(row, nameCol);
+		const name = stripLeadingSymbols(rawName);
 		if (name === '') continue;
+		const isSpell = rawName.startsWith(SPELL_ROW_MARK);
 		attacks.push({
 			name: name,
-			attackBonus: spellNames.has(name.toLowerCase())
-				? spellAttackBonus(cellAt(row, bonusCol), proficiency)
-				: cellAt(row, bonusCol),
+			attackBonus: isSpell && spellBonus !== undefined ? spellBonus : cellAt(row, bonusCol),
 			damage: cellAt(row, damageCol),
 			range: cellAt(row, rangeCol),
 			notes: cellAt(row, notesCol),
@@ -586,17 +602,16 @@ function parseLabelledLines(section: Section | undefined): Map<string, string> {
  * the structured fields the endpoint stores.
  */
 export function parsePcSheet(content: string): PcSheet {
-	const sections = splitSections(stripFrontmatter(content));
+	const body = stripFrontmatter(content);
+	const sections = splitSections(body);
 	const proficiencies = parseLabelledLines(findSection(sections, 'Proficiencies & Languages'));
-	const coreStats = findSection(sections, 'Core Stats');
-	const spells = parseSpells(findSection(sections, 'Spells'));
 
 	return {
-		initiative: parseInitiative(coreStats),
+		initiative: firstRowNumber(findSection(sections, 'Core Stats'), 'initiative'),
 		saves: parseSaves(findSection(sections, 'Saving Throws')),
 		skills: parseSkills(findSection(sections, 'Skills')),
-		attacks: parseAttacks(findSection(sections, 'Actions & Attacks'), spells, parseProficiencyBonus(coreStats)),
-		spells: spells,
+		attacks: parseAttacks(findSection(sections, 'Actions & Attacks'), spellAttackBonus(body, sections)),
+		spells: parseSpells(findSection(sections, 'Spells')),
 		features: parseFeatures(findSection(sections, 'Features & Traits')),
 		equipment: parseEquipment(findSection(sections, 'Equipment')),
 		currency: parseCurrency(findSection(sections, 'Currency')),
