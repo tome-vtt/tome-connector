@@ -199,6 +199,42 @@ yet check racial prerequisites, so a feat with one keeps its text and no rule, a
 Tome does not offer it. The connector never replaces a prerequisite with a rule
 that checks only level.
 
+### Feature uses in a content-source import
+
+Tome counts a subclass feature's uses only when the import says how many there are;
+it never reads them from the feature's text. To state them, add a `tome-uses` block
+under the feature's heading in the subclass note. This is Portent, two uses from
+level 3 and three from level 14:
+
+````markdown
+### Portent (Level 3)
+
+Glimpses of the future begin to press on your awareness.
+
+```tome-uses
+{
+  "cost": "none",
+  "summary": "Replace a d20 roll with a foretelling roll.",
+  "tiers": [
+    { "from": 3, "count": { "fixed": 2 }, "shortRest": "none" },
+    { "from": 14, "count": { "fixed": 3 }, "shortRest": "none" }
+  ]
+}
+```
+````
+
+- `cost` is `action`, `attack`, `bonus`, `reaction` or `none`.
+- Each tier starts at a level (`from`, 1 to 20) and says how many uses (`count`) and how
+  many come back on a Short Rest (`shortRest`: `none`, `one` or `all`).
+- `count` is one of `{ "fixed": 2 }`, `{ "proficiency": true }` (the proficiency
+  bonus), `{ "modifier": "wis" }` (an ability modifier, at least 1),
+  `{ "perLevel": 5 }` (class level times the number) or `{ "unlimited": true }`.
+
+The connector puts tiers in level order and keeps the block out of the feature's
+text. A feature without a block imports with no uses, and Tome falls back to its own
+list or a Custom use. A block Tome would refuse leaves its subclass out of the import,
+and the import lists that note as one it could not read.
+
 ## Data And Privacy
 
 Tome Connector does not send data automatically. A send action transmits the
