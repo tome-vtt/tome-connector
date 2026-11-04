@@ -86,6 +86,35 @@ it('counts only included feats Tome cannot offer and preserves 2024 categories',
 	expect(describeUnavailableFeats(report)).toBe('');
 });
 
+it('counts a 2024 training feat as unavailable while preserving its category and prerequisite', () => {
+	const note = {
+		...elvenAccuracy,
+		path: 'feats/medium-armor-master-xphb.md',
+		content: '# Medium Armor Master\n*Source: Player\'s Handbook (2024)*\n\n' +
+			'**Prerequisite**: 4th; Medium Armor Training\n\nYou move easily in armor.',
+	};
+	const report = assemblePackage([note], 'xphb');
+	expect(report.package.feats).toHaveLength(1);
+	expect(report.package.feats[0]).toMatchObject({
+		type: 'General', prerequisite: '4th; Medium Armor Training', prerequisiteRule: null,
+	});
+	expect(report.unavailableFeats).toBe(1);
+});
+
+it('does not count a 2024 feat with a whitespace-only prerequisite as unavailable', () => {
+	const note = {
+		...elvenAccuracy,
+		path: 'feats/alert-xphb.md',
+		content: '# Alert\n*Source: Player\'s Handbook (2024)*\n\n' +
+			'**Prerequisite**: \t  \n\nYou act quickly.',
+	};
+	const report = assemblePackage([note], 'xphb');
+	expect(report.package.feats).toHaveLength(1);
+	expect(report.package.feats[0]).toMatchObject({ type: 'Origin', prerequisiteRule: null });
+	expect(report.package.feats[0]?.prerequisite?.trim() ?? '').toBe('');
+	expect(report.unavailableFeats).toBe(0);
+});
+
 it('carries the conversion from a vault scan into the uploaded package and can turn it off again', async () => {
 	const scan = await scanCompendium({
 		paths: () => [elvenAccuracy.path], tags: () => [],
