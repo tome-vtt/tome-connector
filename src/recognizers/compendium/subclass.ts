@@ -19,6 +19,7 @@
  */
 
 import { asStrings } from './cliNote';
+import { readFeatureUses, type FeatureUses } from './featureUses';
 import type { ClassPatch } from './package';
 import { parseSections, proseBody, slug, titleCase, titleOf } from '../labelledMarkdown';
 import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
@@ -30,6 +31,8 @@ export interface SubclassFeature {
 	desc: string;
 	featureType: string | null;
 	parent: string;
+	/** Only when the note states it; see `featureUses.ts`. */
+	uses?: FeatureUses;
 }
 
 /** Mirrors the server's `Srd2024ClassLevel`, of which a subclass uses only the gains. */
@@ -247,16 +250,18 @@ function readFeatures(
 		// builder can place, so it is left out rather than guessed at.
 		if (!name || !Number.isFinite(level)) continue;
 
+		const { body, uses } = readFeatureUses(section.body, name);
 		found.push({
 			level,
 			feature: {
 				key: `${subclassKey}_${slug(name)}`,
 				name,
-				desc: stripMarkdownFromString(section.body).trim(),
+				desc: stripMarkdownFromString(body).trim(),
 				// The shipped catalogue leaves this null on subclass features too;
 				// nothing in the prose distinguishes one kind of feature from another.
 				featureType: null,
 				parent: subclassKey,
+				...(uses === null ? {} : { uses }),
 			},
 		});
 	}
