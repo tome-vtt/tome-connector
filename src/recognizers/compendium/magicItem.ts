@@ -158,8 +158,9 @@ export function readCategory(subtitle: string, rarity: string | null): string | 
  * item's rules are the reason it is in the library at all.
  */
 export function readDescription(markdown: string): string | null {
-	// The subtitle is the category and rarity, read separately above.
-	return proseBody(markdown, [FIELD_LINE, SUBTITLE]) || null;
+	// The subtitle is the category and rarity, read separately above; the nested
+	// one- and two-handed lines belong to the damage field.
+	return proseBody(markdown, [FIELD_LINE, SUBTITLE, /^\s+-\s+(?:One|Two)-handed:/]) || null;
 }
 
 /**
