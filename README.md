@@ -102,6 +102,10 @@ vault the file is. **An image that cannot be read stops that send** - for every 
 including a magic item, equipment or spell in a vault sync, which used to go without its
 art. Nothing is sent in its place, and a vault sync lists it as unresolvable.
 
+A magic item, equipment or spell replaces the campaign's item of the same name, an SRD one
+included. The send's notice says so, and a vault sync's results count the replaced items,
+for example "12 sent to Test 2, 3 replaced an existing item of the same name".
+
 Example JSON encounter:
 
 ```json

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 // The version every request reports, from the manifest a release bumps.
 import { version as manifestVersion } from '../manifest.json';
-import { runBulkSend } from '../src/bulkSend';
+import { describeReport, runBulkSend } from '../src/bulkSend';
 import { TOME_ROUTES } from '../src/routes';
 import {
 	NOT_CONFIGURED,
@@ -308,6 +308,28 @@ describe('describeResult', () => {
 		expect(describeResult(result, 'Old Keep', 'Test 2')).toBe('Tome connector: "Old Keep" sent to Test 2.');
 	});
 
+	it('says when the send replaced an existing item of the same name', async () => {
+		const text = '{"id":"bag-1","outcome":"replaced"}';
+		const result = await createTomeHttp(fakeTransport({ status: 200, text })).postJson(
+			{ ...target, path: TOME_ROUTES.addMagicItem },
+			'{}',
+		);
+		expect(result).toMatchObject({ ok: true, id: 'bag-1', replaced: true });
+		expect(describeResult(result, 'Bag of Holding', 'Test 2')).toBe(
+			'Tome connector: "Bag of Holding" sent to Test 2, replacing an existing item of the same name.',
+		);
+	});
+
+	it('says nothing more when the send created the item', async () => {
+		const text = '{"id":"bag-1","outcome":"created"}';
+		const result = await createTomeHttp(fakeTransport({ status: 200, text })).postJson(
+			{ ...target, path: TOME_ROUTES.addMagicItem },
+			'{}',
+		);
+		expect(result.replaced).toBeUndefined();
+		expect(describeResult(result, 'Bag of Holding', 'Test 2')).toBe('Tome connector: "Bag of Holding" sent to Test 2.');
+	});
+
 	it("gives a refusal the server's own message", () => {
 		const result = { ok: false, status: 409, id: null, message: 'That name is taken.', retryable: false };
 		expect(describeResult(result, 'Old Keep', 'Test 2')).toBe('Tome connector: That name is taken.');
@@ -335,5 +357,25 @@ describe('a bulk run against a rate-limited server', () => {
 		expect(waits).toEqual([9_000]);
 		expect(transport.sent).toHaveLength(2);
 		expect(report.sent.map((outcome) => outcome.id)).toEqual(['sent-1']);
+	});
+
+	it('counts the library sends Tome reports as replaced', async () => {
+		const tome = createTomeHttp(
+			fakeTransport(
+				{ status: 200, text: '{"id":"bag-1","outcome":"replaced"}' },
+				{ status: 200, text: '{"id":"deck-1","outcome":"created"}' },
+			),
+		);
+
+		const report = await runBulkSend({
+			items: [
+				{ label: 'Bag of Holding', path: 'Bag of Holding.md', value: '{}' },
+				{ label: 'Deck of Wonders', path: 'Deck of Wonders.md', value: '{}' },
+			],
+			sleep: () => Promise.resolve(),
+			send: (item) => tome.postJson({ ...target, path: TOME_ROUTES.addMagicItem }, item.value),
+		});
+
+		expect(describeReport(report, 'Test 2')).toBe('2 sent to Test 2, 1 replaced an existing item of the same name');
 	});
 });
