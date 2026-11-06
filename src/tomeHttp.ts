@@ -253,8 +253,7 @@ export function extractResponseId(rawText: string): string | null {
 /** Whether a library send's success body, `{ id, outcome }`, says it replaced an existing item. */
 function reportsReplaced(rawText: string): boolean {
 	try {
-		const body: unknown = JSON.parse(rawText);
-		return typeof body === 'object' && body !== null && (body as Record<string, unknown>).outcome === 'replaced';
+		return (JSON.parse(rawText) as { outcome?: unknown } | null)?.outcome === 'replaced';
 	} catch {
 		return false;
 	}
