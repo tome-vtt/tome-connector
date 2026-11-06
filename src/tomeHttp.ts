@@ -64,6 +64,8 @@ export interface SendResult {
 	id: string | null;
 	/** The server's own explanation, when it gave one. */
 	message: string | null;
+	/** True when Tome reported that the send replaced an existing item of the same name (`outcome: "replaced"`). */
+	replaced?: boolean;
 	/** Whether trying the same request again could plausibly succeed. */
 	retryable: boolean;
 	/** Seconds the server asked us to wait before trying again, from its `Retry-After`. */
@@ -92,7 +94,10 @@ export function sentTo(what: string, where: string): string {
 
 /** The Notice for one send: what went where on success, the server's reason otherwise. */
 export function describeResult(result: SendResult, name: string, where: string): string {
-	if (result.ok) return `Tome connector: ${sentTo(`"${name}"`, where)}.`;
+	if (result.ok) {
+		const replaced = result.replaced ? ', replacing an existing item of the same name' : '';
+		return `Tome connector: ${sentTo(`"${name}"`, where)}${replaced}.`;
+	}
 	// The server explains itself - a duplicated character name, a plan limit, a
 	// title already taken - and those are things the person syncing can fix.
 	return result.message
@@ -175,7 +180,9 @@ async function send(
 
 	const { status, text } = response;
 	if (status >= 200 && status < 300) {
-		return { result: { ok: true, status, id: extractResponseId(text), message: null, retryable: false }, text };
+		const result: SendResult = { ok: true, status, id: extractResponseId(text), message: null, retryable: false };
+		if (reportsReplaced(text)) result.replaced = true;
+		return { result, text };
 	}
 
 	console.error(`Tome Connector: server responded with status ${status}`, text);
@@ -240,6 +247,16 @@ export function extractResponseId(rawText: string): string | null {
 			: null;
 	} catch {
 		return trimmed;
+	}
+}
+
+/** Whether a library send's success body, `{ id, outcome }`, says it replaced an existing item. */
+function reportsReplaced(rawText: string): boolean {
+	try {
+		const body: unknown = JSON.parse(rawText);
+		return typeof body === 'object' && body !== null && (body as Record<string, unknown>).outcome === 'replaced';
+	} catch {
+		return false;
 	}
 }
 
