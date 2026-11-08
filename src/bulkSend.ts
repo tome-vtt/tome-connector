@@ -53,6 +53,8 @@ export interface BulkOutcome<T> {
 	ok: boolean;
 	id: string | null;
 	message: string | null;
+	/** True when the send replaced an existing item of the same name. */
+	replaced?: boolean;
 	reason?: FailureReason;
 	/** How many times it was posted. 0 when it never became a payload. */
 	attempts: number;
@@ -70,6 +72,7 @@ export interface AttemptResult {
 	id: string | null;
 	message: string | null;
 	retryable: boolean;
+	replaced?: boolean;
 	/** Seconds the server asked us to wait, from Retry-After. */
 	retryAfterSeconds?: number;
 }
@@ -175,7 +178,7 @@ async function sendOne<T>(
 		}
 
 		if (result.ok) {
-			return { item, ok: true, id: result.id, message: null, attempts };
+			return { item, ok: true, id: result.id, message: null, attempts, ...(result.replaced ? { replaced: true } : {}) };
 		}
 
 		last = result;
@@ -208,6 +211,8 @@ async function sendOne<T>(
 /** One line summarising a finished run to `where`: the results dialog's title. */
 export function describeReport<T>(report: BulkReport<T>, where: string): string {
 	const parts = [sentTo(`${report.sent.length}`, where)];
+	const replaced = report.sent.filter((outcome) => outcome.replaced).length;
+	if (replaced > 0) parts.push(`${replaced} replaced an existing item of the same name`);
 	if (report.failed.length > 0) parts.push(`${report.failed.length} failed`);
 	if (report.cancelled) parts.push('stopped early');
 	return parts.join(', ');

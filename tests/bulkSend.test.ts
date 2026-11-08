@@ -236,4 +236,16 @@ describe('describeReport', () => {
 	])('%o -> %s', (report, expected) => {
 		expect(describeReport(report as never, 'Test 2')).toBe(expected);
 	});
+
+	it('counts the sends that replaced an existing item of the same name', async () => {
+		const replacedOnly = new Set(['Bag of Holding', 'Cloak of Elvenkind']);
+		const report = await runBulkSend({
+			items: items('Bag of Holding', 'Deck of Wonders', 'Cloak of Elvenkind'),
+			send: (item) =>
+				Promise.resolve({ ok: true, id: item.label, message: null, retryable: false, replaced: replacedOnly.has(item.label) }),
+			sleep: fakeClock().sleep,
+		});
+
+		expect(describeReport(report, 'Test 2')).toBe('3 sent to Test 2, 2 replaced an existing item of the same name');
+	});
 });

@@ -102,6 +102,10 @@ vault the file is. **An image that cannot be read stops that send** - for every 
 including a magic item, equipment or spell in a vault sync, which used to go without its
 art. Nothing is sent in its place, and a vault sync lists it as unresolvable.
 
+A magic item, equipment or spell replaces the campaign's item of the same name, an SRD one
+included. The send's notice says so, and a vault sync's results count the replaced items,
+for example "12 sent to Test 2, 3 replaced an existing item of the same name".
+
 Example JSON encounter:
 
 ```json
@@ -198,6 +202,44 @@ checked together with any ability score prerequisite it already had. Tome cannot
 yet check racial prerequisites, so a feat with one keeps its text and no rule, and
 Tome does not offer it. The connector never replaces a prerequisite with a rule
 that checks only level.
+
+### Feature uses in a content-source import
+
+Tome counts a subclass feature's uses only when the import says how many there are;
+it never reads them from the feature's text. To state them, add a `tome-uses` block
+under the feature's heading in the subclass note. This is Portent, two uses from
+level 3 and three from level 14:
+
+````markdown
+### Portent (Level 3)
+
+Glimpses of the future begin to press on your awareness.
+
+```tome-uses
+{
+  "cost": "none",
+  "summary": "Replace a d20 roll with a foretelling roll.",
+  "tiers": [
+    { "from": 3, "count": { "fixed": 2 }, "shortRest": "none" },
+    { "from": 14, "count": { "fixed": 3 }, "shortRest": "none" }
+  ]
+}
+```
+````
+
+- `cost` is `action`, `attack`, `bonus`, `reaction` or `none`.
+- `summary` is a short line saying what a use does; it cannot be empty.
+- Each tier starts at a level (`from`, 1 to 20) and says how many uses (`count`) and how
+  many come back on a Short Rest (`shortRest`: `none`, `one` or `all`).
+- `count` is one of `{ "fixed": 2 }`, `{ "proficiency": true }` (the proficiency
+  bonus), `{ "modifier": "wis" }` (an ability modifier, at least 1),
+  `{ "perLevel": 5 }` (class level times the number) or `{ "unlimited": true }`.
+
+The connector puts tiers in level order and keeps the block out of the feature's
+text. A feature without a block imports with no uses, and Tome falls back to its own
+list or a Custom use. Write the block on its own, not inside a callout, and once per
+feature. A block Tome would refuse, or a second one under the same feature, leaves its
+subclass out of the import, and the import lists that note as one it could not read.
 
 ## Data And Privacy
 

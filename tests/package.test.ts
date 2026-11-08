@@ -155,10 +155,198 @@ describe('assemblePackage', () => {
 				weight: 5,
 			},
 		]);
+		expect(withItems.package.weapons).toEqual([]);
+		expect(withItems.package.armor).toEqual([]);
 		expect(withItems.counts.items).toBe(1);
 		expect(withItems.unsupported).toEqual({ 'magic-item': 1 });
 		expect(describeCounts(withItems.unsupported)).toBe('1 magic item');
 		expect(isEmpty(withItems)).toBe(false);
+	});
+
+	/**
+	 * A book's weapon arrives with its stats in the package's `weapons` list and the item
+	 * pointing at it, under Tome's own `weapon` category, so the builder can attack with
+	 * it rather than listing a stat-less piece of gear.
+	 */
+	it('puts a weapon note in the weapons list, with the item pointing at it', () => {
+		const glaive = note(
+			'CLI/items/starfall-glaive-tdcsr.md',
+			'json5e-item',
+			[
+				'# Starfall Glaive',
+				'*Martial weapon*',
+				'',
+				'- **Damage**:',
+				'  - One-handed: 1d8 slashing',
+				'  - Two-handed: 1d10 slashing',
+				'- **Properties**: [Reach](3-Mechanics/CLI/rules/item-properties.md#Reach), [Versatile](3-Mechanics/CLI/rules/item-properties.md#Versatile), [Special](3-Mechanics/CLI/rules/item-properties.md#Special)',
+				'- **Cost**: 20 gp',
+				'- **Weight**: 6.0 lbs.',
+				'',
+				'Forged from a fallen star.',
+				'',
+				"*Source: Tal'Dorei Campaign Setting Reborn p. 1*",
+			].join('\n'),
+			['ttrpg-cli/item/rarity/none'],
+		);
+		const dart = note(
+			'CLI/items/glass-dart-tdcsr.md',
+			'json5e-item',
+			"# Glass Dart\n*Simple weapon*\n\n- **Damage**: 1d4 piercing\n- **Range**: 20/60\n- **Properties**: [Finesse](rules/item-properties.md#Finesse), [Thrown](rules/item-properties.md#Thrown)\n- **Cost**: 5 cp\n\nIt shatters.\n\n*Source: Tal'Dorei Campaign Setting Reborn p. 2*",
+			['ttrpg-cli/item/rarity/none'],
+		);
+
+		const report = assemblePackage([glaive, dart], 'k');
+
+		expect(report.package.items).toEqual([
+			{
+				key: 'starfall-glaive-tdcsr',
+				name: 'Starfall Glaive',
+				desc: 'Forged from a fallen star.',
+				category: 'weapon',
+				cost: 20,
+				weight: 6,
+				weapon: 'starfall-glaive-tdcsr',
+			},
+			{
+				key: 'glass-dart-tdcsr',
+				name: 'Glass Dart',
+				desc: 'It shatters.',
+				category: 'weapon',
+				cost: 0.05,
+				weight: null,
+				weapon: 'glass-dart-tdcsr',
+			},
+		]);
+		expect(report.package.weapons).toEqual([
+			{
+				key: 'starfall-glaive-tdcsr',
+				name: 'Starfall Glaive',
+				damageDice: '1d8',
+				damageType: 'slashing',
+				range: 0,
+				longRange: 0,
+				distanceUnit: null,
+				isSimple: false,
+				isImprovised: false,
+				// `Special` is not a property Tome has, so it is left off rather than dangling.
+				properties: [
+					{ property: 'srd-2024_reach-wp', detail: null },
+					{ property: 'srd-2024_versatile-wp', detail: '1d10' },
+				],
+			},
+			{
+				key: 'glass-dart-tdcsr',
+				name: 'Glass Dart',
+				damageDice: '1d4',
+				damageType: 'piercing',
+				range: 20,
+				longRange: 60,
+				distanceUnit: null,
+				isSimple: true,
+				isImprovised: false,
+				properties: [
+					{ property: 'srd-2024_finesse-wp', detail: null },
+					{ property: 'srd-2024_thrown-wp', detail: 'Range 20/60' },
+				],
+			},
+		]);
+		expect(report.package.armor).toEqual([]);
+	});
+
+	/** Armour and shields arrive with what the Armour Class calculation needs. */
+	it('puts armour and shield notes in the armour list, with the item pointing at it', () => {
+		const coat = note(
+			'CLI/items/dragonscale-coat-tdcsr.md',
+			'json5e-item',
+			"# Dragonscale Coat\n*Medium armor*\n\n- **Armor Class**: 14 + Dex modifier (max of +2)\n- **Strength**: Requires 13 STR.\n- **Stealth**: The wearer has disadvantage on Stealth (DEX) checks.\n- **Cost**: 400 gp\n- **Weight**: 25.0 lbs.\n\nScales overlap.\n\n*Source: Tal'Dorei Campaign Setting Reborn p. 3*",
+			['ttrpg-cli/item/rarity/none'],
+		);
+		const jerkin = note(
+			'CLI/items/silk-jerkin-tdcsr.md',
+			'json5e-item',
+			"# Silk Jerkin\n*Light armor*\n\n- **Armor Class**: 11 + Dex modifier\n- **Cost**: 50 gp\n\n*Source: Tal'Dorei Campaign Setting Reborn p. 3*",
+			['ttrpg-cli/item/rarity/none'],
+		);
+		const buckler = note(
+			'CLI/items/oak-buckler-tdcsr.md',
+			'json5e-item',
+			"# Oak Buckler\n*Armor ([shield](3-Mechanics/CLI/items/shield-xphb.md))*\n\n- **Armor Class**: 2\n- **Cost**: 10 gp\n- **Weight**: 6.0 lbs.\n\n*Source: Tal'Dorei Campaign Setting Reborn p. 4*",
+			['ttrpg-cli/item/rarity/none'],
+		);
+
+		const report = assemblePackage([coat, jerkin, buckler], 'k');
+
+		expect(report.package.items.map((item) => [item.key, item.category, item.armor])).toEqual([
+			['dragonscale-coat-tdcsr', 'armor', 'dragonscale-coat-tdcsr'],
+			['silk-jerkin-tdcsr', 'armor', 'silk-jerkin-tdcsr'],
+			['oak-buckler-tdcsr', 'armor', 'oak-buckler-tdcsr'],
+		]);
+		expect(report.package.armor).toEqual([
+			{
+				key: 'dragonscale-coat-tdcsr',
+				name: 'Dragonscale Coat',
+				acBase: 14,
+				acAddDexMod: true,
+				acCapDexMod: 2,
+				strengthScoreRequired: 13,
+				grantsStealthDisadvantage: true,
+			},
+			{
+				key: 'silk-jerkin-tdcsr',
+				name: 'Silk Jerkin',
+				acBase: 11,
+				acAddDexMod: true,
+				acCapDexMod: null,
+				strengthScoreRequired: null,
+				grantsStealthDisadvantage: false,
+			},
+			{
+				key: 'oak-buckler-tdcsr',
+				name: 'Oak Buckler',
+				acBase: 2,
+				acAddDexMod: false,
+				acCapDexMod: null,
+				strengthScoreRequired: null,
+				grantsStealthDisadvantage: false,
+			},
+		]);
+		expect(report.package.weapons).toEqual([]);
+	});
+
+	/** A bow's range rides on its ammunition property, as the shipped catalogue writes it. */
+	it('gives an ammunition weapon its range', () => {
+		const bow = note(
+			'CLI/items/elm-bow-tdcsr.md',
+			'json5e-item',
+			"# Elm Bow\n*Martial weapon*\n\n- **Damage**: 1d8 piercing\n- **Range**: 150/600\n- **Properties**: [Ammunition](rules/item-properties.md#Ammunition), [Heavy](rules/item-properties.md#Heavy)\n- **Cost**: 50 gp\n\n*Source: Tal'Dorei Campaign Setting Reborn p. 5*",
+			['ttrpg-cli/item/rarity/none'],
+		);
+
+		const [weapon] = assemblePackage([bow], 'k').package.weapons;
+
+		expect(weapon?.range).toBe(150);
+		expect(weapon?.longRange).toBe(600);
+		expect(weapon?.properties).toEqual([
+			{ property: 'srd-2024_ammunition-wp', detail: 'Range 150/600' },
+			{ property: 'srd-2024_heavy-wp', detail: null },
+		]);
+	});
+
+	/** A field left blank is read as blank, never as the number on the line after it. */
+	it('does not read a blank strength line from the next line', () => {
+		const plate = note(
+			'CLI/items/odd-plate-tdcsr.md',
+			'json5e-item',
+			"# Odd Plate\n*Heavy armor*\n\n- **Armor Class**: 17\n- **Strength**:\n- **Cost**: 900 gp\n\n*Source: Tal'Dorei Campaign Setting Reborn p. 6*",
+			['ttrpg-cli/item/rarity/none'],
+		);
+
+		const [armor] = assemblePackage([plate], 'k').package.armor;
+
+		expect(armor?.acBase).toBe(17);
+		expect(armor?.acAddDexMod).toBe(false);
+		expect(armor?.strengthScoreRequired).toBeNull();
 	});
 
 	/** Tome ships the SRD's gear, so an SRD-marked item is left out like any other kind. */

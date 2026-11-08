@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { cleanCell, findTable, parsePcSheet, splitSections, stripFrontmatter } from '../src/tomePcSheetParser';
 
 /**
@@ -278,5 +280,121 @@ describe('parsePcSheet - caster', () => {
 
 	it('omits an absent currency table rather than inventing an empty purse', () => {
 		expect(sheet.currency).toBeUndefined();
+	});
+});
+
+
+/**
+ * Radnads, the D&D Beyond note the connector sent in the 2026-10-27 test run
+ * (Sorcerer 2, Intelligence 13, Charisma 17, proficiency +2). The exporter
+ * writes every spell row as Intelligence modifier plus proficiency (+3),
+ * whatever the class casts with, so the real bonus (+5) is worked out here.
+ */
+describe('parsePcSheet - spell attack rows', () => {
+	const radnads = readFileSync(join(import.meta.dirname, 'fixtures', 'connector-run-fixture-radnads.md'), 'utf8');
+	const attacks = parsePcSheet(radnads).attacks;
+	const bonusOf = (name: string) => attacks.find((attack) => attack.name === name)?.attackBonus;
+
+	it('gives a spell row the proficiency bonus plus the class casting ability modifier', () => {
+		expect(bonusOf('Sorcerous Burst')).toBe('+5');
+		expect(bonusOf('Acid Splash')).toBe('+5');
+		expect(bonusOf('Shocking Grasp')).toBe('+5');
+		expect(bonusOf('Chill Touch')).toBe('+5');
+	});
+
+	it('keeps the bonus the note gives a weapon row', () => {
+		expect(bonusOf('Unarmed Strike')).toBe('+2');
+	});
+
+	/** A cleric with Intelligence 8 and Wisdom 16: the exporter's cell is 8's -1 plus proficiency. */
+	const cleric = (classLine: string) => `# Brother Ash
+
+> **${classLine}** • Human • Level 5
+
+## Core Stats
+
+| HP | AC | Speed | Initiative | Proficiency Bonus |
+|:---:|:---:|:---:|:---:|:---:|
+| 38 / 38 | 18 | 30 ft | +0 | +3 |
+
+## Ability Scores
+
+| STR | DEX | CON | INT | WIS | CHA |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 14 (+2) | 10 (+0) | 14 (+2) | 8 (-1) | 16 (+3) | 12 (+1) |
+
+## Actions & Attacks
+
+| Name | ATK Bonus | Damage | Range | Notes |
+| :--- | :---: | :--- | :---: | :--- |
+| ⚔️ Mace | +5 | 1d6+2 | 5 ft | Bludgeoning |
+| ✨ Sacred Flame | +2 | — | 60 ft | Evocation |
+`;
+	const rows = (note: string) => parsePcSheet(note).attacks.map((attack) => [attack.name, attack.attackBonus]);
+
+	it('reads the casting ability off the class, not Intelligence', () => {
+		expect(rows(cleric('Cleric 5'))).toEqual([
+			['Mace', '+5'],
+			['Sacred Flame', '+6'],
+		]);
+	});
+
+	it('uses the one spellcasting class of a multiclass line', () => {
+		expect(rows(cleric('Barbarian 1 / Cleric 4'))).toEqual([
+			['Mace', '+5'],
+			['Sacred Flame', '+6'],
+		]);
+	});
+
+	it('keeps the note\'s bonus when no class says which ability casts the spell', () => {
+		expect(rows(cleric('Monk 5'))).toEqual([
+			['Mace', '+5'],
+			['Sacred Flame', '+2'],
+		]);
+		expect(rows(cleric('Constructor 5'))).toEqual([
+			['Mace', '+5'],
+			['Sacred Flame', '+2'],
+		]);
+	});
+
+	it('keeps the note\'s bonus when casting classes disagree, since the note does not say whose spell it is', () => {
+		// An Eldritch Knight's Intelligence cantrip is right as the exporter wrote it.
+		expect(rows(cleric('Fighter 3 / Cleric 2'))).toEqual([
+			['Mace', '+5'],
+			['Sacred Flame', '+2'],
+		]);
+	});
+
+	it('keeps the note\'s bonus when the note has no class line or no ability scores', () => {
+		const note = cleric('Cleric 5');
+		expect(rows(note.replace(/^> .*$/m, ''))[1]).toEqual(['Sacred Flame', '+2']);
+		expect(rows(note.replace('## Ability Scores', '## Scores'))[1]).toEqual(['Sacred Flame', '+2']);
+	});
+});
+
+describe('parsePcSheet - a weak caster\'s spell attack', () => {
+	it('rounds an odd low score down and keeps the minus sign', () => {
+		// Charisma 5 is -3 (not -2), plus proficiency +2 makes -1.
+		const note = `> **Warlock 1** • Human • Level 1
+
+## Core Stats
+
+| HP | AC | Speed | Initiative | Proficiency Bonus |
+|:---:|:---:|:---:|:---:|:---:|
+| 9 / 9 | 11 | 30 ft | +1 | +2 |
+
+## Ability Scores
+
+| STR | DEX | CON | INT | WIS | CHA |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| 10 (+0) | 12 (+1) | 14 (+2) | 10 (+0) | 10 (+0) | 5 (-3) |
+
+## Actions & Attacks
+
+| Name | ATK Bonus | Damage | Range | Notes |
+| :--- | :---: | :--- | :---: | :--- |
+| ✨ Eldritch Blast | +2 | — | 120 ft | Evocation |
+`;
+		expect(parsePcSheet(note).attacks.map((attack) => attack.attackBonus)).toEqual(['-1']);
 	});
 });

@@ -11,10 +11,11 @@
  */
 
 import { noteName, type Note } from '../note';
-import { slug, titleCase } from '../labelledMarkdown';
+import { preamble, slug, titleCase } from '../labelledMarkdown';
 import { cliNoteType, IMPORTABLE, isImportable, type CliNoteType } from './cliNote';
 import { parseBackground, type Background } from './background';
 import { parseEquipmentItem } from './equipmentItem';
+import { readArmor, readWeapon, type PackageArmor, type PackageWeapon } from './gearStats';
 import { isMagic } from './magicItem';
 import { parseFeat, type Feat } from './feat';
 import { parseSpecies, type Species } from './species';
@@ -43,6 +44,17 @@ export interface PackageItem {
 	cost: number | null;
 	/** In pounds. */
 	weight: number | null;
+	/** The key of this item's entry in the package's `weapons`, when it is a weapon. */
+	weapon?: string;
+	/** The key of this item's entry in the package's `armor`, when it is armour. */
+	armor?: string;
+}
+
+/** An item note's gear, with the weapon or armour stats it carries, if any. */
+interface PackageGear {
+	item: PackageItem;
+	weapon: PackageWeapon | null;
+	armor: PackageArmor | null;
 }
 
 /** A class entry that adds subclasses without redefining the class. */
@@ -83,6 +95,8 @@ export interface ContentPackage {
 	 */
 	classes: ClassPatch[];
 	items: PackageItem[];
+	weapons: PackageWeapon[];
+	armor: PackageArmor[];
 }
 
 /** What a scan found, including what it could not use. */
@@ -167,19 +181,36 @@ function nameFor(key: string): string {
 
 interface Parsed {
 	type: CliNoteType;
-	value: Species | Background | Feat | Spell | ParsedSubclass | PackageItem;
+	value: Species | Background | Feat | Spell | ParsedSubclass | PackageGear;
 	source: NoteSource;
 }
 
-function toPackageItem(markdown: string, key: string, name: string): PackageItem {
+/** Tome's own catalogue files weapons and armour as `weapon` and `armor`, not by the printed line. */
+function categoryOf(printed: string | null, weapon: PackageWeapon | null, armor: PackageArmor | null) {
+	if (weapon !== null) return 'weapon';
+	if (armor !== null) return 'armor';
+	return printed === null ? null : slug(printed);
+}
+
+function toPackageGear(markdown: string, key: string, name: string): PackageGear {
 	const item = parseEquipmentItem(markdown, key, name);
+	const body = preamble(markdown);
+	const weapon = readWeapon(body, key, item.name);
+	const armor = readArmor(body, key, item.name);
+
 	return {
-		key,
-		name: item.name,
-		desc: item.desc ?? '',
-		category: item.category === null ? null : slug(item.category),
-		cost: item.cost,
-		weight: item.weight,
+		item: {
+			key,
+			name: item.name,
+			desc: item.desc ?? '',
+			category: categoryOf(item.category, weapon, armor),
+			cost: item.cost,
+			weight: item.weight,
+			...(weapon !== null && { weapon: key }),
+			...(armor !== null && { armor: key }),
+		},
+		weapon,
+		armor,
 	};
 }
 
@@ -199,7 +230,7 @@ function parseNote(note: Note, type: CliNoteType, options: AssembleOptions): Par
 						: type === 'subclass'
 							? parseSubclass(note.content, note.frontmatter, key, name)
 							: type === 'item'
-								? toPackageItem(note.content, key, name)
+								? toPackageGear(note.content, key, name)
 								: null;
 
 	return value === null ? null : { type, value, source: readSourceLine(note.content) };
@@ -284,6 +315,15 @@ function toPatches(attachable: ParsedSubclass[], options: AssembleOptions): Clas
 	);
 }
 
+/** The package's three gear lists: every item, and the weapon and armour stats some carry. */
+function splitGear(gear: PackageGear[]): Pick<ContentPackage, 'items' | 'weapons' | 'armor'> {
+	return {
+		items: gear.map((entry) => entry.item),
+		weapons: gear.flatMap((entry) => entry.weapon ?? []),
+		armor: gear.flatMap((entry) => entry.armor ?? []),
+	};
+}
+
 function subclassAvailability(subclasses: ParsedSubclass[], attachable: ParsedSubclass[]) {
 	return {
 		orphanedSubclasses: describeAll(subclasses.filter((entry) => !hasShippedClass(entry))),
@@ -307,7 +347,7 @@ export function assemblePackage(
 	const backgrounds = of<Background>('background');
 	const feats = of<Feat>('feat');
 	const spells = of<Spell>('spell');
-	const items = of<PackageItem>('item');
+	const gear = splitGear(of<PackageGear>('item'));
 
 	const subclasses = of<ParsedSubclass>('subclass');
 	const attachable = subclasses.filter(hasShippedClass);
@@ -328,7 +368,7 @@ export function assemblePackage(
 			feats,
 			spells,
 			classes,
-			items,
+			...gear,
 		},
 		counts: {
 			species: species.length,
@@ -338,7 +378,7 @@ export function assemblePackage(
 			// The subclasses, not the patches: "36 subclasses" is what was found, and
 			// "9 classes" would be a count of the envelopes they arrived in.
 			subclasses: attachable.length,
-			items: items.length,
+			items: gear.items.length,
 		},
 		unsupported,
 		failed,
