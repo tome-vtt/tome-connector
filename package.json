@@ -1,6 +1,6 @@
 {
 	"name": "tome-connector",
-	"version": "1.2.1",
+	"version": "1.3.0",
 	"description": "Send note content from Obsidian to a Tome server via a configurable HTTP endpoint.",
 	"main": "main.js",
 	"type": "module",
