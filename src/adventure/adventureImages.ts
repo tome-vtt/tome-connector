@@ -9,7 +9,7 @@
  * Pure and `obsidian`-free.
  */
 
-import { safeDecode } from '../safeDecode';
+import { safeDecode } from '../shared';
 import { stem } from './adventurePaths';
 
 /** Exported so anything else deciding "is this file a picture" uses the same list. */

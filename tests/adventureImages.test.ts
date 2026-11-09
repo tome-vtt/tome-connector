@@ -9,6 +9,10 @@ describe('findImages', () => {
 		expect(images.map((image) => image.path)).toEqual(['img/50%off.png', 'maps/50%off.webp']);
 	});
 
+	it('decodes a valid escape in an image path', () => {
+		expect(findImages('![Sale](img/half%20off.png)').map((image) => image.path)).toEqual(['img/half off.png']);
+	});
+
 	it('finds a markdown image embed', () => {
 		const markdown = '![Battle map](3-Mechanics/CLI/adventures/maps/room-1.webp)';
 		const images = findImages(markdown);

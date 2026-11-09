@@ -18,7 +18,7 @@
 import { FIELD_LINE, preamble, proseBody, titleOf } from '../labelledMarkdown';
 import { asStrings } from './cliNote';
 import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
-import { safeDecode } from '../../safeDecode';
+import { safeDecode } from '../../shared';
 
 /** Mirrors the server's `MagicItemInputDto`, minus the fields a note cannot fill. */
 export interface MagicItem {

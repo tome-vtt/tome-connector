@@ -17,7 +17,7 @@
  * Pure and `obsidian`-free.
  */
 
-import { safeDecode } from '../safeDecode';
+import { safeDecode } from '../shared';
 
 export interface AdventureIndexEntry {
 	title: string;

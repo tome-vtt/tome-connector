@@ -31,7 +31,7 @@
  * Pure and `obsidian`-free.
  */
 
-import { safeDecode } from '../safeDecode';
+import { safeDecode } from '../shared';
 import { MARKDOWN_IMAGE, WIKI_IMAGE } from './adventureImages';
 import type { BlockRef, ImageRef } from './adventurePlan';
 

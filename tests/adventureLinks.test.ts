@@ -62,6 +62,13 @@ describe('flattenLinks', () => {
 		expect(result.imageRefs.map((ref) => ref.image)).toEqual(['img/50%off.png']);
 	});
 
+	it('decodes a valid escape in a link or image path', () => {
+		const result = flattenLinks('[Coupon](3-Mechanics/CLI/items/half%20off-xdmg.md) ![Sale](img/half%20off.png)');
+
+		expect(result.entities.map((entity) => entity.key)).toEqual(['3-Mechanics/CLI/items/half off-xdmg.md']);
+		expect(result.imageRefs.map((ref) => ref.image)).toEqual(['img/half off.png']);
+	});
+
 	it('flattens a resolvable link and records a ref for it', () => {
 		const markdown = 'Beware the [Goblin](3-Mechanics/CLI/bestiary/goblin-xphb.md) ahead.';
 		const result = flattenLinks(markdown);
