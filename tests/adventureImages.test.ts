@@ -3,6 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { findImages, isPlayerVersion, pairGallery } from '../src/adventure/adventureImages';
 
 describe('findImages', () => {
+	it('keeps a stray % in an image path as written', () => {
+		const images = findImages('![Sale](img/50%off.png) and ![[maps/50%off.webp]]');
+
+		expect(images.map((image) => image.path)).toEqual(['img/50%off.png', 'maps/50%off.webp']);
+	});
+
 	it('finds a markdown image embed', () => {
 		const markdown = '![Battle map](3-Mechanics/CLI/adventures/maps/room-1.webp)';
 		const images = findImages(markdown);
