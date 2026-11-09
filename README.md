@@ -192,11 +192,11 @@ Two limitations worth knowing:
 
 ### Send a single note
 
-Right-click a note that holds a statblock, encounter or map block (or declares a
-statblock in its frontmatter) and select **Send this note to Tome**. It sends just
-that note's statblocks, encounters and maps, with the same confirm and results
-dialogs as the folder menu's **Tome → Import Library items to Tome**. Other notes
-don't show the entry.
+Right-click a note that holds a `statblock`, `encounter`, `leaflet` or `zoommap`
+block (or declares a statblock in its frontmatter) and select **Send this note to
+Tome**. It sends just that note - everything in it that a folder import would send -
+with the same confirm and results dialogs as the folder menu's **Tome → Import
+Library items to Tome**. Other notes don't show the entry.
 
 ### Older-book feats in a content-source import
 
