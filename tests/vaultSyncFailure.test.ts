@@ -54,7 +54,7 @@ const plugin = { app: {}, settings: {} } as unknown as TomeConnectorPlugin;
 
 describe('a vault sync that fails before it sends', () => {
 	it('shows a notice and sends nothing when a note cannot be read', async () => {
-		vi.spyOn(console, 'error').mockImplementation(() => undefined);
+		const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
 		await runVaultSync(plugin, { kind: 'vault' });
 
@@ -62,5 +62,7 @@ describe('a vault sync that fails before it sends', () => {
 			'Tome connector: "Bestiary/gone.md" no longer exists in the vault.',
 		]);
 		expect(sendToTome).not.toHaveBeenCalled();
+		expect(logged).toHaveBeenCalledOnce();
+		logged.mockRestore();
 	});
 });

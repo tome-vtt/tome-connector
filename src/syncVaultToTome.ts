@@ -251,7 +251,7 @@ export const runVaultSync = oneAtATime(
 	async (plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> => {
 		// Every caller fires this with `void`, so anything thrown would go unseen.
 		try {
-			await syncScope(plugin, scope);
+			await scanAskAndSend(plugin, scope);
 		} catch (error) {
 			console.error('Tome Connector: sync failed', error);
 			new Notice(`Tome connector: ${describeError(error)}`);
@@ -260,7 +260,7 @@ export const runVaultSync = oneAtATime(
 	() => new Notice('Tome connector: a sync is already running.'),
 );
 
-async function syncScope(plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> {
+async function scanAskAndSend(plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> {
 	const choice = await loadCampaignChoice(plugin);
 	if (choice === null) return;
 

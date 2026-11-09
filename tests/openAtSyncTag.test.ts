@@ -58,12 +58,9 @@ function setup() {
 
 describe('opening the settings at the sync tag field', () => {
 	beforeEach(() => {
-		// Tests run without a DOM; read on each call, so the faked timer is the one used.
-		vi.stubGlobal('window', {
-			get setTimeout() {
-				return setTimeout;
-			},
-		});
+		vi.useFakeTimers();
+		// Tests run without a DOM; this is the faked timer, installed just above.
+		vi.stubGlobal('window', { setTimeout });
 	});
 
 	afterEach(() => {
@@ -72,7 +69,6 @@ describe('opening the settings at the sync tag field', () => {
 	});
 
 	it("opens Obsidian's settings, then selects the connector's tab by its manifest id", () => {
-		vi.useFakeTimers();
 		const { tab, calls } = setup();
 
 		tab.openAtSyncTag();
@@ -81,13 +77,14 @@ describe('opening the settings at the sync tag field', () => {
 	});
 
 	it('focuses the sync tag input once the pane has had time to render', () => {
-		vi.useFakeTimers();
 		const { tab, input } = setup();
 
 		tab.openAtSyncTag();
 		expect(input.focus).not.toHaveBeenCalled();
 
-		vi.advanceTimersByTime(50);
+		vi.advanceTimersByTime(49);
+		expect(input.focus).not.toHaveBeenCalled();
+		vi.advanceTimersByTime(1);
 		expect(input.focus).toHaveBeenCalledOnce();
 	});
 });
