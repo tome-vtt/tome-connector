@@ -238,17 +238,13 @@ function reportImport(
 	];
 	const failureNote = failures > 0 ? ` ${failures} item${failures === 1 ? '' : 's'} failed - see the console.` : '';
 	const message = `Tome connector: ${sentTo(`"${plan.title}"`, campaignName)} - ${parts.join(', ')}.${failureNote}`;
-	if (warnings.length === 0) {
-		new Notice(message);
-		return;
-	}
-	// Stays until dismissed, so the list has time to be read.
+	// A notice listing what was not read in full stays until dismissed, so there is time to read it.
 	new Notice(
 		createFragment((fragment) => {
 			fragment.appendText(message);
 			renderWarnings(fragment, warnings);
 		}),
-		0,
+		warnings.length > 0 ? 0 : undefined,
 	);
 }
 

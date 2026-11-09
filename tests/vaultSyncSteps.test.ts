@@ -86,12 +86,17 @@ describe('scanScope', () => {
 	it('warns, naming the encounter, when its creatures field is not a list', async () => {
 		const fence = (block: Record<string, unknown>) => '```encounter\n' + JSON.stringify(block) + '\n```\n';
 		const swamp = vault({
-			'Swamp.md': { content: fence({ name: 'Swamp', creatures: 'Goblin' }) + fence({ name: 'Bog', creatures: { Goblin: 2 } }) },
+			'Swamp.md': {
+				content:
+					fence({ name: 'Swamp', creatures: 'Goblin' }) +
+					fence({ name: 'Bog', creatures: { Goblin: 2 } }) +
+					fence({ name: 'Empty', creatures: null }),
+			},
 		});
 
 		const found = await scanScope(swamp, { kind: 'vault' }, JSON.parse);
 
-		expect(labels(found)).toEqual(['Swamp', 'Bog']);
+		expect(labels(found)).toEqual(['Swamp', 'Bog', 'Empty']);
 		expect(found.warnings).toEqual([
 			{ path: 'Swamp.md', message: 'Swamp: sent with no creatures, since creatures: is not a list.' },
 			{ path: 'Swamp.md', message: 'Bog: sent with no creatures, since creatures: is not a list.' },
@@ -109,6 +114,20 @@ describe('scanScope', () => {
 		expect(found.warnings).toEqual([
 			{ path: 'Goblin.md', message: 'Goblin: entry {"name":" ","desc":"Nimble."} left out: it has no name.' },
 		]);
+	});
+
+	it('leaves a bestiary reference’s traits to the bestiary, warning about none', async () => {
+		const goblin = vault({ 'Goblin.md': { content: statblock({ monster: 'Goblin', traits: ['Goblin', 'Humanoid'] }) } });
+
+		expect((await scanScope(goblin, { kind: 'vault' }, JSON.parse)).warnings).toEqual([]);
+	});
+
+	it('shortens a long nameless entry in its warning', async () => {
+		const goblin = vault({ 'Goblin.md': { content: statblock({ ...GOBLIN, actions: [{ desc: 'x'.repeat(200) }] }) } });
+
+		const [warning] = (await scanScope(goblin, { kind: 'vault' }, JSON.parse)).warnings;
+
+		expect(warning?.message).toBe(`Goblin: entry {"desc":"${'x'.repeat(48)}... left out: it has no name.`);
 	});
 });
 

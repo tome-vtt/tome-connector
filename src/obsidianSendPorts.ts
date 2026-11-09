@@ -79,7 +79,7 @@ export async function sendBlockWithNotice(
 	sendable: ModuleSendable,
 	campaign: TomeCampaign,
 	block: SourceBlock,
-	warnings: string[] = [],
+	warnings: string[],
 ): Promise<void> {
 	const result = await sendBlockToTome(
 		obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),

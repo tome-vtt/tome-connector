@@ -127,6 +127,11 @@ function toNamedAbility(entry: unknown): NamedAbility | null {
 	return { name, desc: typeof desc === 'string' ? desc : '' };
 }
 
+/** Enough of a warning's quoted entry to find it by, so a long description does not fill the notice. */
+function shorten(text: string): string {
+	return text.length > 60 ? `${text.slice(0, 57)}...` : text;
+}
+
 /** Each `{name, desc}` entry; one with no name is left out and passed to `warn`. */
 export function toNamedAbilityList(value: unknown, warn: Warn = () => {}): NamedAbility[] {
 	if (!Array.isArray(value)) return [];
@@ -134,7 +139,7 @@ export function toNamedAbilityList(value: unknown, warn: Warn = () => {}): Named
 	for (const entry of value) {
 		const converted = toNamedAbility(entry);
 		if (converted) result.push(converted);
-		else warn(`entry ${JSON.stringify(entry) ?? String(entry)} left out: it has no name.`);
+		else warn(`entry ${shorten(JSON.stringify(entry) ?? String(entry))} left out: it has no name.`);
 	}
 	return result;
 }

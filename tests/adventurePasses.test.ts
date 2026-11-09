@@ -5,7 +5,7 @@ import { entitiesPass, imagesPass, type PassDeps } from '../src/adventure/advent
 import type { AdventurePlan, PlannedEntity, PlannedImage } from '../src/adventure/adventurePlan';
 import type { Note } from '../src/recognizers/note';
 import { findSendables } from '../src/recognizers/noteScan';
-import { sendToTome } from '../src/sendModule';
+import { sendToTome, type SendPorts } from '../src/sendModule';
 import { TINY_PNG, bodyOf, inMemorySendPorts } from './fixtures/inMemorySendPorts';
 
 /**
@@ -89,6 +89,26 @@ describe('the entities pass', () => {
 			DESTINATION,
 		);
 
+		expect(warnings).toEqual([{ path: GOBLIN.path, message: 'Map block skipped: it names no image.' }]);
+	});
+
+	it('lists a note’s warnings once, however many times its send is retried', async () => {
+		const goblinWithBadMap: Note = { ...GOBLIN, content: GOBLIN.content + '```leaflet\nid: lair\n```\n' };
+		const harness = deps([goblinWithBadMap]);
+		const { ports } = harness.passDeps;
+		let calls = 0;
+		const busyOnce: SendPorts['postJson'] = async (target, payload) =>
+			++calls === 1 ? { ok: false, status: 503, id: null, message: null, retryable: true } : ports.postJson(target, payload);
+		const warnings: { path: string; message: string }[] = [];
+
+		const report = await entitiesPass(
+			{ ...harness.passDeps, ports: { ...ports, postJson: busyOnce }, warn: (warning) => warnings.push(warning) },
+			plan([entity(GOBLIN.path, 'NonPlayerCharacter')], []),
+			DESTINATION,
+		);
+
+		expect(report.sent).toHaveLength(1);
+		expect(calls).toBe(2);
 		expect(warnings).toEqual([{ path: GOBLIN.path, message: 'Map block skipped: it names no image.' }]);
 	});
 });

@@ -229,8 +229,8 @@ function creatureSendable(record: Record<string, unknown>, note: Note, warn: War
 		return null;
 	}
 	const label = creatureLabel(record, noteName(note.path));
-	// Mapped here only for its warnings; the send maps the bestiary-resolved creature itself.
-	mapToNpcPayload(record, (message) => warn(`${label}: ${message}`));
+	// Mapped here only for its warnings; a `monster:` reference waits for the bestiary, which the scan lacks.
+	if (hasInlineStats(record)) mapToNpcPayload(record, (message) => warn(`${label}: ${message}`));
 	return { kind: 'creature', path: note.path, label, block: record };
 }
 

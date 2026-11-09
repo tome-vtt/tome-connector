@@ -81,11 +81,17 @@ export function entitiesPass(
 	destination: Destination,
 	onProgress?: (done: number) => void,
 ): Promise<BulkReport<PlannedEntity>> {
+	// A retried send scans its note again; its warnings are only passed on the first time.
+	const scanned = new Set<string>();
 	return runPass(
 		deps,
 		plan.entities.filter(isEntityTarget),
 		(entity) => ({ label: entity.tomeName, path: entity.key }),
-		(entity) => sendableForEntity(deps, entity),
+		(entity) => {
+			const warn = scanned.has(entity.key) ? undefined : deps.warn;
+			scanned.add(entity.key);
+			return sendableForEntity({ ...deps, warn }, entity);
+		},
 		destination,
 		onProgress,
 	);

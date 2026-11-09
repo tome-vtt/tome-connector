@@ -11,7 +11,7 @@ import { mapToEncounterPayload } from './recognizers/encounter';
 import { mapReferenceFrom } from './recognizers/map';
 import { creatureLabel, type SendableParse } from './recognizers/noteScan';
 import type { Warn } from './recognizers/note';
-import { mapToNpcPayload } from './recognizers/statblockCreature';
+import { hasInlineStats, mapToNpcPayload } from './recognizers/statblockCreature';
 import { asRecord } from './shared';
 import type { TomeBlockKind } from './tomeIdWriteBack';
 
@@ -51,7 +51,10 @@ export const BLOCK_KINDS: readonly BlockKind[] = [
 		sendable: (parsed, warn) => {
 			const block = asRecord(parsed);
 			if (!block) return null;
-			if (warn) mapToNpcPayload(block, (message) => warn(`${creatureLabel(block, 'Statblock')}: ${message}`));
+			// Mapped here only for its warnings; a `monster:` reference waits for the bestiary.
+			if (warn && hasInlineStats(block)) {
+				mapToNpcPayload(block, (message) => warn(`${creatureLabel(block, 'Statblock')}: ${message}`));
+			}
 			return { kind: 'creature', block };
 		},
 		writeBack: 'creature',
