@@ -42,7 +42,7 @@ const KIND_NOUNS: Record<SendableKind, [string, string]> = {
 };
 
 /** What the scan skipped or changed, listed under the note it is in. */
-function renderWarnings(contentEl: HTMLElement, warnings: ScanWarning[]): void {
+export function renderWarnings(contentEl: Node, warnings: ScanWarning[]): void {
 	if (warnings.length === 0) return;
 
 	const byNote = new Map<string, string[]>();

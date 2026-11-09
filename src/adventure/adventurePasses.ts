@@ -1,6 +1,6 @@
 import { type BulkItem, type BulkReport, runBulkSend, THROTTLE_MS } from '../bulkSend';
 import type { Note } from '../recognizers/note';
-import { findSendables, type Sendable, type YamlParser } from '../recognizers/noteScan';
+import { findSendables, type ScanWarning, type Sendable, type YamlParser } from '../recognizers/noteScan';
 import { sendToTome, type Destination, type ModuleSendable, type SendPorts } from '../sendModule';
 import type { AdventurePlan, PlannedEntity, PlannedImage } from './adventurePlan';
 
@@ -20,6 +20,8 @@ export interface PassDeps {
 	parseYaml: YamlParser;
 	/** Injected so tests do not wait. */
 	sleep: (ms: number) => Promise<void>;
+	/** Each block a sent note's scan skipped, and each entry it changed. */
+	warn?: (warning: ScanWarning) => void;
 }
 
 /** The one sendable in a target note that matches what the row was chosen to become. */
@@ -31,7 +33,9 @@ async function sendableForEntity(deps: PassDeps, entity: PlannedEntity): Promise
 			: entity.chosen.to === 'MagicItem'
 				? 'magicItem'
 				: 'equipmentItem';
-	const found = findSendables(note, deps.parseYaml).find((sendable) => sendable.kind === wanted);
+	const found = findSendables(note, deps.parseYaml, (message) => deps.warn?.({ path: note.path, message })).find(
+		(sendable) => sendable.kind === wanted,
+	);
 
 	if (!found) {
 		const noun = wanted === 'creature' ? 'statblock' : wanted === 'magicItem' ? 'magic item' : 'equipment';
@@ -77,11 +81,17 @@ export function entitiesPass(
 	destination: Destination,
 	onProgress?: (done: number) => void,
 ): Promise<BulkReport<PlannedEntity>> {
+	// A retried send scans its note again; its warnings are only passed on the first time.
+	const scanned = new Set<string>();
 	return runPass(
 		deps,
 		plan.entities.filter(isEntityTarget),
 		(entity) => ({ label: entity.tomeName, path: entity.key }),
-		(entity) => sendableForEntity(deps, entity),
+		(entity) => {
+			const warn = scanned.has(entity.key) ? undefined : deps.warn;
+			scanned.add(entity.key);
+			return sendableForEntity({ ...deps, warn }, entity);
+		},
 		destination,
 		onProgress,
 	);

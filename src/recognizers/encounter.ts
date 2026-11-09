@@ -145,6 +145,8 @@ export function mapToEncounterPayload(parsed: unknown, warn: Warn = () => {}): E
 			if (!entry) continue;
 			combined.set(entry.name, (combined.get(entry.name) ?? 0) + entry.count);
 		}
+	} else if (record.creatures !== undefined && record.creatures !== null) {
+		warn(`${name.trim()}: sent with no creatures, since creatures: is not a list.`);
 	}
 
 	const payload: EncounterPayload = {

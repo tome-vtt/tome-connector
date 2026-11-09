@@ -330,6 +330,13 @@ describe('describeResult', () => {
 		expect(describeResult(result, 'Bag of Holding', 'Test 2')).toBe('Tome connector: "Bag of Holding" sent to Test 2.');
 	});
 
+	it('lists what the send changed after a success', () => {
+		const result = { ok: true, status: 200, id: 'abc', message: null, retryable: false };
+		expect(describeResult(result, 'Frogs', 'Test 2', ['"2d4: Giant Frog" sent as 1 Giant Frog.', 'Ogre sent without its overrides.'])).toBe(
+			'Tome connector: "Frogs" sent to Test 2. Not read in full: "2d4: Giant Frog" sent as 1 Giant Frog. Ogre sent without its overrides.',
+		);
+	});
+
 	it("gives a refusal the server's own message", () => {
 		const result = { ok: false, status: 409, id: null, message: 'That name is taken.', retryable: false };
 		expect(describeResult(result, 'Old Keep', 'Test 2')).toBe('Tome connector: That name is taken.');
