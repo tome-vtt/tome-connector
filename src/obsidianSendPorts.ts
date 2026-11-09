@@ -79,6 +79,7 @@ export async function sendBlockWithNotice(
 	sendable: ModuleSendable,
 	campaign: TomeCampaign,
 	block: SourceBlock,
+	warnings: string[] = [],
 ): Promise<void> {
 	const result = await sendBlockToTome(
 		obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),
@@ -86,5 +87,5 @@ export async function sendBlockWithNotice(
 		{ baseUrl: plugin.settings.baseUrl, apiKey: getApiKey(plugin), campaignId: campaign.id },
 		block,
 	);
-	noticeResult(result, sendableName(sendable), campaign.name);
+	noticeResult(result, sendableName(sendable), campaign.name, warnings);
 }

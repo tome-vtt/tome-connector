@@ -49,6 +49,34 @@ describe('recognizeBlock', () => {
 		});
 	});
 
+	it('passes each changed encounter entry to warn', () => {
+		const warnings: string[] = [];
+		const parsed = { name: 'Frogs', creatures: [{ '2d4': 'Giant Frog' }] };
+
+		const sendable = recognizeBlock('encounter', parsed)?.sendable(parsed, (message) => warnings.push(message));
+
+		expect(sendable).toMatchObject({ encounter: { encounterNpcs: [{ name: 'Giant Frog', quantity: 1 }] } });
+		expect(warnings).toEqual(['Frogs: "2d4: Giant Frog" sent as 1 Giant Frog, since dice are not rolled.']);
+	});
+
+	it('passes a layered map’s dropped layers to warn', () => {
+		const warnings: string[] = [];
+		const parsed = { imageBases: [{ path: 'Assets/Keep.jpg' }, { path: 'Assets/Cellar.jpg' }] };
+
+		recognizeBlock('zoommap', parsed)?.sendable(parsed, (message) => warnings.push(message));
+
+		expect(warnings).toEqual(['Map Assets/Keep.jpg: only its first layer is sent, since Tome holds one image per map.']);
+	});
+
+	it('passes a statblock trait with no name to warn', () => {
+		const warnings: string[] = [];
+		const parsed = { name: 'Goblin', stats: [8, 14, 10, 10, 8, 8], traits: [{ name: '', desc: 'Nimble.' }] };
+
+		recognizeBlock('statblock', parsed)?.sendable(parsed, (message) => warnings.push(message));
+
+		expect(warnings).toEqual(['Goblin: entry {"name":"","desc":"Nimble."} left out: it has no name.']);
+	});
+
 	it.each([
 		['a map naming no image', 'leaflet', { id: 'coords-only' }],
 		['a prop with no title', 'prop', { image: 'chest.webp' }],

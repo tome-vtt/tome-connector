@@ -21,7 +21,7 @@ import { isMagic, parseMagicItem, readImagePath, type MagicItem } from './compen
 import { parseSpell } from './compendium/spell';
 import { mapToEncounterPayload, type EncounterPayload } from './encounter';
 import { mapReferenceFrom, type MapReference } from './map';
-import { hasInlineStats } from './statblockCreature';
+import { hasInlineStats, mapToNpcPayload } from './statblockCreature';
 import { noteName, type Note, type Warn } from './note';
 
 /**
@@ -70,7 +70,10 @@ const BLOCK_NOUNS: Partial<Record<string, string>> = {
 	zoommap: 'Map',
 };
 
-/** Injected so this module never imports `obsidian`. Returns null on bad YAML. */
+/**
+ * Injected so this module never imports `obsidian`. Throws on malformed YAML, as
+ * Obsidian's `parseYaml` does; otherwise may return null or a scalar.
+ */
 export type YamlParser = (source: string) => unknown;
 
 /**
@@ -157,19 +160,22 @@ export function findSendables(note: Note, parseYaml: YamlParser, warn: Warn = ()
 	const item = magicItemFrom(note) ?? equipmentItemFrom(note);
 	if (item) found.push(item);
 
-	const spell = spellFrom(note);
+	const spell = spellFrom(note, warn);
 	if (spell) found.push(spell);
 
 	return found;
 }
 
 /** A whole-note spell, using the same structured parser as content-package imports. */
-function spellFrom(note: Note): Sendable | null {
+function spellFrom(note: Note, warn: Warn): Sendable | null {
 	if (cliNoteType(note.frontmatter) !== 'spell') return null;
 
 	const key = noteName(note.path);
 	const parsed = parseSpell(note.content, note.frontmatter, key, key);
-	if (!parsed) return null;
+	if (!parsed) {
+		warn('Spell skipped: it states no casting time or duration.');
+		return null;
+	}
 	const { key: sourceKey, ...spell } = parsed;
 	return {
 		kind: 'spell',
@@ -222,12 +228,10 @@ function creatureSendable(record: Record<string, unknown>, note: Note, warn: War
 		warn(`${where} skipped: it has no stats and no monster: reference.`);
 		return null;
 	}
-	return {
-		kind: 'creature',
-		path: note.path,
-		label: creatureLabel(record, noteName(note.path)),
-		block: record,
-	};
+	const label = creatureLabel(record, noteName(note.path));
+	// Mapped here only for its warnings; the send maps the bestiary-resolved creature itself.
+	mapToNpcPayload(record, (message) => warn(`${label}: ${message}`));
+	return { kind: 'creature', path: note.path, label, block: record };
 }
 
 /** One recognised block, or null when this language or shape is not sendable. */

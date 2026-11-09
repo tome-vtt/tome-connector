@@ -82,6 +82,34 @@ describe('scanScope', () => {
 			{ path: 'Swamp.md', message: 'Map block skipped: its YAML could not be read.' },
 		]);
 	});
+
+	it('warns, naming the encounter, when its creatures field is not a list', async () => {
+		const fence = (block: Record<string, unknown>) => '```encounter\n' + JSON.stringify(block) + '\n```\n';
+		const swamp = vault({
+			'Swamp.md': { content: fence({ name: 'Swamp', creatures: 'Goblin' }) + fence({ name: 'Bog', creatures: { Goblin: 2 } }) },
+		});
+
+		const found = await scanScope(swamp, { kind: 'vault' }, JSON.parse);
+
+		expect(labels(found)).toEqual(['Swamp', 'Bog']);
+		expect(found.warnings).toEqual([
+			{ path: 'Swamp.md', message: 'Swamp: sent with no creatures, since creatures: is not a list.' },
+			{ path: 'Swamp.md', message: 'Bog: sent with no creatures, since creatures: is not a list.' },
+		]);
+	});
+
+	it('lists a statblock trait left out for having no name', async () => {
+		const goblin = vault({
+			'Goblin.md': { content: statblock({ ...GOBLIN, traits: [{ name: ' ', desc: 'Nimble.' }, { name: 'Sneaky', desc: '' }] }) },
+		});
+
+		const found = await scanScope(goblin, { kind: 'vault' }, JSON.parse);
+
+		expect(labels(found)).toEqual(['Goblin']);
+		expect(found.warnings).toEqual([
+			{ path: 'Goblin.md', message: 'Goblin: entry {"name":" ","desc":"Nimble."} left out: it has no name.' },
+		]);
+	});
 });
 
 /** What the vault sync runs: each sendable through the ports, paced and retried by runBulkSend. */

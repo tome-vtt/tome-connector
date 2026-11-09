@@ -4,6 +4,7 @@ import type TomeConnectorPlugin from '../main';
 import type { BulkReport } from '../bulkSend';
 import { obsidianSendPorts } from '../obsidianSendPorts';
 import { oneAtATime } from '../oneAtATime';
+import type { ScanWarning } from '../recognizers/noteScan';
 import { describeError } from '../shared';
 import { tomeHttp } from '../tomeApiClient';
 import { sentTo } from '../tomeHttp';
@@ -13,6 +14,7 @@ import { readImageAsDataUri } from '../tomeImageEmbedding';
 import { TomeProgressNotice } from '../tomeProgressNotice';
 import { vaultNotes } from '../vaultNotes';
 import { TOME_ROUTES } from '../routes';
+import { renderWarnings } from '../syncVaultToTome';
 import { entitiesPass, imagesPass, isEntityTarget, isImageTarget, type PassDeps } from './adventurePasses';
 import { AdventureReviewModal } from './adventureReviewModal';
 import { buildAdventurePlan } from './adventureVault';
@@ -227,6 +229,7 @@ function reportImport(
 	response: ImportAdventureResponseBody,
 	failures: number,
 	campaignName: string,
+	warnings: ScanWarning[],
 ): void {
 	const parts = [
 		`${response.chaptersCreated + response.chaptersMatched} chapters`,
@@ -234,7 +237,19 @@ function reportImport(
 		`${response.blocksWritten} blocks`,
 	];
 	const failureNote = failures > 0 ? ` ${failures} item${failures === 1 ? '' : 's'} failed - see the console.` : '';
-	new Notice(`Tome connector: ${sentTo(`"${plan.title}"`, campaignName)} - ${parts.join(', ')}.${failureNote}`);
+	const message = `Tome connector: ${sentTo(`"${plan.title}"`, campaignName)} - ${parts.join(', ')}.${failureNote}`;
+	if (warnings.length === 0) {
+		new Notice(message);
+		return;
+	}
+	// Stays until dismissed, so the list has time to be read.
+	new Notice(
+		createFragment((fragment) => {
+			fragment.appendText(message);
+			renderWarnings(fragment, warnings);
+		}),
+		0,
+	);
 }
 
 /** How many rows `entitiesPass`/`imagesPass` will actually try to send - the same filters each uses. */
@@ -289,12 +304,13 @@ function reportAdventureFailures(
 }
 
 /** The upload passes over the vault: the send module's Obsidian ports and the vault's notes. */
-function passDeps(plugin: TomeConnectorPlugin): PassDeps {
+function passDeps(plugin: TomeConnectorPlugin, warnings: ScanWarning[]): PassDeps {
 	return {
 		ports: obsidianSendPorts(plugin.app, plugin.settings.downscaleImages),
 		readNote: (path) => vaultNotes(plugin.app).read(path),
 		parseYaml,
 		sleep,
+		warn: (warning) => warnings.push(warning),
 	};
 }
 
@@ -312,7 +328,8 @@ export async function runAdventureImport(
 	const totalSteps = targets.entities + targets.images + 1;
 	notice.setProgress(0, totalSteps);
 
-	const deps = passDeps(plugin);
+	const warnings: ScanWarning[] = [];
+	const deps = passDeps(plugin, warnings);
 	const destination = { baseUrl, apiKey, campaignId };
 
 	notice.setMessage(`Tome connector: sending "${plan.title}" - uploading creatures, magic items and equipment…`);
@@ -355,7 +372,7 @@ export async function runAdventureImport(
 		console.warn('Tome Connector: could not write ids back into the vault.', error);
 	}
 
-	reportImport(plan, response, failureCount, campaignName);
+	reportImport(plan, response, failureCount, campaignName, warnings);
 }
 
 /**

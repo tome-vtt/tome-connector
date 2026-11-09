@@ -77,6 +77,20 @@ describe('the entities pass', () => {
 		expect(report.failed[0]?.message).toMatch(/No magic item was found/);
 		expect(goblin.resolvedId).toBeNull();
 	});
+
+	it('lists what the sent note’s scan skipped or changed, under that note', async () => {
+		const goblinWithBadMap: Note = { ...GOBLIN, content: GOBLIN.content + '```leaflet\nid: lair\n```\n' };
+		const harness = deps([goblinWithBadMap]);
+		const warnings: { path: string; message: string }[] = [];
+
+		await entitiesPass(
+			{ ...harness.passDeps, warn: (warning) => warnings.push(warning) },
+			plan([entity(GOBLIN.path, 'NonPlayerCharacter')], []),
+			DESTINATION,
+		);
+
+		expect(warnings).toEqual([{ path: GOBLIN.path, message: 'Map block skipped: it names no image.' }]);
+	});
 });
 
 describe('the images pass', () => {
