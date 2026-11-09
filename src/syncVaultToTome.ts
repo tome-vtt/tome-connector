@@ -249,30 +249,40 @@ class SyncReportModal extends Modal {
  */
 export const runVaultSync = oneAtATime(
 	async (plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> => {
-		const choice = await loadCampaignChoice(plugin);
-		if (choice === null) return;
-
-		const notice = new TomeProgressNotice('Tome connector: scanning…');
-		let scan: { sendables: Sendable[]; warnings: ScanWarning[] };
+		// Every caller fires this with `void`, so anything thrown would go unseen.
 		try {
-			scan = await scanScope(vaultNotes(plugin.app), scope, parseYaml, (done, total) =>
-				notice.setProgress(done, total),
-			);
-		} finally {
-			notice.hide();
+			await syncScope(plugin, scope);
+		} catch (error) {
+			console.error('Tome Connector: sync failed', error);
+			new Notice(`Tome connector: ${describeError(error)}`);
 		}
-
-		// Awaited, not fired from the callback: the guard has to hold through the send.
-		const campaignId = await new Promise<string | null>((resolve) => {
-			new ConfirmSyncModal(plugin.app, scan.sendables, scan.warnings, scope, choice, resolve).open();
-		});
-		if (campaignId === null) return;
-
-		void rememberCampaign(plugin, campaignId);
-		await send(plugin, scan.sendables, scan.warnings, chosenCampaign(choice, campaignId));
 	},
 	() => new Notice('Tome connector: a sync is already running.'),
 );
+
+async function syncScope(plugin: TomeConnectorPlugin, scope: SyncScope): Promise<void> {
+	const choice = await loadCampaignChoice(plugin);
+	if (choice === null) return;
+
+	const notice = new TomeProgressNotice('Tome connector: scanning…');
+	let scan: { sendables: Sendable[]; warnings: ScanWarning[] };
+	try {
+		scan = await scanScope(vaultNotes(plugin.app), scope, parseYaml, (done, total) =>
+			notice.setProgress(done, total),
+		);
+	} finally {
+		notice.hide();
+	}
+
+	// Awaited, not fired from the callback: the guard has to hold through the send.
+	const campaignId = await new Promise<string | null>((resolve) => {
+		new ConfirmSyncModal(plugin.app, scan.sendables, scan.warnings, scope, choice, resolve).open();
+	});
+	if (campaignId === null) return;
+
+	void rememberCampaign(plugin, campaignId);
+	await send(plugin, scan.sendables, scan.warnings, chosenCampaign(choice, campaignId));
+}
 
 async function send(
 	plugin: TomeConnectorPlugin,
