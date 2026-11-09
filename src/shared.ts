@@ -9,3 +9,12 @@ export function asRecord(value: unknown): Record<string, unknown> | null {
 		? (value as Record<string, unknown>)
 		: null;
 }
+
+/** `decodeURIComponent`, keeping the text as written when it is no valid escape: a stray `%` (`50%off.png`) is part of a filename. */
+export function safeDecode(value: string): string {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return value;
+	}
+}

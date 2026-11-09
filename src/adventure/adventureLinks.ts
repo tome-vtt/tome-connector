@@ -31,6 +31,7 @@
  * Pure and `obsidian`-free.
  */
 
+import { safeDecode } from '../shared';
 import { MARKDOWN_IMAGE, WIKI_IMAGE } from './adventureImages';
 import type { BlockRef, ImageRef } from './adventurePlan';
 
@@ -40,7 +41,7 @@ const CLI_MARKER = '3-Mechanics/CLI/';
 
 /** The segment after `3-Mechanics/CLI/` decides; only two have a Tome home. */
 export function classifyCliPath(path: string): LinkClass {
-	const decoded = decodeURIComponent(path.split('#')[0] ?? '');
+	const decoded = safeDecode(path.split('#')[0] ?? '');
 	const markerIndex = decoded.indexOf(CLI_MARKER);
 	if (markerIndex === -1) return { kind: 'none' };
 
@@ -192,7 +193,7 @@ export function flattenLinks(markdown: string): FlattenedLinks {
 		text += token.text;
 		cursor = token.end;
 
-		const key = decodeURIComponent(token.target.split('#')[0] ?? '').trim();
+		const key = safeDecode(token.target.split('#')[0] ?? '').trim();
 
 		if (token.kind === 'image') {
 			imageRefs.push({ image: key, text: token.text, start, end: start + token.text.length });

@@ -2,7 +2,7 @@ import { App, normalizePath } from 'obsidian';
 import { dataUriByteLength, getMimeType } from './tomeImageEncoding';
 import { optimizeDataUri, optimizeImage } from './tomeImageOptimizer';
 import { vaultPathFromResourceUrl } from './tomeResourcePath';
-import { describeError } from './shared';
+import { describeError, safeDecode } from './shared';
 
 /**
  * Rewrites everything in a rendered note that points at a vault file so it
@@ -320,12 +320,4 @@ function missingAttachmentEl(reference: string): HTMLElement {
 		cls: 'tome-missing-attachment',
 		text: `Missing attachment: ${reference}`,
 	});
-}
-
-function safeDecode(value: string): string {
-	try {
-		return decodeURIComponent(value);
-	} catch {
-		return value;
-	}
 }
