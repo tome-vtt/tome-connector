@@ -226,6 +226,20 @@ describe('findSendables', () => {
 	});
 });
 
+describe('findSendables warnings', () => {
+	it('warns when a spell note cannot be read as a spell', () => {
+		const warnings: string[] = [];
+		const found = findSendables(
+			note('# Fireball\n\nA bright streak flashes from your pointing finger.', { cssclasses: ['json5e-spell'] }),
+			stubParser({}),
+			(message) => warnings.push(message),
+		);
+
+		expect(found).toEqual([]);
+		expect(warnings).toEqual(['Spell skipped: it states no casting time or duration.']);
+	});
+});
+
 describe('summarise', () => {
 	it('counts by kind', () => {
 		const counts = summarise([

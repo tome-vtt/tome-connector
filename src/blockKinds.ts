@@ -9,8 +9,10 @@
 
 import { mapToEncounterPayload } from './recognizers/encounter';
 import { mapReferenceFrom } from './recognizers/map';
+import { creatureLabel, type SendableParse } from './recognizers/noteScan';
+import type { Warn } from './recognizers/note';
+import { hasInlineStats, mapToNpcPayload } from './recognizers/statblockCreature';
 import { asRecord } from './shared';
-import type { SendableParse } from './recognizers/noteScan';
 import type { TomeBlockKind } from './tomeIdWriteBack';
 
 /** What a block sends as: the send module's typed variant, less the note it is in. */
@@ -21,8 +23,11 @@ export type BlockSendable =
 export interface BlockKind {
 	/** The fence's language, as in ` ```statblock `. */
 	language: string;
-	/** The parsed block as the send module's variant, or null when it is not one worth a button. */
-	sendable(parsed: unknown): BlockSendable | null;
+	/**
+	 * The parsed block as the send module's variant, or null when it is not one worth a button.
+	 * Every entry it changes or leaves out is passed to `warn`.
+	 */
+	sendable(parsed: unknown, warn?: Warn): BlockSendable | null;
 	/** The id write-back module's kind for it, which picks the key the id goes under. */
 	writeBack: TomeBlockKind;
 	/**
@@ -34,8 +39,8 @@ export interface BlockKind {
 }
 
 // No image, nothing to send: a Leaflet block that only sets up coordinates, or a zoommap block still being written.
-function mapSendable(parsed: unknown): BlockSendable | null {
-	const map = mapReferenceFrom(parsed);
+function mapSendable(parsed: unknown, warn?: Warn): BlockSendable | null {
+	const map = mapReferenceFrom(parsed, warn);
 	return map && { kind: 'map', map };
 }
 
@@ -43,16 +48,21 @@ export const BLOCK_KINDS: readonly BlockKind[] = [
 	// Whether a `monster:` reference resolves is the send's to report, not a reason to hide the button.
 	{
 		language: 'statblock',
-		sendable: (parsed) => {
+		sendable: (parsed, warn) => {
 			const block = asRecord(parsed);
-			return block ? { kind: 'creature', block } : null;
+			if (!block) return null;
+			// Mapped here only for its warnings; a `monster:` reference waits for the bestiary.
+			if (warn && hasInlineStats(block)) {
+				mapToNpcPayload(block, (message) => warn(`${creatureLabel(block, 'Statblock')}: ${message}`));
+			}
+			return { kind: 'creature', block };
 		},
 		writeBack: 'creature',
 	},
 	{
 		language: 'encounter',
-		sendable: (parsed) => {
-			const encounter = mapToEncounterPayload(parsed);
+		sendable: (parsed, warn) => {
+			const encounter = mapToEncounterPayload(parsed, warn);
 			return encounter && { kind: 'encounter', encounter };
 		},
 		writeBack: 'encounter',

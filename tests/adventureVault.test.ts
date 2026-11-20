@@ -103,4 +103,29 @@ describe('building the adventure plan', () => {
 			[3, 3],
 		]);
 	});
+
+	it('imports an adventure whose index entry, picture and link each hold a stray %', async () => {
+		vi.stubGlobal('Image', FakeImage);
+		const files: Record<string, string> = {
+			'Sale/index.md': '# Index of Sale\n\n- [Half off](./1-50%off.md)\n',
+			'Sale/1-50%off.md': '# Shop\n\nBuy a [Coupon](3-Mechanics/CLI/items/50%off-xdmg.md).\n\n![Sign](art/50%off.png)',
+		};
+		const folder = new (TFolder as unknown as new (path: string) => TFolder)('Sale');
+		const notes = Object.keys(files).map((path) => new (TFile as unknown as new (path: string) => TFile)(path));
+		folder.children = notes;
+		const app = {
+			vault: {
+				getAbstractFileByPath: (path: string) => notes.find((note) => note.path === path) ?? null,
+				cachedRead: async (file: TFile) => files[file.path],
+				adapter: { getResourcePath: (path: string) => `res://${path}` },
+			},
+			metadataCache: { getFileCache: () => null, getFirstLinkpathDest: () => null },
+		} as unknown as App;
+
+		const plan = await buildAdventurePlan(app, folder);
+
+		expect(plan.chapters.map((chapter) => chapter.title)).toEqual(['Half off']);
+		expect(plan.images.map((image) => image.dmPath)).toEqual(['art/50%off.png']);
+		expect(plan.entities.map((entity) => entity.key)).toEqual(['3-Mechanics/CLI/items/50%off-xdmg.md']);
+	});
 });

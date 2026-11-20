@@ -3,6 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { fallbackChapterTitle, orderByFilenamePrefix, parseAdventureIndex } from '../src/adventure/adventureIndex';
 
 describe('parseAdventureIndex', () => {
+	it('keeps a stray % in an entry file as written', () => {
+		const index = parseAdventureIndex('# Index of Sale\n\n- [Chapter 1: Half off](./1-50%off.md)\n');
+
+		expect(index?.entries).toEqual([{ title: 'Chapter 1: Half off', file: '1-50%off.md' }]);
+	});
+
 	it('reads the title and entries in document order', () => {
 		const markdown = `# Index of Lost Mine of Phandelver
 

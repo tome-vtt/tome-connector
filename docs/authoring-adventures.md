@@ -1,7 +1,8 @@
 # Writing an adventure by hand
 
-The **Import as a Tome Storybook adventure** command (folder right-click, or the command
-palette's "Import the current note's folder as a Storybook adventure") was built to ingest
+The **Import as a Tome Storybook adventure** command (right-click a folder and select
+**Tome → Import as a Tome Storybook adventure**, which sits directly on the folder menu on mobile,
+or use the command palette's "Import the current note’s folder as a Storybook adventure") was built to ingest
 [`ttrpg-convert-cli`](https://github.com/ebullient/ttrpg-convert-cli) output, but the format it
 reads is a small, documented subset of plain Obsidian markdown - nothing here requires the CLI, a
 particular plugin, or any frontmatter you don't already understand. This is that format, written

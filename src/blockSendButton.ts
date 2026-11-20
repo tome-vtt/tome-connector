@@ -127,13 +127,17 @@ async function send(button: HTMLButtonElement, block: RenderedBlock): Promise<vo
 		const campaign = await chooseCampaign(plugin);
 		if (campaign === null) return;
 
-		const sendable = kind.sendable(parseYaml(block.source));
+		const warnings: string[] = [];
+		const sendable = kind.sendable(parseYaml(block.source), (message) => warnings.push(message));
 		if (!sendable) throw new Error(`This ${kind.language} block is no longer one Tome can take.`);
 		// The block's lines are looked up once the send returns, so an edit made meanwhile cannot shift the id.
-		await sendBlockWithNotice(plugin, { ...sendable, path: ctx.sourcePath }, campaign, {
-			kind: kind.writeBack,
-			lines: () => ctx.getSectionInfo(block.sectionEl),
-		});
+		await sendBlockWithNotice(
+			plugin,
+			{ ...sendable, path: ctx.sourcePath },
+			campaign,
+			{ kind: kind.writeBack, lines: () => ctx.getSectionInfo(block.sectionEl) },
+			warnings,
+		);
 	} catch (error) {
 		console.error(`Tome Connector: failed to send ${kind.language} block`, error);
 		const message = describeError(error);

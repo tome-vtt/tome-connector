@@ -28,6 +28,7 @@
 import { stripMarkdownFromString } from '../tomeMarkdownSanitizer';
 import { isPf2eCreature, mapToPf2eCreature, type Pf2eCreature } from './pf2eCreature';
 import { existingTomeId } from '../tomeIdWriteBack';
+import type { Warn } from './note';
 import { capitalise } from './labelledMarkdown';
 
 /** The server's `NamedAbility`, in the casing its record pins. */
@@ -126,12 +127,19 @@ function toNamedAbility(entry: unknown): NamedAbility | null {
 	return { name, desc: typeof desc === 'string' ? desc : '' };
 }
 
-export function toNamedAbilityList(value: unknown): NamedAbility[] {
+/** Enough of a warning's quoted entry to find it by, so a long description does not fill the notice. */
+function shorten(text: string): string {
+	return text.length > 60 ? `${text.slice(0, 57)}...` : text;
+}
+
+/** Each `{name, desc}` entry; one with no name is left out and passed to `warn`. */
+export function toNamedAbilityList(value: unknown, warn: Warn = () => {}): NamedAbility[] {
 	if (!Array.isArray(value)) return [];
 	const result: NamedAbility[] = [];
 	for (const entry of value) {
 		const converted = toNamedAbility(entry);
 		if (converted) result.push(converted);
+		else warn(`entry ${shorten(JSON.stringify(entry) ?? String(entry))} left out: it has no name.`);
 	}
 	return result;
 }
@@ -258,7 +266,7 @@ function optionalString(value: unknown): string | undefined {
  * worse outcome than a trait called "Gear". Each is a real thing a GM reads at
  * the table, and a trait is where they will look for it.
  */
-function extraTraits(record: Record<string, unknown>): NamedAbility[] {
+function extraTraits(record: Record<string, unknown>, warn?: Warn): NamedAbility[] {
 	const extras: NamedAbility[] = [];
 
 	if (Array.isArray(record.gear)) {
@@ -275,7 +283,7 @@ function extraTraits(record: Record<string, unknown>): NamedAbility[] {
 		['regional_effects', 'Regional Effects'],
 		['lair_actions', 'Lair Actions'],
 	] as const) {
-		for (const entry of toNamedAbilityList(record[key])) {
+		for (const entry of toNamedAbilityList(record[key], warn)) {
 			extras.push({ name: `${label}: ${entry.name}`, desc: entry.desc });
 		}
 	}
@@ -288,8 +296,8 @@ function extraTraits(record: Record<string, unknown>): NamedAbility[] {
  * the front of the list. Without it the list reads as a set of options with no
  * statement of how many the creature may take.
  */
-function legendaryActions(record: Record<string, unknown>): NamedAbility[] {
-	const actions = toNamedAbilityList(record.legendary_actions);
+function legendaryActions(record: Record<string, unknown>, warn?: Warn): NamedAbility[] {
+	const actions = toNamedAbilityList(record.legendary_actions, warn);
 	const description = optionalString(record.legendary_description);
 	if (!description || actions.length === 0) return actions;
 	return [{ name: 'Legendary Actions', desc: description }, ...actions];
@@ -300,7 +308,7 @@ function legendaryActions(record: Record<string, unknown>): NamedAbility[] {
  * A 5e stat block as the `dnd5e` bag, dropping the fields the server does not
  * model (`layout`, `fage_stats`, `bestiary`, `modifier`, `source`).
  */
-export function mapToDnd5eCreature(record: Record<string, unknown>): Dnd5eCreature {
+export function mapToDnd5eCreature(record: Record<string, unknown>, warn?: Warn): Dnd5eCreature {
 	return {
 		size: optionalString(record.size),
 		type: optionalString(record.type),
@@ -314,6 +322,7 @@ export function mapToDnd5eCreature(record: Record<string, unknown>): Dnd5eCreatu
 		hitDice: optionalString(record.hit_dice),
 		speed: optionalString(record.speed),
 		stats: toStatsArray(record.stats),
+		// No warn: `mergeCreature` already drops the null placeholders here on purpose.
 		abilitySaves: toNamedAbilityList(record.saves),
 		proficientSkills: toNamedAbilityList(record.skillsaves),
 		damageVulnerabilities: optionalString(record.damage_vulnerabilities),
@@ -326,11 +335,11 @@ export function mapToDnd5eCreature(record: Record<string, unknown>): Dnd5eCreatu
 		spells: Array.isArray(record.spells)
 			? record.spells.filter((entry): entry is string => typeof entry === 'string')
 			: [],
-		traits: [...toNamedAbilityList(record.traits), ...extraTraits(record)],
-		actions: toNamedAbilityList(record.actions),
-		legendaryActions: legendaryActions(record),
-		bonusActions: toNamedAbilityList(record.bonus_actions),
-		reactions: toNamedAbilityList(record.reactions),
+		traits: [...toNamedAbilityList(record.traits, warn), ...extraTraits(record, warn)],
+		actions: toNamedAbilityList(record.actions, warn),
+		legendaryActions: legendaryActions(record, warn),
+		bonusActions: toNamedAbilityList(record.bonus_actions, warn),
+		reactions: toNamedAbilityList(record.reactions, warn),
 	};
 }
 
@@ -344,14 +353,14 @@ export function mapToDnd5eCreature(record: Record<string, unknown>): Dnd5eCreatu
  * the board and the library draw. The server stamps those from the bag, and a body
  * carrying them flat is refused as coming from an out-of-date connector.
  */
-export function mapToNpcPayload(record: Record<string, unknown>): NpcPayload {
+export function mapToNpcPayload(record: Record<string, unknown>, warn?: Warn): NpcPayload {
 	const image = optionalString(record.image) ?? '';
 	let payload: NpcPayload;
 	if (isPf2eCreature(record)) {
-		const pf2e: Pf2eCreature = mapToPf2eCreature(record);
+		const pf2e: Pf2eCreature = mapToPf2eCreature(record, warn);
 		payload = { image, name: pf2e.name, pf2e };
 	} else {
-		payload = { image, name: optionalString(record.name) ?? '', dnd5e: mapToDnd5eCreature(record) };
+		payload = { image, name: optionalString(record.name) ?? '', dnd5e: mapToDnd5eCreature(record, warn) };
 	}
 
 	// The source `id` is often Fantasy Statblocks' own, which is not a GUID.

@@ -9,6 +9,7 @@
  * Pure and `obsidian`-free.
  */
 
+import { safeDecode } from '../shared';
 import { stem } from './adventurePaths';
 
 /** Exported so anything else deciding "is this file a picture" uses the same list. */
@@ -36,7 +37,7 @@ function toMention(
 	length: number,
 ): ImageMention | null {
 	const [rawPath, fragment] = target.split('#');
-	const path = decodeURIComponent((rawPath ?? '').trim());
+	const path = safeDecode((rawPath ?? '').trim());
 	if (!IMAGE_EXTENSION.test(path)) return null;
 
 	return {

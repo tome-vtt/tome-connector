@@ -25,6 +25,7 @@
  */
 
 import { toIntSafe, toNamedAbilityList, toStringSafe, type NamedAbility } from './statblockCreature';
+import type { Warn } from './note';
 import { stripMarkdownFromString } from '../tomeMarkdownSanitizer';
 import { capitalise, slug } from './labelledMarkdown';
 import { asRecord } from '../shared';
@@ -221,8 +222,8 @@ export function toSpeeds(value: unknown): { speeds: Pf2eSpeed[]; note: string | 
 }
 
 /** `[{name, desc}]`, which is what every `traits` block in the layout holds; names are trimmed. */
-function toEntries(value: unknown): NamedAbility[] {
-	return toNamedAbilityList(value).map((entry) => ({ ...entry, name: entry.name.trim() }));
+function toEntries(value: unknown, warn?: Warn): NamedAbility[] {
+	return toNamedAbilityList(value, warn).map((entry) => ({ ...entry, name: entry.name.trim() }));
 }
 
 /**
@@ -238,10 +239,10 @@ const ABILITY_SLOTS = [
 	['abilities_bot', 'offensive'],
 ] as const;
 
-function toAbilities(record: Record<string, unknown>): Pf2eAbility[] {
+function toAbilities(record: Record<string, unknown>, warn?: Warn): Pf2eAbility[] {
 	const out: Pf2eAbility[] = [];
 	for (const [key, category] of ABILITY_SLOTS) {
-		for (const entry of toEntries(record[key])) {
+		for (const entry of toEntries(record[key], warn)) {
 			out.push({ name: entry.name, cost: 'passive', category, traits: [], text: entry.desc });
 		}
 	}
@@ -255,8 +256,8 @@ function toAbilities(record: Record<string, unknown>): Pf2eAbility[] {
  * the whole line is kept as the text, because a Pathfinder strike's traits and effects are
  * a sentence rather than fields, and dropping what could not be parsed would lose them.
  */
-export function toStrikes(value: unknown): Pf2eStrike[] {
-	return toEntries(value).map((entry) => {
+export function toStrikes(value: unknown, warn?: Warn): Pf2eStrike[] {
+	return toEntries(value, warn).map((entry) => {
 		const text = stripMarkdownFromString(entry.desc);
 		const name = entry.name.toLowerCase();
 		return {
@@ -298,7 +299,7 @@ const RARITIES = ['common', 'uncommon', 'rare', 'unique'];
  * list of its own. `hardness` is the one real loss, and it is a hazard's stat on a creature
  * layout rather than something a creature carries.
  */
-export function mapToPf2eCreature(record: Record<string, unknown>): Pf2eCreature {
+export function mapToPf2eCreature(record: Record<string, unknown>, warn?: Warn): Pf2eCreature {
 	const name = toStringSafe(record.name)?.trim() ?? '';
 	const traits = toStringList(record.traits);
 	const size = toStringSafe(record.size)?.trim().toLowerCase()
@@ -341,8 +342,8 @@ export function mapToPf2eCreature(record: Record<string, unknown>): Pf2eCreature
 		resistances: toStringList(record.resistances),
 		speeds,
 		speedNote,
-		strikes: toStrikes(record.attacks),
-		abilities: toAbilities(record),
+		strikes: toStrikes(record.attacks, warn),
+		abilities: toAbilities(record, warn),
 		// Left empty rather than half-parsed. A Pathfinder spellcasting entry is ranks of
 		// slots and a DC, and the layout holds it as prose; a bag with a name and no spells
 		// in it would read on the stat block as a caster who has forgotten every spell.

@@ -17,6 +17,8 @@
  * Pure and `obsidian`-free.
  */
 
+import { safeDecode } from '../shared';
+
 export interface AdventureIndexEntry {
 	title: string;
 	/** Vault-relative filename of the chapter note, decoded. */
@@ -42,7 +44,7 @@ export function parseAdventureIndex(markdown: string): AdventureIndex | null {
 	for (const line of markdown.split(/\r?\n/)) {
 		const entry = ENTRY_LINE.exec(line);
 		if (!entry?.[1] || !entry[2]) continue;
-		entries.push({ title: entry[1].trim(), file: decodeURIComponent(entry[2].trim()) });
+		entries.push({ title: entry[1].trim(), file: safeDecode(entry[2].trim()) });
 	}
 
 	return { title: titleMatch[1].trim(), entries };

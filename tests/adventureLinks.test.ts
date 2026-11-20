@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { classifyCliPath, findLinks, findWikiLinks, flattenLinks } from '../src/adventure/adventureLinks';
 
 describe('classifyCliPath', () => {
+	it('classifies a link with a stray % in its path', () => {
+		expect(classifyCliPath('3-Mechanics/CLI/items/50%off-xdmg.md')).toEqual({ kind: 'item' });
+	});
+
 	it('classifies a bestiary link', () => {
 		expect(classifyCliPath('3-Mechanics/CLI/bestiary/goblin-xphb.md')).toEqual({ kind: 'bestiary' });
 	});
@@ -50,6 +54,21 @@ describe('findLinks', () => {
 });
 
 describe('flattenLinks', () => {
+	it('keeps a stray % in a link or image path as written', () => {
+		const result = flattenLinks('[Coupon](3-Mechanics/CLI/items/50%off-xdmg.md) ![Sale](img/50%off.png)');
+
+		expect(result.text).toBe('Coupon Sale');
+		expect(result.entities).toEqual([{ key: '3-Mechanics/CLI/items/50%off-xdmg.md', label: 'Coupon', kind: 'item' }]);
+		expect(result.imageRefs.map((ref) => ref.image)).toEqual(['img/50%off.png']);
+	});
+
+	it('decodes a valid escape in a link or image path', () => {
+		const result = flattenLinks('[Coupon](3-Mechanics/CLI/items/half%20off-xdmg.md) ![Sale](img/half%20off.png)');
+
+		expect(result.entities.map((entity) => entity.key)).toEqual(['3-Mechanics/CLI/items/half off-xdmg.md']);
+		expect(result.imageRefs.map((ref) => ref.image)).toEqual(['img/half off.png']);
+	});
+
 	it('flattens a resolvable link and records a ref for it', () => {
 		const markdown = 'Beware the [Goblin](3-Mechanics/CLI/bestiary/goblin-xphb.md) ahead.';
 		const result = flattenLinks(markdown);

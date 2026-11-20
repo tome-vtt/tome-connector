@@ -16,7 +16,8 @@ export const tomeHttp = createTomeHttp(obsidianTransport);
  * Tells the user how one send of `name` to `where` went, and returns the id on success or null.
  * For the per-block buttons, where one Notice per send is exactly right.
  */
-export function noticeResult(result: SendResult, name: string, where: string): string | null {
-	new Notice(describeResult(result, name, where));
+export function noticeResult(result: SendResult, name: string, where: string, warnings: string[] = []): string | null {
+	// A notice listing changes stays until dismissed, so there is time to read it.
+	new Notice(describeResult(result, name, where, warnings), result.ok && warnings.length > 0 ? 0 : undefined);
 	return result.ok ? result.id : null;
 }

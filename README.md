@@ -159,9 +159,10 @@ classes:
 
 ### Send a folder as a PDF reference
 
-Right-click a folder in the File Explorer and select **Send to Tome**. Every
-note in the folder, including those in subfolders, is compiled into one PDF and
-uploaded to the campaign's Reference library.
+Right-click a folder in the File Explorer and select **Tome → Import as a Tome
+Reference**. This entry is desktop only (see below). Every note in the folder,
+including those in subfolders, is compiled into one PDF and uploaded to the
+campaign's Reference library.
 
 - Each note becomes a chapter that starts on a new page, and each subfolder
   becomes a part divider. The PDF's bookmark outline mirrors that structure,
@@ -188,6 +189,14 @@ Two limitations worth knowing:
   appear there. Every other feature of this plugin still works on mobile.
 - The PDF is always rendered in the light theme. A dark theme prints as either
   a solid black page or near-invisible text.
+
+### Send a single note
+
+Right-click a note that holds a `statblock`, `encounter`, `leaflet` or `zoommap`
+block (or declares a statblock in its frontmatter) and select **Send this note to
+Tome**. It sends just that note - everything in it that a folder import would send -
+with the same confirm and results dialogs as the folder menu's **Tome → Import
+Library items to Tome**. Other notes don't show the entry.
 
 ### Older-book feats in a content-source import
 

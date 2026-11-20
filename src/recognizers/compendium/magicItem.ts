@@ -18,6 +18,7 @@
 import { FIELD_LINE, preamble, proseBody, titleOf } from '../labelledMarkdown';
 import { asStrings } from './cliNote';
 import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
+import { safeDecode } from '../../shared';
 
 /** Mirrors the server's `MagicItemInputDto`, minus the fields a note cannot fill. */
 export interface MagicItem {
@@ -176,13 +177,7 @@ export function readImagePath(markdown: string): string | null {
 		/^\s*!\[[^\]]*\]\(([^)]+)\)/m.exec(markdown) ?? /^\s*!\[\[([^\]|]+)/m.exec(markdown);
 	const path = embed?.[1]?.split('#')[0]?.trim();
 
-	if (!path) return null;
-	try {
-		return decodeURIComponent(path);
-	} catch {
-		// A stray `%` (`50%off.png`) is part of the filename, not a broken escape.
-		return path;
-	}
+	return path ? safeDecode(path) : null;
 }
 
 /**

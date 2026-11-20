@@ -7,7 +7,7 @@ vi.mock('../src/syncFolderToTome', () => ({ runFolderExport: vi.fn() }));
 vi.mock('../src/importContentSource', () => ({ runContentImport: vi.fn() }));
 vi.mock('../src/adventure/sendAdventureToTome', () => ({ runAdventureFolderImport: vi.fn() }));
 
-import { TFolder } from 'obsidian';
+import { TFile, TFolder } from 'obsidian';
 import { registerSyncCommands } from '../src/syncVaultCommands';
 import { runContentImport } from '../src/importContentSource';
 import { runVaultSync } from '../src/syncVaultToTome';
@@ -46,8 +46,8 @@ function fakeMenu(): FakeMenu {
 
 const folder = new TFolder();
 
-/** Opens a folder's menu and returns what the plugin put on it. */
-function openFolderMenu(): FakeMenu {
+/** Opens a file's menu (a folder by default) and returns what the plugin put on it. */
+function openFileMenu(file: unknown = folder): FakeMenu {
 	const handlers: ((menu: FakeMenu, file: unknown) => void)[] = [];
 	const plugin = {
 		settings: { syncTag: '' },
@@ -55,13 +55,13 @@ function openFolderMenu(): FakeMenu {
 		registerEvent: vi.fn(),
 		app: {
 			workspace: { on: (_: string, h: (typeof handlers)[number]) => handlers.push(h), onLayoutReady: vi.fn() },
-			metadataCache: { on: vi.fn() },
+			metadataCache: { on: vi.fn(), getFileCache: () => null },
 			vault: { on: vi.fn() },
 		},
 	};
 	registerSyncCommands(plugin as never);
 	const menu = fakeMenu();
-	for (const h of handlers) h(menu, folder);
+	for (const h of handlers) h(menu, file);
 	return menu;
 }
 
@@ -70,7 +70,7 @@ describe('the folder menu', () => {
 
 	it('groups the four Tome entries under one submenu on desktop', () => {
 		platform.isDesktopApp = true;
-		const menu = openFolderMenu();
+		const menu = openFileMenu();
 		expect(menu.titles).toEqual(['Tome']);
 		expect(menu.submenus[0]?.titles).toEqual([
 			'Import as a Tome Reference',
@@ -82,7 +82,7 @@ describe('the folder menu', () => {
 
 	it('lists the three mobile imports flat on mobile, where submenus do not open', () => {
 		platform.isDesktopApp = false;
-		const menu = openFolderMenu();
+		const menu = openFileMenu();
 		expect(menu.submenus).toEqual([]);
 		expect(menu.titles).toEqual([
 			'Import Library items to Tome',
@@ -91,9 +91,18 @@ describe('the folder menu', () => {
 		]);
 	});
 
+	it('adds no Tome folder item to a note', () => {
+		platform.isDesktopApp = true;
+		const note = Object.assign(new TFile(), { path: 'Notes/plain.md', extension: 'md' });
+		const menu = openFileMenu(note);
+		expect(menu.titles).not.toContain('Tome');
+		expect(menu.titles).not.toContain('Import Library items to Tome');
+		expect(menu.submenus).toEqual([]);
+	});
+
 	it('runs the matching import with the folder for each desktop entry', () => {
 		platform.isDesktopApp = true;
-		const clicks = openFolderMenu().submenus[0]?.clicks ?? [];
+		const clicks = openFileMenu().submenus[0]?.clicks ?? [];
 		expect(clicks).toHaveLength(4);
 
 		clicks[0]?.();
@@ -108,7 +117,7 @@ describe('the folder menu', () => {
 
 	it('runs the matching import with the folder for each mobile entry', () => {
 		platform.isDesktopApp = false;
-		const { clicks } = openFolderMenu();
+		const { clicks } = openFileMenu();
 		expect(clicks).toHaveLength(3);
 
 		clicks[0]?.();

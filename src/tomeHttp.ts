@@ -93,10 +93,11 @@ export function sentTo(what: string, where: string): string {
 }
 
 /** The Notice for one send: what went where on success, the server's reason otherwise. */
-export function describeResult(result: SendResult, name: string, where: string): string {
+export function describeResult(result: SendResult, name: string, where: string, warnings: string[] = []): string {
 	if (result.ok) {
 		const replaced = result.replaced ? ', replacing an existing item of the same name' : '';
-		return `Tome connector: ${sentTo(`"${name}"`, where)}${replaced}.`;
+		const changed = warnings.length > 0 ? ` Not read in full: ${warnings.join(' ')}` : '';
+		return `Tome connector: ${sentTo(`"${name}"`, where)}${replaced}.${changed}`;
 	}
 	// The server explains itself - a duplicated character name, a plan limit, a
 	// title already taken - and those are things the person syncing can fix.
