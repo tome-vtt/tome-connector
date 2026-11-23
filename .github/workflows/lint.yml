@@ -3,8 +3,10 @@ name: Node.js build
 on:
     push:
         branches: ['**']
+        paths-ignore: ['docs/**']
     pull_request:
         branches: ['**']
+        paths-ignore: ['docs/**']
 
 jobs:
     build:
