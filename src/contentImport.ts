@@ -6,6 +6,7 @@ import {
 } from './recognizers/compendium/package';
 import { buildImportRequest, type ImportManifest } from './recognizers/compendium/importRequest';
 import { cliNoteType, cliTags } from './recognizers/compendium/cliNote';
+import { titleCase } from './recognizers/labelledMarkdown';
 import type { Note } from './recognizers/note';
 import { readScope, type NoteSource, type SyncScope } from './scopeReader';
 import { TOME_ROUTES } from './routes';
@@ -39,14 +40,15 @@ export function suggestedName(scope: SyncScope): string {
  * The book a folder holds, or null when it is not a book folder.
  *
  * A book folder holds the book's reading notes, none of them a compendium entry,
- * all tagged with one `compendium/src/...` source. Its entries sit in the shared
+ * all tagged with one `compendium/src/...` source (a folder listing may sit beside them). Its entries sit in the shared
  * folders, so importing it means importing that source tag from the whole vault.
  */
 function bookOf(folder: { path: string; name: string }, notes: Note[]): SyncScope | null {
 	const sources = new Set<string>();
 	for (const note of notes) {
 		const type = cliNoteType(note.frontmatter);
-		if (type !== null && type !== 'index') return null;
+		if (type === 'index') continue;
+		if (type !== null) return null;
 		const tags = cliTags(note.frontmatter?.['tags']).filter((tag) => tag.startsWith('compendium/src/'));
 		if (tags.length === 0) return null;
 		for (const tag of tags) sources.add(tag);
@@ -55,12 +57,7 @@ function bookOf(folder: { path: string; name: string }, notes: Note[]): SyncScop
 	if (sources.size !== 1 || tag === undefined) return null;
 
 	// `players-handbook-2024` -> `Players Handbook 2024`: the converter names the folder after the book.
-	const title = folder.name
-		.split(/[-_\s]+/)
-		.filter(Boolean)
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-		.join(' ');
-	return { kind: 'book', folder, title, tag };
+	return { kind: 'book', folder, title: titleCase(folder.name), tag };
 }
 
 export interface CompendiumScan {

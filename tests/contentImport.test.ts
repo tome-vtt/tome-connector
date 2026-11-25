@@ -194,6 +194,24 @@ describe.each(['ttrpg-cli/', ''])('scanCompendium on a book folder (tag prefix "
 	});
 });
 
+describe('scanCompendium on a book folder with a folder listing', () => {
+	it('reads the folder as the book, whatever tags its listing carries', async () => {
+		const source = twoBookVault('ttrpg-cli/');
+		const listing = 'compendium/books/players-handbook-2024/index.md';
+		const withListing: NoteSource = {
+			...source,
+			paths: () => [...source.paths(), listing],
+			read: (path) =>
+				path === listing
+					? Promise.resolve({ path, content: '# Index', frontmatter: { cssclasses: ['json5e-index'] } })
+					: source.read(path),
+		};
+		const scan = await scanCompendium(withListing, bookFolder('players-handbook-2024'));
+
+		expect(describeScope(scan.scope)).toBe('"Players Handbook 2024"');
+	});
+});
+
 describe('scanCompendium on an ordinary folder', () => {
 	it('keeps a folder of compendium entries as the scope', async () => {
 		const scope = { kind: 'folder' as const, folder: { path: 'compendium/feats', name: 'feats' } };
@@ -201,5 +219,34 @@ describe('scanCompendium on an ordinary folder', () => {
 
 		expect(scan.scope).toBe(scope);
 		expect(scan.assemble({ includeSrdContent: true }).counts).toMatchObject({ feats: 3 });
+	});
+
+	it("keeps a folder of one book's entries as the scope", async () => {
+		const scope = { kind: 'folder' as const, folder: { path: 'compendium/feats', name: 'feats' } };
+		const source = twoBookVault('ttrpg-cli/');
+		const oneBook: NoteSource = { ...source, paths: () => source.paths().filter((path) => !path.endsWith('-wow.md')) };
+		const scan = await scanCompendium(oneBook, scope);
+
+		expect(scan.scope).toBe(scope);
+	});
+
+	it('keeps a folder of reading notes from two books as the scope', async () => {
+		const scope = { kind: 'folder' as const, folder: { path: 'compendium/books', name: 'books' } };
+		const scan = await scanCompendium(twoBookVault('ttrpg-cli/'), scope);
+
+		expect(scan.scope).toBe(scope);
+		expect(describeScope(scan.scope)).toBe('"books"');
+	});
+
+	it('keeps a folder whose reading notes carry no book tag as the scope', async () => {
+		const scope = bookFolder('players-handbook-2024');
+		const source = twoBookVault('ttrpg-cli/');
+		const untagged: NoteSource = {
+			...source,
+			read: async (path) => ({ ...(await source.read(path)), frontmatter: { cssclasses: ['json5e-note'] } }),
+		};
+		const scan = await scanCompendium(untagged, scope);
+
+		expect(scan.scope).toBe(scope);
 	});
 });
