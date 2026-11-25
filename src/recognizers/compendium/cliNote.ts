@@ -26,11 +26,23 @@ export type CliNoteType =
 	| 'index';
 
 /**
- * Tag prefixes that name a note's type, checked before `cssclasses`.
+ * The CLI's tags with its optional `ttrpg-cli/` prefix removed.
+ *
+ * The prefix is the converter's `tagPrefix` setting, so one vault reads
+ * `ttrpg-cli/subclass/barbarian/berserker` and another `subclass/barbarian/berserker`
+ * for the same note. Every reader matches the bare form.
+ */
+export function cliTags(tags: unknown): string[] {
+	return asStrings(tags).map((tag) => tag.replace(/^ttrpg-cli\//, ''));
+}
+
+/**
+ * Tag prefixes that name a note's type, checked before `cssclasses`, matched
+ * against {@link cliTags}.
  *
  * **The tags outlast the classes.** A `ttrpg-convert-cli` upgrade moved every
  * creature from `cssclasses: json5e-monster` to `json5e-object` - the same class
- * a siege weapon carries - while leaving `ttrpg-cli/monster/type/aberration`
+ * a siege weapon carries - while leaving `monster/type/aberration`
  * exactly where it was. A vault regenerated with the newer version therefore has
  * 891 creatures that the class alone reads as objects, or as nothing.
  *
@@ -44,12 +56,12 @@ const BY_TAG_PREFIX: [string, CliNoteType][] = [
 	// full library, with no statblock in any of them. Tagged under `monster/` and
 	// classed `json5e-note`, so reading the tag alone counts them as creatures and
 	// a preview promises 4,033 where 3,890 can actually be sent.
-	['ttrpg-cli/monster/legendary-group', 'legendary-group'],
-	['ttrpg-cli/monster/', 'creature'],
-	['ttrpg-cli/object/', 'object'],
-	['ttrpg-cli/vehicle/', 'vehicle'],
-	['ttrpg-cli/optional-feature/', 'optional-feature'],
-	['ttrpg-cli/subclass/', 'subclass'],
+	['monster/legendary-group', 'legendary-group'],
+	['monster/', 'creature'],
+	['object/', 'object'],
+	['vehicle/', 'vehicle'],
+	['optional-feature/', 'optional-feature'],
+	['subclass/', 'subclass'],
 ];
 
 const BY_CSS_CLASS: Record<string, CliNoteType> = {
@@ -91,7 +103,7 @@ export function asStrings(value: unknown): string[] {
 export function cliNoteType(frontmatter: Record<string, unknown> | null): CliNoteType | null {
 	if (frontmatter === null) return null;
 
-	const tags = asStrings(frontmatter['tags']);
+	const tags = cliTags(frontmatter['tags']);
 	const classes = asStrings(frontmatter['cssclasses']);
 
 	// An index is an index whatever else it claims to be, and it is the one type

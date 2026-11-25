@@ -87,6 +87,10 @@ describe('parentClassSlug', () => {
 	it('accepts tags written as a bare string', () => {
 		expect(parentClassSlug({ tags: 'ttrpg-cli/subclass/wizard/evoker' })).toBe('wizard');
 	});
+
+	it('reads the parent class from a tag without the ttrpg-cli/ prefix', () => {
+		expect(parentClassSlug({ tags: ['compendium/src/5e/xphb', 'subclass/barbarian/berserker'] })).toBe('barbarian');
+	});
 });
 
 describe('parentClassKey', () => {
