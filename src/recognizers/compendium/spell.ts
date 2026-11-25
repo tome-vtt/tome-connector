@@ -16,7 +16,7 @@ import {
 	proseBody,
 	titleOf,
 } from '../labelledMarkdown';
-import { asStrings } from './cliNote';
+import { asStrings, cliTags } from './cliNote';
 
 /** Mirrors the server's `Srd2024Spell`, minus the fields prose cannot give. */
 export interface Spell {
@@ -50,11 +50,11 @@ export interface Spell {
 	classes: string[];
 }
 
-const TAG_PREFIX = 'ttrpg-cli/spell/';
+const TAG_PREFIX = 'spell/';
 
 function tagValues(tags: string[], kind: string): string[] {
 	const prefix = `${TAG_PREFIX}${kind}/`;
-	return tags.filter((tag) => tag.startsWith(prefix)).map((tag) => tag.slice(prefix.length));
+	return cliTags(tags).filter((tag) => tag.startsWith(prefix)).map((tag) => tag.slice(prefix.length));
 }
 
 /** `3rd-level` -> 3, `cantrip` -> 0. */

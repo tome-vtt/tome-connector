@@ -289,6 +289,23 @@ describe('Import a content source', () => {
 		}
 	});
 
+	/** A vault converted with no `tagPrefix`: the subclass tag arrives as `subclass/...`. */
+	it('offers a subclass whose tags carry no ttrpg-cli/ prefix', async () => {
+		const subclass = files['CLI/classes/cleric-phb-life-domain-phb.md']!;
+		const prefixed = subclass.tags;
+		subclass.tags = ['compendium/src/5e/phb', 'subclass/cleric/life-domain'];
+		try {
+			const open = nextOpen();
+			run = runContentImport(plugin, { kind: 'folder', folder: { path: 'CLI/classes', name: 'classes' } });
+			await open;
+
+			expect(shown.texts.join('\n')).not.toContain('No compendium content');
+			expect(shown.texts.join('\n')).toContain('1 subclass');
+		} finally {
+			subclass.tags = prefixed;
+		}
+	});
+
 	it('names the one book in full in the licence notice', async () => {
 		const open = nextOpen();
 		run = runContentImport(plugin, { kind: 'vault' });

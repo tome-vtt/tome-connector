@@ -60,6 +60,7 @@ describe('readRarity', () => {
 		[['ttrpg-cli/item/rarity/uncommon'], 'uncommon'],
 		[['ttrpg-cli/item/rarity/very-rare'], 'very-rare'],
 		[['ttrpg-cli/item/rarity/none'], 'none'],
+		[['item/rarity/very-rare'], 'very-rare'],
 	])('%o -> %s', (tags, expected) => {
 		expect(readRarity({ tags })).toBe(expected);
 	});

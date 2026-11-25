@@ -18,7 +18,7 @@
  * Pure and `obsidian`-free.
  */
 
-import { asStrings } from './cliNote';
+import { cliTags } from './cliNote';
 import { readFeatureUses, type FeatureUses } from './featureUses';
 import type { ClassPatch } from './package';
 import { parseSections, proseBody, slug, titleCase, titleOf } from '../labelledMarkdown';
@@ -112,20 +112,20 @@ export const SHIPPED_CLASSES: readonly string[] = [
  */
 export const SUBCLASS_LEVEL = 3;
 
-const SUBCLASS_TAG = /^ttrpg-cli\/subclass\/([^/]+)\//;
+const SUBCLASS_TAG = /^subclass\/([^/]+)\//;
 
 /** `### Vitality of the Tree (Level 3)` - the name and the level, in one heading. */
 const FEATURE_HEADING = /^(.*?)\s*\(Level\s+(\d+)\)\s*$/i;
 
 /**
- * The parent class, from `ttrpg-cli/subclass/<class>/<subclass>`.
+ * The parent class, from `subclass/<class>/<subclass>`, prefixed or not (see `cliTags`).
  *
  * The tag rather than the `*[Barbarian](./barbarian-xphb.md): Barbarian Subclass*`
  * subtitle, because the tag is already the join the CLI publishes and the subtitle is
  * prose that happens to contain a link.
  */
 export function parentClassSlug(frontmatter: Record<string, unknown> | null): string | null {
-	for (const tag of asStrings(frontmatter?.['tags'])) {
+	for (const tag of cliTags(frontmatter?.['tags'])) {
 		const match = SUBCLASS_TAG.exec(tag);
 		if (match?.[1]) return match[1];
 	}
