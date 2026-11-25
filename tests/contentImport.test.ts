@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { scanCompendium, uploadPackage, type ImportHttp } from '../src/contentImport';
+import { scanCompendium, suggestedKey, suggestedName, uploadPackage, type ImportHttp } from '../src/contentImport';
 import { isEmpty } from '../src/recognizers/compendium/package';
-import type { NoteSource } from '../src/scopeReader';
+import { describeScope, type NoteSource } from '../src/scopeReader';
 import type { SendResult } from '../src/tomeHttp';
 
 const srdSource =
@@ -118,5 +118,88 @@ describe('uploadPackage', () => {
 			message: 'socket closed',
 			thrown: boom,
 		});
+	});
+});
+
+/**
+ * A vault converted from two books: each book's reading notes in a folder of its
+ * own, every book's feats in one shared folder.
+ */
+function twoBookVault(prefix: string): NoteSource {
+	const notes: Record<string, { cssclass: string; source: string; content: string }> = {
+		'compendium/books/players-handbook-2024/01-introduction.md': {
+			cssclass: 'json5e-note',
+			source: 'xphb',
+			content: '# Introduction\n\nWelcome.',
+		},
+		'compendium/books/players-handbook-2024/02-feats.md': {
+			cssclass: 'json5e-note',
+			source: 'xphb',
+			content: '# Feats\n\nFeats are special.',
+		},
+		'compendium/books/world-of-warcraft/01-azeroth.md': {
+			cssclass: 'json5e-note',
+			source: 'wow',
+			content: '# Azeroth\n\nA world.',
+		},
+		'compendium/feats/alert-xphb.md': {
+			cssclass: 'json5e-feat',
+			source: 'xphb',
+			content: `# Alert\n${srdSource}\n\nYou gain the following benefits.\n\n**Initiative Proficiency.** You add your bonus.`,
+		},
+		'compendium/feats/musician-xphb.md': {
+			cssclass: 'json5e-feat',
+			source: 'xphb',
+			content: "# Musician\n*Source: Player's Handbook (2024) p. 202*\n\nYou gain the following benefits.\n\n**Encouraging Song.** You play.",
+		},
+		'compendium/feats/brewmaster-wow.md': {
+			cssclass: 'json5e-feat',
+			source: 'wow',
+			content: '# Brewmaster\n*Source: World of Warcraft p. 10*\n\nYou gain the following benefits.\n\n**Brew.** You brew.',
+		},
+	};
+	const tagsOf = (path: string): string[] => [`${prefix}compendium/src/5e/${notes[path]?.source ?? ''}`];
+	return {
+		paths: () => Object.keys(notes),
+		tags: (path) => tagsOf(path).map((tag) => `#${tag}`),
+		read: (path) =>
+			Promise.resolve({
+				path,
+				content: notes[path]?.content ?? '',
+				frontmatter: { cssclasses: [notes[path]?.cssclass], tags: tagsOf(path) },
+			}),
+	};
+}
+
+const bookFolder = (name: string) => ({
+	kind: 'folder' as const,
+	folder: { path: `compendium/books/${name}`, name },
+});
+
+describe.each(['ttrpg-cli/', ''])('scanCompendium on a book folder (tag prefix "%s")', (prefix) => {
+	it("imports the book's entries from every folder, and no other book's", async () => {
+		const scan = await scanCompendium(twoBookVault(prefix), bookFolder('players-handbook-2024'));
+		const report = scan.assemble({ includeSrdContent: true });
+
+		expect(report.counts).toMatchObject({ feats: 2 });
+		expect(report.package.feats?.map((feat) => feat.name).sort()).toEqual(['Alert', 'Musician']);
+	});
+
+	it('names the book as the scope, with the key and name defaulting to it', async () => {
+		const scan = await scanCompendium(twoBookVault(prefix), bookFolder('players-handbook-2024'));
+
+		expect(describeScope(scan.scope)).toBe('"Players Handbook 2024"');
+		expect(suggestedKey(scan.scope)).toBe('players-handbook-2024');
+		expect(suggestedName(scan.scope)).toBe('Players Handbook 2024');
+	});
+});
+
+describe('scanCompendium on an ordinary folder', () => {
+	it('keeps a folder of compendium entries as the scope', async () => {
+		const scope = { kind: 'folder' as const, folder: { path: 'compendium/feats', name: 'feats' } };
+		const scan = await scanCompendium(twoBookVault('ttrpg-cli/'), scope);
+
+		expect(scan.scope).toBe(scope);
+		expect(scan.assemble({ includeSrdContent: true }).counts).toMatchObject({ feats: 3 });
 	});
 });

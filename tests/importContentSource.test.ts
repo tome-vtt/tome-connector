@@ -162,7 +162,7 @@ const files: Record<string, { content: string; cssclass: string; tags: string[] 
 
 const vault: NoteSource = {
 	paths: () => Object.keys(files),
-	tags: () => [],
+	tags: (path) => (files[path]?.tags ?? []).map((tag) => `#${tag}`),
 	read: (path) =>
 		Promise.resolve({
 			path,
@@ -204,7 +204,8 @@ describe('Import a content source', () => {
 
 	// One import at a time: a test that fails with the dialog open must still close it.
 	afterEach(async () => {
-		shown.buttons.get('Cancel')?.();
+		// The empty dialog offers Close instead.
+		(shown.buttons.get('Cancel') ?? shown.buttons.get('Close'))?.();
 		await run;
 	});
 
@@ -303,6 +304,55 @@ describe('Import a content source', () => {
 			expect(shown.texts.join('\n')).toContain('1 subclass');
 		} finally {
 			subclass.tags = prefixed;
+		}
+	});
+
+	/** A book's reading notes in its own folder; its entries in the shared ones. */
+	it("defaults the key and name to the book when importing a book's folder", async () => {
+		files['compendium/books/players-handbook-2024/intro.md'] = {
+			cssclass: 'json5e-note',
+			tags: ['ttrpg-cli/compendium/src/5e/xphb'],
+			content: '# Introduction\n\nWelcome.',
+		};
+		files['CLI/feats/musician-xphb.md'] = {
+			cssclass: 'json5e-feat',
+			tags: ['ttrpg-cli/compendium/src/5e/xphb'],
+			content: "# Musician\n*Source: Player's Handbook (2024) p. 202*\n\nYou gain the following benefits.\n\n**Encouraging Song.** You play.",
+		};
+		try {
+			const open = nextOpen();
+			run = runContentImport(plugin, {
+				kind: 'folder',
+				folder: { path: 'compendium/books/players-handbook-2024', name: 'players-handbook-2024' },
+			});
+			await open;
+
+			expect(shown.texts.join('\n')).toContain('Found 1 feat in "Players Handbook 2024".');
+			expect(shown.fields.get('Key')?.value).toBe('players-handbook-2024');
+			expect(shown.fields.get('Name')?.value).toBe('Players Handbook 2024');
+		} finally {
+			delete files['compendium/books/players-handbook-2024/intro.md'];
+			delete files['CLI/feats/musician-xphb.md'];
+		}
+	});
+
+	it('names the book when its folder has no importable entries', async () => {
+		files['compendium/books/dungeon-masters-guide-2024/intro.md'] = {
+			cssclass: 'json5e-note',
+			tags: ['compendium/src/5e/xdmg'],
+			content: '# Introduction\n\nWelcome.',
+		};
+		try {
+			const open = nextOpen();
+			run = runContentImport(plugin, {
+				kind: 'folder',
+				folder: { path: 'compendium/books/dungeon-masters-guide-2024', name: 'dungeon-masters-guide-2024' },
+			});
+			await open;
+
+			expect(shown.texts).toContain('No compendium content in "Dungeon Masters Guide 2024".');
+		} finally {
+			delete files['compendium/books/dungeon-masters-guide-2024/intro.md'];
 		}
 	});
 
