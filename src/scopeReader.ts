@@ -1,3 +1,4 @@
+import { cliTags } from './recognizers/compendium/cliNote';
 import type { Note } from './recognizers/note';
 
 /**
@@ -17,7 +18,13 @@ export type SyncScope =
 	/** `TFile` fits; only its path and basename are read. */
 	| { kind: 'note'; note: { path: string; basename: string } }
 	| { kind: 'vault' }
-	| { kind: 'tag'; tag: string };
+	| { kind: 'tag'; tag: string }
+	/**
+	 * Every note carrying a book's source tag, wherever it sits. `tag` is the bare
+	 * `compendium/src/...` form, matched with or without the `ttrpg-cli/` prefix;
+	 * `folder` is the book's own folder and `title` its name, both from that folder.
+	 */
+	| { kind: 'book'; folder: { path: string; name: string }; title: string; tag: string };
 
 /** The vault, as the scope reader needs it. */
 export interface NoteSource {
@@ -39,6 +46,8 @@ export function describeScope(scope: SyncScope): string {
 			return 'this vault';
 		case 'tag':
 			return scope.tag;
+		case 'book':
+			return `"${scope.title}"`;
 	}
 }
 
@@ -60,6 +69,10 @@ function pathsInScope(notes: NoteSource, scope: SyncScope): string[] {
 			const wanted = scope.tag.startsWith('#') ? scope.tag : `#${scope.tag}`;
 			return all.filter((path) => notes.tags(path).includes(wanted));
 		}
+		case 'book':
+			return all.filter((path) =>
+				cliTags(notes.tags(path).map((tag) => tag.replace(/^#/, ''))).includes(scope.tag),
+			);
 	}
 }
 

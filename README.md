@@ -276,7 +276,9 @@ renderer at print time, exactly as the reading view already fetches them.
 A vault, tag, or folder send begins by enumerating the vault.
 `getMarkdownFiles()` returns every markdown path in the vault, and a folder or
 tag scope filters that list before anything is read; notes left in scope are
-then read with `cachedRead` to find what can be sent. This runs only when you
+then read with `cachedRead` to find what can be sent. A content-source import on a
+book's own folder (its reading notes, all tagged with one book source) widens
+to every note carrying that book's source tag, wherever it sits. This runs only when you
 invoke one of those commands, and it stops at a confirmation modal that names
 what it found - nothing leaves the machine until you approve it.
 

@@ -2,7 +2,7 @@ import { Modal, Notice, Setting } from 'obsidian';
 import type { App, TextComponent } from 'obsidian';
 
 import type TomeConnectorPlugin from './main';
-import { scanCompendium, suggestedKey, uploadPackage, type CompendiumScan } from './contentImport';
+import { scanCompendium, suggestedKey, suggestedName, uploadPackage, type CompendiumScan } from './contentImport';
 import { oneAtATime } from './oneAtATime';
 import { describeError } from './shared';
 import { validateManifest, type ImportManifest } from './recognizers/compendium/importRequest';
@@ -73,7 +73,7 @@ class ConfirmImportModal extends Modal {
 
 		this.manifest = {
 			key: suggestedKey(importScope),
-			name: importScope.kind === 'folder' ? importScope.folder.name : 'My compendium',
+			name: suggestedName(importScope),
 			version: '1.0.0',
 			publisher: '',
 			// Prefilled only when every note said it is SRD content. Book content
@@ -398,7 +398,7 @@ async function importContent(plugin: TomeConnectorPlugin, scope: SyncScope): Pro
 	for (;;) {
 		const report = scan.assemble(options);
 		const answer = await new Promise<ImportAnswer>((resolve) => {
-			new ConfirmImportModal(plugin.app, report, scope, options, typed, resolve).open();
+			new ConfirmImportModal(plugin.app, report, scan.scope, options, typed, resolve).open();
 		});
 		if (answer === null) return;
 		if ('options' in answer) {
