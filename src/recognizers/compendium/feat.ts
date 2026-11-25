@@ -41,8 +41,8 @@ const FIELD_LABELS = new Set(['prerequisite', 'prerequisites', 'source']);
  *
  * `Srd2024Feat.Type` is what lets a level 1 character be offered a different list
  * from a level 4 one, so a feat without it is a feat the builder cannot place.
- * The CLI does not state it - every feat is tagged `feat` (`ttrpg-cli/feat` with the prefix) and nothing
- * else - but it does not need to, because in the 2024 rules the category *is* the
+ * The CLI does not state it - every feat is tagged `feat`, or `ttrpg-cli/feat`
+ * with the prefix, and nothing else - but it does not need to, because in the 2024 rules the category *is* the
  * prerequisite:
  *
  * | Prerequisite            | Type           |

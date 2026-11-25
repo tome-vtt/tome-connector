@@ -296,9 +296,10 @@ describe('Import a content source', () => {
 		subclass.tags = ['compendium/src/5e/phb', 'subclass/cleric/life-domain'];
 		try {
 			const open = nextOpen();
-			run = runContentImport(plugin, { kind: 'vault' });
+			run = runContentImport(plugin, { kind: 'folder', folder: { path: 'CLI/classes', name: 'classes' } });
 			await open;
 
+			expect(shown.texts.join('\n')).not.toContain('No compendium content');
 			expect(shown.texts.join('\n')).toContain('1 subclass');
 		} finally {
 			subclass.tags = prefixed;
