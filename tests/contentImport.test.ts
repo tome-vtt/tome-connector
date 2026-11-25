@@ -238,12 +238,15 @@ describe('scanCompendium on an ordinary folder', () => {
 		expect(describeScope(scan.scope)).toBe('"books"');
 	});
 
-	it('keeps a folder whose reading notes carry no book tag as the scope', async () => {
+	it('keeps a folder where one reading note carries no book tag as the scope', async () => {
 		const scope = bookFolder('players-handbook-2024');
 		const source = twoBookVault('ttrpg-cli/');
 		const untagged: NoteSource = {
 			...source,
-			read: async (path) => ({ ...(await source.read(path)), frontmatter: { cssclasses: ['json5e-note'] } }),
+			read: async (path) =>
+				path.endsWith('02-feats.md')
+					? { ...(await source.read(path)), frontmatter: { cssclasses: ['json5e-note'] } }
+					: source.read(path),
 		};
 		const scan = await scanCompendium(untagged, scope);
 
