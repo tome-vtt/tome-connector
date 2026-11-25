@@ -16,7 +16,7 @@
  */
 
 import { FIELD_LINE, preamble, proseBody, titleOf } from '../labelledMarkdown';
-import { asStrings } from './cliNote';
+import { cliTags } from './cliNote';
 import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
 import { safeDecode } from '../../shared';
 
@@ -39,7 +39,7 @@ export interface MagicItem {
 	imagePath: string | null;
 }
 
-const RARITY_TAG = /^ttrpg-cli\/item\/rarity\/(.+)$/;
+const RARITY_TAG = /^item\/rarity\/(.+)$/;
 
 /**
  * The subtitle: `*Wondrous item, uncommon (requires attunement by a Druid)*` for
@@ -57,7 +57,7 @@ export const SUBTITLE = /^\s*\*([^*]+)\*\s*$/m;
  * tell them apart.
  */
 export function readRarity(frontmatter: Record<string, unknown> | null): string | null {
-	for (const tag of asStrings(frontmatter?.['tags'])) {
+	for (const tag of cliTags(frontmatter?.['tags'])) {
 		const match = RARITY_TAG.exec(tag);
 		if (match?.[1]) return match[1];
 	}

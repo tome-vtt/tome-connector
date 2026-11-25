@@ -218,6 +218,13 @@ describe('readComponents', () => {
 describe('parseSpell', () => {
 	const parsed = parseSpell(fireball, frontmatter, 'fireball-xphb', 'Fireball');
 
+	it('reads the same details from tags without the ttrpg-cli/ prefix', () => {
+		const bare = { ...frontmatter, tags: frontmatter.tags.map((tag) => tag.replace(/^ttrpg-cli\//, '')) };
+		const { level, school, classes } = parseSpell(fireball, bare, 'fireball-xphb', 'Fireball') ?? {};
+
+		expect({ level, school, classes }).toEqual({ level: 3, school: 'evocation', classes: ['bard', 'sorcerer', 'wizard'] });
+	});
+
 	/**
 	 * Compared field by field against `srd-2024-characters.json`'s own Fireball,
 	 * which was generated from structured data rather than scraped. Everything the

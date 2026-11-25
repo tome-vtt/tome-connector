@@ -81,6 +81,24 @@ describe('cliNoteType', () => {
 		expect(type).toBe('object');
 	});
 
+	/**
+	 * `ttrpg-convert-cli` writes the `ttrpg-cli/` prefix only when the vault's
+	 * `tagPrefix` asks for it. Without it the same tags arrive bare, and must name
+	 * the same types.
+	 */
+	it.each([
+		['monster/legendary-group', 'json5e-note', 'legendary-group'],
+		['monster/type/aberration', 'json5e-object', 'creature'],
+		['object/type/siege-weapon', 'json5e-object', 'object'],
+		['vehicle/type/ship', 'json5e-object', 'vehicle'],
+		['optional-feature/ei', 'json5e-feat', 'optional-feature'],
+		['subclass/barbarian/berserker', 'json5e-class', 'subclass'],
+	])('reads %s as the same type with or without the ttrpg-cli/ prefix', (tag, cssClass, expected) => {
+		for (const tags of [[`ttrpg-cli/${tag}`], [tag]]) {
+			expect(cliNoteType({ cssclasses: [cssClass], tags: ['compendium/src/5e/xphb', ...tags] })).toBe(expected);
+		}
+	});
+
 	/** An older vault still reads correctly, which is why the stale class stays mapped. */
 	it('still reads a creature from an older vault', () => {
 		expect(cliNoteType({ cssclasses: ['json5e-monster'] })).toBe('creature');

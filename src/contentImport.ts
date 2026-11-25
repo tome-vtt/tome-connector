@@ -5,6 +5,8 @@ import {
 	type PackageReport,
 } from './recognizers/compendium/package';
 import { buildImportRequest, type ImportManifest } from './recognizers/compendium/importRequest';
+import { cliNoteType, cliTags } from './recognizers/compendium/cliNote';
+import { titleCase } from './recognizers/labelledMarkdown';
 import type { Note } from './recognizers/note';
 import { readScope, type NoteSource, type SyncScope } from './scopeReader';
 import { TOME_ROUTES } from './routes';
@@ -24,11 +26,43 @@ export type ImportHttp = (path: string, body: ArrayBuffer, contentType: string) 
 /** A sensible package key from the scope, so the field is rarely edited. */
 export function suggestedKey(scope: SyncScope): string {
 	return packageKeyFrom(
-		scope.kind === 'folder' ? scope.folder.name : scope.kind === 'tag' ? scope.tag : '',
+		scope.kind === 'folder' || scope.kind === 'book' ? scope.folder.name : scope.kind === 'tag' ? scope.tag : '',
 	);
 }
 
+/** The package name the dialog starts with. */
+export function suggestedName(scope: SyncScope): string {
+	if (scope.kind === 'book') return scope.title;
+	return scope.kind === 'folder' ? scope.folder.name : 'My compendium';
+}
+
+/**
+ * The book a folder holds, or null when it is not a book folder.
+ *
+ * A book folder holds the book's reading notes, none of them a compendium entry,
+ * all tagged with one `compendium/src/...` source (a folder listing may sit beside them). Its entries sit in the shared
+ * folders, so importing it means importing that source tag from the whole vault.
+ */
+function bookOf(folder: { path: string; name: string }, notes: Note[]): SyncScope | null {
+	const sources = new Set<string>();
+	for (const note of notes) {
+		const type = cliNoteType(note.frontmatter);
+		if (type === 'index') continue;
+		if (type !== null) return null;
+		const tags = cliTags(note.frontmatter?.['tags']).filter((tag) => tag.startsWith('compendium/src/'));
+		if (tags.length === 0) return null;
+		for (const tag of tags) sources.add(tag);
+	}
+	const [tag] = sources;
+	if (sources.size !== 1 || tag === undefined) return null;
+
+	// `players-handbook-2024` -> `Players Handbook 2024`: the converter names the folder after the book.
+	return { kind: 'book', folder, title: titleCase(folder.name), tag };
+}
+
 export interface CompendiumScan {
+	/** What was read: the scope asked for, or the book a book folder stands for. */
+	scope: SyncScope;
 	/**
 	 * The package report under these options, from the notes already read. Parsing is
 	 * fast; re-reading a 2,974-note vault to answer a checkbox is not.
@@ -42,9 +76,14 @@ export async function scanCompendium(
 	scope: SyncScope,
 	onProgress?: (done: number, total: number) => void,
 ): Promise<CompendiumScan> {
-	const notes: Note[] = await readScope(source, scope, onProgress);
+	let notes: Note[] = await readScope(source, scope, onProgress);
+	const book = scope.kind === 'folder' ? bookOf(scope.folder, notes) : null;
+	if (book !== null) {
+		scope = book;
+		notes = await readScope(source, book, onProgress);
+	}
 	const key = suggestedKey(scope);
-	return { assemble: (options) => assemblePackage(notes, key, options) };
+	return { scope, assemble: (options) => assemblePackage(notes, key, options) };
 }
 
 /** The result of an upload; `thrown` is the original error, for the caller to log. */
