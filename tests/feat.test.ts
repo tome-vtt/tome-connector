@@ -146,6 +146,16 @@ describe('readPrerequisiteRule', () => {
 		);
 	});
 
+	it.each([
+		[
+			'4th; Dexterity and Wisdom 13 or higher or 4th; Strength 13 or higher',
+			any(all(level(4), all(ability('dex', 13), ability('wis', 13))), all(level(4), ability('str', 13))),
+		],
+		['Strength 13 or higher or 4th; Dexterity 13 or higher', any(ability('str', 13), all(level(4), ability('dex', 13)))],
+	])('reads the alternatives of %o', (prerequisite, rule) => {
+		expect(readPrerequisiteRule(prerequisite)).toEqual(rule);
+	});
+
 	/**
 	 * A clause the connector cannot read leaves the whole feat unruled: a rule that
 	 * dropped the clause would let a character who does not qualify take the feat.
