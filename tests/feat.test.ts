@@ -150,6 +150,8 @@ describe('readPrerequisiteRule', () => {
 		['When Gaining the Level 2 Paladin "Fighting Style" Feature'],
 		['4th; Strength 13 or higher or 4th; Medium Armor Training'],
 		['; 4th; Strength 13 or higher'],
+		['4th; 4th; Strength 13 or higher or 4th; Dexterity 13 or higher'],
+		['4th; Strength 13 or higher or 4th'],
 	])('is null for a prerequisite it cannot read (%o)', (prerequisite) => {
 		expect(readPrerequisiteRule(prerequisite)).toBeNull();
 	});

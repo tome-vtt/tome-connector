@@ -29,7 +29,7 @@ const ABILITY_CLAUSE = new RegExp(`^(${ABILITY}(?:,? (?:or )?${ABILITY})*) (\\d+
 const FEATURE_CLAUSE = /^([A-Z][A-Za-z ]*?) [Ff]eature$/;
 // Where a whole alternative starts again with its own level: `... or 4th; ...`,
 // `...; 4th; ...` and `...; or 4th; ...`.
-const ALTERNATIVE_BREAK = /(?:\s*;\s*(?:or\s+)?|\s+or\s+)(?=\d+(?:st|nd|rd|th)(?:\s*[;,]|$))/;
+const ALTERNATIVE_BREAK = /(?:\s*;\s*(?:or\s+)?|\s+or\s+)(?=\d+(?:st|nd|rd|th))/;
 
 function node(kind: PrerequisiteRule['kind'], fields: Partial<PrerequisiteRule>): PrerequisiteRule {
 	return { kind, minimum: null, ability: null, feature: null, children: [], ...fields };
@@ -91,13 +91,14 @@ function readAlternative(alternative: string): PrerequisiteRule | null {
  * where Tome shows the text and refuses the feat.
  */
 export function readPrerequisiteRule(prerequisite: string | null): PrerequisiteRule | null {
-	const text = prerequisite?.trim() ?? '';
-	if (text === '') return null;
-
+	const alternatives = (prerequisite?.trim() ?? '').split(ALTERNATIVE_BREAK);
 	const rules: PrerequisiteRule[] = [];
-	for (const alternative of text.split(ALTERNATIVE_BREAK)) {
+	for (const alternative of alternatives) {
 		const rule = readAlternative(alternative);
 		if (rule === null) return null;
+		// A level alone beside other alternatives is a misread (`4th; 4th; ...`), and
+		// would let any character of that level through.
+		if (alternatives.length > 1 && rule.kind === 'level') return null;
 		rules.push(rule);
 	}
 	return join('any', rules);
