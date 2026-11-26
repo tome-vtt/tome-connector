@@ -108,6 +108,15 @@ describe('readPrerequisiteRule', () => {
 		['4th; Spellcasting or Pact Magic feature', all(level(4), any(feature('Spellcasting'), feature('Pact Magic')))],
 		['19th; Spellcasting or Pact Magic feature', all(level(19), any(feature('Spellcasting'), feature('Pact Magic')))],
 		['Strength 13 or higher', ability('str', 13)],
+		['4th; Dexterity and Wisdom 13 or higher', all(level(4), all(ability('dex', 13), ability('wis', 13)))],
+		[
+			'Strength, Dexterity and Constitution 13 or higher',
+			all(ability('str', 13), ability('dex', 13), ability('con', 13)),
+		],
+		[
+			'Strength, Dexterity, and Constitution 13 or higher',
+			all(ability('str', 13), ability('dex', 13), ability('con', 13)),
+		],
 	])('%o', (prerequisite, expected) => {
 		expect(readPrerequisiteRule(prerequisite)).toEqual(expected);
 	});
@@ -152,6 +161,8 @@ describe('readPrerequisiteRule', () => {
 		['; 4th; Strength 13 or higher'],
 		['4th; 4th; Strength 13 or higher or 4th; Dexterity 13 or higher'],
 		['4th; Strength 13 or higher or 4th'],
+		['4th; Strength and Dexterity or Wisdom 13 or higher'],
+		['Strength or Dexterity and Wisdom 13 or higher'],
 	])('is null for a prerequisite it cannot read (%o)', (prerequisite) => {
 		expect(readPrerequisiteRule(prerequisite)).toBeNull();
 	});
@@ -259,6 +270,16 @@ describe('parseFeat', () => {
 		expect(athlete?.prerequisiteRule).toEqual(
 			any(all(level(4), ability('str', 13)), all(level(4), ability('dex', 13))),
 		);
+	});
+
+	it('sends a level 4, Dexterity and Wisdom 13 prerequisite as a rule needing both scores', () => {
+		const brawler = parseFeat(
+			'# Elusive Brawler\n*Source: World of Warcraft: Azeroth p. 1*\n\n**Prerequisite**: 4th; Dexterity and Wisdom 13 or higher\n\n**Slip.** You dodge.',
+			'elusive-brawler-wowaz',
+			'Elusive Brawler',
+		);
+
+		expect(brawler?.prerequisiteRule).toEqual(all(level(4), all(ability('dex', 13), ability('wis', 13))));
 	});
 
 	it('falls back to the given name when the note has no title', () => {
