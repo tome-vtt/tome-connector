@@ -113,6 +113,31 @@ describe('readPrerequisiteRule', () => {
 	});
 
 	/**
+	 * ttrpg-convert 3.3.7 (Vault Forge 0.3.1) writes "this ability or that one" as
+	 * whole alternatives, each repeating the level: Athlete, Charger, Dual Wielder,
+	 * Inspiring Leader, Observant, Polearm Master, Sentinel, Speedy and Ritual Caster.
+	 */
+	it('reads two whole alternatives as any of them', () => {
+		expect(readPrerequisiteRule('4th; Strength 13 or higher or 4th; Dexterity 13 or higher')).toEqual(
+			any(all(level(4), ability('str', 13)), all(level(4), ability('dex', 13))),
+		);
+	});
+
+	it("reads Ritual Caster's three alternatives as any of three", () => {
+		expect(
+			readPrerequisiteRule(
+				'4th; Intelligence 13 or higher; 4th; Wisdom 13 or higher; or 4th; Charisma 13 or higher',
+			),
+		).toEqual(
+			any(
+				all(level(4), ability('int', 13)),
+				all(level(4), ability('wis', 13)),
+				all(level(4), ability('cha', 13)),
+			),
+		);
+	});
+
+	/**
 	 * A clause the connector cannot read leaves the whole feat unruled: a rule that
 	 * dropped the clause would let a character who does not qualify take the feat.
 	 */
@@ -123,6 +148,8 @@ describe('readPrerequisiteRule', () => {
 		['4th; Medium Armor Training'],
 		['spellcasting feature'],
 		['When Gaining the Level 2 Paladin "Fighting Style" Feature'],
+		['4th; Strength 13 or higher or 4th; Medium Armor Training'],
+		['; 4th; Strength 13 or higher'],
 	])('is null for a prerequisite it cannot read (%o)', (prerequisite) => {
 		expect(readPrerequisiteRule(prerequisite)).toBeNull();
 	});
@@ -217,6 +244,19 @@ describe('parseFeat', () => {
 
 		expect(actor?.prerequisite).toBe('4th; Charisma 13 or higher');
 		expect(actor?.prerequisiteRule).toEqual(all(level(4), ability('cha', 13)));
+	});
+
+	it("sends converter 3.3.7's Athlete prerequisite as a General feat with a rule Tome checks", () => {
+		const athlete = parseFeat(
+			"# Athlete\n*Source: Player's Handbook (2024) p. 200*\n\n**Prerequisite**: 4th; Strength 13 or higher or 4th; Dexterity 13 or higher\n\n**Climb Speed.** You gain a Climb Speed.",
+			'athlete-xphb',
+			'Athlete',
+		);
+
+		expect(athlete?.type).toBe('General');
+		expect(athlete?.prerequisiteRule).toEqual(
+			any(all(level(4), ability('str', 13)), all(level(4), ability('dex', 13))),
+		);
 	});
 
 	it('falls back to the given name when the note has no title', () => {
