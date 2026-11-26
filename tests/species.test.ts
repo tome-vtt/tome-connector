@@ -282,4 +282,21 @@ You gore.`,
 		expect(elf?.lineages).toEqual([]);
 		expect(elf?.traits.map((trait) => trait.name)).toEqual(['Elven Lineage', 'Trance']);
 	});
+
+	/**
+	 * "lineage" holds "age", and a lineage often mentions a trait the species
+	 * already has. Only whole names, in the run straight after the lineage trait,
+	 * are options.
+	 */
+	it('takes no option from part of a word or from past an ordinary trait', () => {
+		const elf = parseSpecies(
+			'# Elf\n\n- **Size**: Medium\n\n## Traits\n\n### Elven Lineage\n\nYou are part of a lineage. Your Darkvision grows.\n\n### Age\n\nYou mature.\n\n### Trance\n\nYou rest.\n\n### Darkvision\n\nYou see.',
+			'elf-xphb',
+			'Elf',
+		);
+
+		expect(elf?.grants).toEqual({});
+		expect(elf?.lineages).toEqual([]);
+		expect(elf?.traits.map((trait) => trait.name)).toEqual(['Elven Lineage', 'Age', 'Trance', 'Darkvision']);
+	});
 });

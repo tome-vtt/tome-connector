@@ -96,9 +96,9 @@ function sectionBody(markdown: string, title: string): string {
 }
 
 /**
- * The `###` traits, in the order the note lists them.
+ * The `###` traits, in the order the note lists them, numbered from 1.
  *
- * Taken from the whole note rather than from inside `## Traits`, because that is
+ * The caller takes them from the whole note rather than from inside `## Traits`, because that is
  * the only level-3 heading the CLI emits - `## Description` has none - and
  * scoping to the parent would mean re-parsing its body.
  */
@@ -127,8 +127,10 @@ function leadText(body: string): string {
 /**
  * Splits a lineage trait's options out of the traits.
  *
- * The options are the trait's own `####` sub-sections, or else the later `###`
- * traits its text names ("a Mulgore Tauren, a Highmountain Tauren or a Taunka").
+ * The options are the trait's own `####` sub-sections, or else the run of `###`
+ * traits straight after it whose whole names its text gives ("a Mulgore Tauren,
+ * a Highmountain Tauren or a Taunka"); the first trait it does not name ends the
+ * run, so "lineage" never matches an `Age` trait.
  * A lineage trait that sets no option apart - the 2024 Elf's table - stays a
  * plain trait, because Tome never reads a choice out of feature text.
  */
@@ -142,11 +144,11 @@ function splitLineages(sections: Section[]): {
 	if (!named) return { traits: sections, lineages: [], lineageTrait: null };
 
 	const nested = sectionsAtLevel(named.body, 4);
-	const text = named.body.toLowerCase();
-	const lineages =
-		nested.length > 0
-			? nested
-			: sections.slice(at + 1).filter((section) => text.includes(section.title.toLowerCase()));
+	const names = (section: Section): boolean =>
+		new RegExp(`\\b${section.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(named.body);
+	const after = sections.slice(at + 1);
+	const run = after.findIndex((section) => !names(section));
+	const lineages = nested.length > 0 ? nested : run < 0 ? after : after.slice(0, run);
 	if (lineages.length === 0) return { traits: sections, lineages: [], lineageTrait: null };
 
 	const traits = sections
@@ -166,9 +168,8 @@ function splitLineages(sections: Section[]): {
  *
  * **Grants are deliberately empty, bar a lineage trait.** `Srd2024SpeciesGrants`
  * carries a free skill choice, an origin feat, a hit-point bonus and a lineage
- * trait, and the SRD
- * catalogue gets all four from a hand-authored table because the source prose
- * does not state them structurally. The CLI output does not either: Elf's
+ * trait, and the SRD catalogue gets all four from a hand-authored table because
+ * the source prose does not state them structurally. The CLI output does not either: Elf's
  * lineages are a markdown table inside a trait's prose, and Human's origin feat
  * is a sentence. An imported species therefore arrives with its traits, size and
  * speed correct and grants nothing automatically. Guessing would be worse - a
