@@ -42,11 +42,11 @@ function readClause(clause: string): PrerequisiteRule | null {
 	if (ability) {
 		const minimum = Number(ability[2]);
 		const names = ability[1]!.match(new RegExp(ABILITY, 'g'))!;
-		const and = / and /.test(ability[1]!);
+		const needsAll = / and /.test(ability[1]!);
 		// "A and B or C" has no single reading, so it stays unruled.
-		if (and && / or /.test(ability[1]!)) return null;
+		if (needsAll && / or /.test(ability[1]!)) return null;
 		return join(
-			and ? 'all' : 'any',
+			needsAll ? 'all' : 'any',
 			names.map((name) => node('ability', { ability: ABILITIES[name.toLowerCase()]!, minimum })),
 		);
 	}
