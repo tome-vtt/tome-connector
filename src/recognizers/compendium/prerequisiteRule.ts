@@ -22,7 +22,7 @@ export interface PrerequisiteRule {
 
 const ABILITY = '(?:Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)';
 const LEVEL_CLAUSE = /^(\d+)(?:st|nd|rd|th)(?:\s*[;,]\s*|$)/;
-const ABILITY_CLAUSE = new RegExp(`^(${ABILITY}(?:,? (?:or )?${ABILITY})*) (\\d+) or higher$`);
+const ABILITY_CLAUSE = new RegExp(`^(${ABILITY}(?:,? (?:(?:or|and) )?${ABILITY})*) (\\d+) or higher$`);
 // Capitalised letters and spaces, as Tome names a feature, so a long-form "When
 // Gaining the Level 2 Paladin "Fighting Style" Feature" is not read as a feature
 // named after the sentence.
@@ -42,8 +42,11 @@ function readClause(clause: string): PrerequisiteRule | null {
 	if (ability) {
 		const minimum = Number(ability[2]);
 		const names = ability[1]!.match(new RegExp(ABILITY, 'g'))!;
+		const and = / and /.test(ability[1]!);
+		// "A and B or C" has no single reading, so it stays unruled.
+		if (and && / or /.test(ability[1]!)) return null;
 		return join(
-			'any',
+			and ? 'all' : 'any',
 			names.map((name) => node('ability', { ability: ABILITIES[name.toLowerCase()]!, minimum })),
 		);
 	}
@@ -59,8 +62,8 @@ function readClause(clause: string): PrerequisiteRule | null {
 
 /**
  * The rule for the CLI's wording of a prerequisite - `4th; Charisma 13 or higher`,
- * `4th; Strength or Dexterity 13 or higher`, `19th; Spellcasting or Pact Magic
- * feature`, `Fighting Style Feature` - or null when any clause is in a shape this
+ * `4th; Strength or Dexterity 13 or higher`, `4th; Dexterity and Wisdom 13 or
+ * higher`, `19th; Spellcasting or Pact Magic feature`, `Fighting Style Feature` - or null when any clause is in a shape this
  * does not read (armor training, the long-form fighting styles, homebrew).
  *
  * All or nothing: a rule that dropped the clause it could not read would let a
