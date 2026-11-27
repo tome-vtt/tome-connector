@@ -27,10 +27,10 @@ export function vaultNotes(app: App): NoteSource {
 		paths: () => app.vault.getMarkdownFiles().map((file) => file.path),
 		tags: async (path) => {
 			// A tag or book scan asks this of every note in the vault: one that cannot be read
-			// (gone from disk while Obsidian still lists it) has no tags, so the scan goes on.
-			const read = await readWithBody(path).catch(() => null);
-			if (!read) return [];
-			return [...new Set([...(parseFrontMatterTags(read.note.frontmatter) ?? []), ...inlineTags(read.body)])];
+			// (say, gone from disk while Obsidian still lists it) has no tags, so the scan goes on.
+			const found = await readWithBody(path).catch(() => null);
+			if (!found) return [];
+			return [...new Set([...(parseFrontMatterTags(found.note.frontmatter) ?? []), ...inlineTags(found.body)])];
 		},
 		read: async (path) => (await readWithBody(path)).note,
 	};
