@@ -22,6 +22,7 @@ vi.mock('obsidian', () => {
 
 import { TFile } from 'obsidian';
 import type { App } from 'obsidian';
+import { readScope } from '../src/scopeReader';
 import { vaultNotes } from '../src/vaultNotes';
 
 const path = 'compendium/feats/brewmaster.md';
@@ -89,5 +90,47 @@ describe('vaultNotes on a note whose frontmatter is not a map', () => {
 
 		expect((await notes.read(path)).frontmatter).toBeNull();
 		expect(await notes.tags(path)).toEqual(['#kept']);
+	});
+});
+
+describe('vaultNotes on a note that cannot be read', () => {
+	it('gives it no tags, so a tag or book scan of the vault carries on', async () => {
+		const app = staleVault();
+		// The file is gone from disk while Obsidian still lists it: the missed-watcher case.
+		(app.vault as unknown as { read: () => Promise<string> }).read = () =>
+			Promise.reject(new Error('ENOENT: no such file'));
+
+		expect(await vaultNotes(app).tags(path)).toEqual([]);
+		expect(await vaultNotes(app).tags('compendium/feats/gone.md')).toEqual([]);
+	});
+
+	it('still fails a read of that note, so a note in scope is never silently dropped', async () => {
+		const app = staleVault();
+		(app.vault as unknown as { read: () => Promise<string> }).read = () =>
+			Promise.reject(new Error('ENOENT: no such file'));
+
+		await expect(vaultNotes(app).read(path)).rejects.toThrow('ENOENT');
+		await expect(vaultNotes(app).read('compendium/feats/gone.md')).rejects.toThrow('no longer exists');
+	});
+});
+
+describe('a tag scan over a vault holding a note that cannot be read', () => {
+	it('still returns the notes in scope', async () => {
+		const make = (at: string) => new (TFile as unknown as new (path: string) => TFile)(at);
+		const files = [make('compendium/feats/brewmaster.md'), make('elsewhere/gone.md')];
+		const app = {
+			vault: {
+				getMarkdownFiles: () => files,
+				getAbstractFileByPath: (wanted: string) => files.find((file) => file.path === wanted) ?? null,
+				read: (file: TFile) =>
+					file.path === 'elsewhere/gone.md'
+						? Promise.reject(new Error('ENOENT: no such file'))
+						: Promise.resolve('---\ntags: [wow]\n---\n# Brewmaster\n'),
+			},
+		} as unknown as App;
+
+		const notes = await readScope(vaultNotes(app), { kind: 'tag', tag: 'wow' });
+
+		expect(notes.map((note) => note.path)).toEqual(['compendium/feats/brewmaster.md']);
 	});
 });

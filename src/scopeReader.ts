@@ -30,7 +30,7 @@ export type SyncScope =
 export interface NoteSource {
 	/** Every markdown note's path. */
 	paths(): string[];
-	/** A note's tags, frontmatter and inline, each with its `#`. */
+	/** A note's tags, frontmatter and inline, each with its `#`; none when it cannot be read. */
 	tags(path: string): Promise<string[]>;
 	/** Throws when there is no note at `path`. */
 	read(path: string): Promise<Note>;
