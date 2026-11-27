@@ -274,9 +274,11 @@ Images a note references by URL are left as URLs and are fetched by the PDF
 renderer at print time, exactly as the reading view already fetches them.
 
 A vault, tag, or folder send begins by enumerating the vault.
-`getMarkdownFiles()` returns every markdown path in the vault, and a folder or
-tag scope filters that list before anything is read; notes left in scope are
-then read with `cachedRead` to find what can be sent. A content-source import on a
+`getMarkdownFiles()` returns every markdown path in the vault, and a folder scope
+filters that list before anything is read; a tag scope reads each note to check
+its tags. Notes left in scope are then read from disk, with their frontmatter and
+tags parsed from that read rather than Obsidian's cache, so a vault rewritten by
+another tool while Obsidian is open still sends what the files say. A content-source import on a
 book's own folder (its reading notes, all tagged with one book source) widens
 to every note carrying that book's source tag, wherever it sits. This runs only when you
 invoke one of those commands, and it stops at a confirmation modal that names

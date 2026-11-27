@@ -31,7 +31,7 @@ export interface NoteSource {
 	/** Every markdown note's path. */
 	paths(): string[];
 	/** A note's tags, frontmatter and inline, each with its `#`. */
-	tags(path: string): string[];
+	tags(path: string): Promise<string[]>;
 	/** Throws when there is no note at `path`. */
 	read(path: string): Promise<Note>;
 }
@@ -51,7 +51,7 @@ export function describeScope(scope: SyncScope): string {
 	}
 }
 
-function pathsInScope(notes: NoteSource, scope: SyncScope): string[] {
+async function pathsInScope(notes: NoteSource, scope: SyncScope): Promise<string[]> {
 	const all = notes.paths();
 
 	switch (scope.kind) {
@@ -67,13 +67,20 @@ function pathsInScope(notes: NoteSource, scope: SyncScope): string[] {
 			return all.filter((path) => path === scope.note.path);
 		case 'tag': {
 			const wanted = scope.tag.startsWith('#') ? scope.tag : `#${scope.tag}`;
-			return all.filter((path) => notes.tags(path).includes(wanted));
+			return filterAsync(all, async (path) => (await notes.tags(path)).includes(wanted));
 		}
 		case 'book':
-			return all.filter((path) =>
-				cliTags(notes.tags(path).map((tag) => tag.replace(/^#/, ''))).includes(scope.tag),
+			return filterAsync(all, async (path) =>
+				cliTags((await notes.tags(path)).map((tag) => tag.replace(/^#/, ''))).includes(scope.tag),
 			);
 	}
+}
+
+/** `paths` kept where `keep` holds, one note at a time so a big vault is not read all at once. */
+async function filterAsync(paths: string[], keep: (path: string) => Promise<boolean>): Promise<string[]> {
+	const kept: string[] = [];
+	for (const path of paths) if (await keep(path)) kept.push(path);
+	return kept;
 }
 
 /** Every note in scope, read in order, with a count after each. */
@@ -82,7 +89,7 @@ export async function readScope(
 	scope: SyncScope,
 	onProgress?: (done: number, total: number) => void,
 ): Promise<Note[]> {
-	const paths = pathsInScope(notes, scope);
+	const paths = await pathsInScope(notes, scope);
 	const read: Note[] = [];
 
 	for (const [index, path] of paths.entries()) {

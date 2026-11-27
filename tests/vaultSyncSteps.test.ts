@@ -16,7 +16,7 @@ const statblock = (block: Record<string, unknown>): string => '```statblock\n' +
 function vault(notes: Record<string, { tags?: string[]; content: string }>): NoteSource {
 	return {
 		paths: () => Object.keys(notes),
-		tags: (path) => notes[path]?.tags ?? [],
+		tags: (path) => Promise.resolve(notes[path]?.tags ?? []),
 		read: (path) => Promise.resolve({ path, content: notes[path]?.content ?? '', frontmatter: null }),
 	};
 }

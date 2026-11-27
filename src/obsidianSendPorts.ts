@@ -7,6 +7,7 @@ import { noticeResult, tomeHttp } from './tomeApiClient';
 import type { TomeCampaign } from './tomeCampaigns';
 import { getApiKey } from './tomeConnectorSettings';
 import { readImageAsDataUri } from './tomeImageEmbedding';
+import { vaultNotes } from './vaultNotes';
 
 /**
  * The production adapter for the send module's ports: the vault, Fantasy
@@ -36,13 +37,9 @@ export function obsidianSendPorts(app: App, downscale: boolean): SendPorts {
 			});
 		},
 		readNote: async (path) => {
-			const file = noteAt(app, path);
-			return {
-				frontmatter: app.metadataCache.getFileCache(file)?.frontmatter ?? {},
-				// `cachedRead` rather than `read`: the body is only being parsed, and
-				// the cache is already warm for the note the user is looking at.
-				content: await app.vault.cachedRead(file),
-			};
+			// From disk, as an import reads it: the cache can be stale after an outside rewrite.
+			const note = await vaultNotes(app).read(path);
+			return { frontmatter: note.frontmatter ?? {}, content: note.content };
 		},
 		editNote: async (path, edit) => {
 			await app.vault.process(noteAt(app, path), edit);
