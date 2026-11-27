@@ -13,7 +13,13 @@ vi.mock('obsidian', () => {
 	class TFolder extends TAbstractFile {
 		children: TAbstractFile[] = [];
 	}
-	return { TFile, TFolder, normalizePath: (p: string) => p, parseYaml: () => null, getAllTags: () => [] };
+	return {
+		TFile,
+		TFolder,
+		normalizePath: (p: string) => p,
+		parseYaml: () => null,
+		getFrontMatterInfo: () => ({ exists: false, frontmatter: '', contentStart: 0 }),
+	};
 });
 
 import { TFile, TFolder } from 'obsidian';
@@ -49,7 +55,7 @@ function adventureFolder(content: string): { app: App; folder: TFolder } {
 	const app = {
 		vault: {
 			getAbstractFileByPath: (path: string) => (path === note.path ? note : null),
-			cachedRead: async () => content,
+			read: async () => content,
 			adapter: { getResourcePath: (path: string) => `res://${path}` },
 		},
 		metadataCache: { getFileCache: () => null, getFirstLinkpathDest: () => null },
@@ -116,7 +122,7 @@ describe('building the adventure plan', () => {
 		const app = {
 			vault: {
 				getAbstractFileByPath: (path: string) => notes.find((note) => note.path === path) ?? null,
-				cachedRead: async (file: TFile) => files[file.path],
+				read: async (file: TFile) => files[file.path],
 				adapter: { getResourcePath: (path: string) => `res://${path}` },
 			},
 			metadataCache: { getFileCache: () => null, getFirstLinkpathDest: () => null },

@@ -12,7 +12,7 @@ function vault(notes: Record<string, string[]>): NoteSource & { reads: string[] 
 	return {
 		reads,
 		paths: () => Object.keys(notes),
-		tags: (path) => notes[path] ?? [],
+		tags: (path) => Promise.resolve(notes[path] ?? []),
 		read: (path) => {
 			reads.push(path);
 			return Promise.resolve({ path, content: `text of ${path}`, frontmatter: { tags: notes[path] } });

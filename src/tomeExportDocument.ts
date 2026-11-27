@@ -100,7 +100,7 @@ export async function buildExportDocument(
 		}
 
 		try {
-			const markdown = stripFrontmatter(await app.vault.cachedRead(file));
+			const markdown = stripFrontmatter(await app.vault.read(file));
 			await MarkdownRenderer.render(app, markdown, body, item.path, component);
 			applyHeadingLevels(body, item.level);
 			rendered.push({ body, notePath: item.path });

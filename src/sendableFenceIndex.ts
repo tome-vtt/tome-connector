@@ -32,6 +32,8 @@ export function watchSendableFences(plugin: TomeConnectorPlugin): ReadonlySet<st
 		}),
 	);
 
+	// The cache is safe here: this only decides which notes offer a send, and the send
+	// itself re-reads the note from disk. After an outside rewrite the offer can lag.
 	// ponytail: reads only notes the cache files a code section in, so a fence Obsidian
 	// files inside a list is missed until the note is next edited.
 	workspace.onLayoutReady(async () => {
