@@ -2,14 +2,51 @@ name: Node.js build
 
 on:
     push:
-        branches: ['**']
+        branches: [main, development]
         paths-ignore: ['docs/**']
     pull_request:
         branches: ['**']
         paths-ignore: ['docs/**']
 
+permissions:
+    contents: read
+
 jobs:
+    # On a push to main, skip the build when the pushed tree equals its merged PR's green head.
+    check:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            pull-requests: read
+            actions: read
+        outputs:
+            skip: ${{ steps.same.outputs.skip }}
+        steps:
+            - id: same
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+                  SHA: ${{ github.sha }}
+                  PUSHED: ${{ github.event.head_commit.tree_id }}
+                  EVENT: ${{ github.event_name }}
+                  REF: ${{ github.ref }}
+              run: |
+                  skip=false
+                  if [ "$EVENT" = push ] && [ "$REF" = refs/heads/main ]; then
+                      head=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.merged_at != null and .base.ref == "main")][0].head.sha // empty') || head=
+                      if [ -n "$head" ]; then
+                          # Any failed lookup leaves skip=false, so the full matrix runs.
+                          prtree=$(gh api "repos/$REPO/commits/$head" --jq .commit.tree.sha) || prtree=
+                          green=$(gh api "repos/$REPO/actions/workflows/lint.yml/runs?head_sha=$head&event=pull_request&status=success" --jq .total_count) || green=0
+                          if [ -n "$PUSHED" ] && [ "$PUSHED" = "$prtree" ] && [ "$green" -gt 0 ]; then skip=true; fi
+                      fi
+                      echo "merged PR head: ${head:-none}, skip: $skip"
+                  fi
+                  echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
     build:
+        needs: check
+        if: needs.check.outputs.skip != 'true'
         runs-on: ubuntu-latest
 
         strategy:
