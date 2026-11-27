@@ -40,7 +40,7 @@ vi.mock('../src/sendModule', () => ({ sendToTome }));
 
 const vault: NoteSource = {
 	paths: () => ['Bestiary/gone.md'],
-	tags: () => [],
+	tags: () => Promise.resolve([]),
 	read: () =>
 		Promise.reject(
 			new Error('"Bestiary/gone.md" no longer exists in the vault.'),

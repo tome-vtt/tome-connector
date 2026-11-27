@@ -25,8 +25,10 @@ const DATAVIEW = ['~~~dataview', 'LIST', '~~~'].join('\n');
  * A plugin whose app records each event handler by name, so a test can fire the
  * events Obsidian would and then open a file's menu.
  */
-function setup() {
+function setup(files: { file: TFile; read: () => Promise<string> }[] = []) {
 	const handlers = new Map<string, Handler[]>();
+	const live = new Set(files.map(({ file }) => file.path));
+	let layoutReady: () => Promise<void> = async () => {};
 	const on = (name: string, handler: Handler) => {
 		handlers.set(name, [...(handlers.get(name) ?? []), handler]);
 	};
@@ -35,21 +37,34 @@ function setup() {
 		addCommand: vi.fn(),
 		registerEvent: vi.fn(),
 		app: {
-			workspace: { on, onLayoutReady: vi.fn(), getActiveFile: () => null },
-			metadataCache: { on, getFileCache: () => null },
-			vault: { on },
+			workspace: {
+				on,
+				onLayoutReady: (run: () => Promise<void>) => (layoutReady = run),
+				getActiveFile: () => null,
+			},
+			// Every given note is one the cache files a code section in.
+			metadataCache: { on, getFileCache: () => ({ sections: [{ type: 'code' }] }) },
+			vault: {
+				on,
+				getMarkdownFiles: () => files.map(({ file }) => file),
+				cachedRead: (file: TFile) => files.find((f) => f.file === file)!.read(),
+				getFileByPath: (path: string) => (live.has(path) ? {} : null),
+			},
 		},
 	};
 	registerSyncCommands(plugin as never);
 
-	const fire = (name: string, ...args: unknown[]) => handlers.get(name)?.forEach((h) => h(...args));
+	const fire = (name: string, ...args: unknown[]) => {
+		if (name === 'delete') live.delete((args[0] as { path: string }).path);
+		handlers.get(name)?.forEach((h) => h(...args));
+	};
 	const menuTitles = (file: TFile) => {
 		const titles: string[] = [];
 		const item = { setTitle: (t: string) => (titles.push(t), item), setIcon: () => item, onClick: () => item };
 		fire('file-menu', { addItem: (build: (i: typeof item) => void) => build(item) }, file);
 		return titles;
 	};
-	return { fire, menuTitles };
+	return { fire, menuTitles, startUp: () => layoutReady() };
 }
 
 describe('"Send this note to Tome" on a note\'s menu', () => {
@@ -95,5 +110,50 @@ describe('"Send this note to Tome" on a note\'s menu', () => {
 		fire('file-menu', { addItem: (build: (i: typeof item) => void) => build(item) }, goblin);
 
 		expect(runVaultSync).toHaveBeenCalledWith(expect.anything(), { kind: 'note', note: goblin });
+	});
+});
+
+/** A read that finishes only when the test says, so events can arrive while it runs. */
+function heldRead() {
+	let finish: (text: string) => void = () => {};
+	const promise = new Promise<string>((resolve) => (finish = resolve));
+	return { read: () => promise, finish };
+}
+
+describe('"Send this note to Tome" for notes indexed in an earlier session', () => {
+	it('shows on a note with a statblock fence once the layout is ready', async () => {
+		const goblin = note('Goblin.md');
+		const { menuTitles, startUp } = setup([{ file: goblin, read: () => Promise.resolve(STATBLOCK) }]);
+
+		expect(menuTitles(goblin)).not.toContain('Send this note to Tome');
+		await startUp();
+
+		expect(menuTitles(goblin)).toContain('Send this note to Tome');
+	});
+
+	it('keeps an edit reported while the startup read runs over the older text', async () => {
+		const goblin = note('Goblin.md');
+		const held = heldRead();
+		const { fire, menuTitles, startUp } = setup([{ file: goblin, read: held.read }]);
+
+		const started = startUp();
+		fire('changed', goblin, 'Just prose now.');
+		held.finish(STATBLOCK);
+		await started;
+
+		expect(menuTitles(goblin)).not.toContain('Send this note to Tome');
+	});
+
+	it('leaves out a note deleted while the startup read runs', async () => {
+		const goblin = note('Goblin.md');
+		const held = heldRead();
+		const { fire, menuTitles, startUp } = setup([{ file: goblin, read: held.read }]);
+
+		const started = startUp();
+		fire('delete', goblin);
+		held.finish(STATBLOCK);
+		await started;
+
+		expect(menuTitles(goblin)).not.toContain('Send this note to Tome');
 	});
 });

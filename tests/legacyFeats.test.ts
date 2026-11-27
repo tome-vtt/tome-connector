@@ -117,7 +117,7 @@ it('does not count a 2024 feat with a whitespace-only prerequisite as unavailabl
 
 it('carries the conversion from a vault scan into the uploaded package and can turn it off again', async () => {
 	const scan = await scanCompendium({
-		paths: () => [elvenAccuracy.path], tags: () => [],
+		paths: () => [elvenAccuracy.path], tags: () => Promise.resolve([]),
 		read: () => Promise.resolve(elvenAccuracy),
 	}, { kind: 'vault' });
 	const report = scan.assemble({ generalLegacyFeats: true });

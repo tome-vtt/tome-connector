@@ -22,7 +22,7 @@ function vault(): NoteSource & { reads: string[] } {
 	return {
 		reads,
 		paths: () => Object.keys(files),
-		tags: () => [],
+		tags: () => Promise.resolve([]),
 		read: (path) => {
 			reads.push(path);
 			return Promise.resolve({
@@ -161,7 +161,7 @@ function twoBookVault(prefix: string): NoteSource {
 	const tagsOf = (path: string): string[] => [`${prefix}compendium/src/5e/${notes[path]?.source ?? ''}`];
 	return {
 		paths: () => Object.keys(notes),
-		tags: (path) => tagsOf(path).map((tag) => `#${tag}`),
+		tags: (path) => Promise.resolve(tagsOf(path).map((tag) => `#${tag}`)),
 		read: (path) =>
 			Promise.resolve({
 				path,

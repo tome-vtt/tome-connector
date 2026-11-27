@@ -162,7 +162,7 @@ const files: Record<string, { content: string; cssclass: string; tags: string[] 
 
 const vault: NoteSource = {
 	paths: () => Object.keys(files),
-	tags: (path) => (files[path]?.tags ?? []).map((tag) => `#${tag}`),
+	tags: (path) => Promise.resolve((files[path]?.tags ?? []).map((tag) => `#${tag}`)),
 	read: (path) =>
 		Promise.resolve({
 			path,
