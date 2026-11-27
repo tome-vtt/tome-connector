@@ -378,6 +378,27 @@ describe('assemblePackage', () => {
 		expect(report.failed).toEqual([]);
 	});
 
+	/**
+	 * A species' lineage options reach the package as options, so Tome asks for
+	 * one rather than listing every option as a feature the character has.
+	 */
+	it('sends a species lineage options as lineages, not traits', () => {
+		const tauren = note(
+			'CLI/races/tauren-wow.md',
+			'json5e-race',
+			'# Tauren\n*Source: World of Warcraft p. 12*\n\n- **Size**: Medium\n\n## Traits\n\n### Tauren Lineage\n\nYou are a Mulgore Tauren or a Taunka.\n\n### Mulgore Tauren\n\nYou heal.\n\n### Taunka\n\nYou resist cold.',
+		);
+
+		const sent = assemblePackage([tauren], 'k').package.species[0];
+
+		expect(sent?.grants).toEqual({ lineageTrait: 'Tauren Lineage' });
+		expect(sent?.lineages).toEqual([
+			{ key: 'mulgore-tauren', name: 'Mulgore Tauren', desc: 'You heal.' },
+			{ key: 'taunka', name: 'Taunka', desc: 'You resist cold.' },
+		]);
+		expect(sent?.traits.map((trait) => trait.name)).toEqual(['Tauren Lineage']);
+	});
+
 	/** A vault holds session notes and daily notes; those are not a failure. */
 	it('ignores notes that are not compendium entries', () => {
 		const withNoise = assemblePackage(

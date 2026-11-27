@@ -10,12 +10,14 @@
 
 import {
 	capitalise,
+	HEADING,
 	labelMap,
 	parseSections,
 	preamble,
 	sectionsAtLevel,
 	slug,
 	titleOf,
+	type Section,
 } from '../labelledMarkdown';
 import { stripMarkdownFromString } from '../../tomeMarkdownSanitizer';
 
@@ -28,6 +30,18 @@ export interface SpeciesTrait {
 	order: number;
 }
 
+/** Mirrors the server's `Srd2024Lineage`, less the speed and spells a note never states. */
+export interface SpeciesLineage {
+	key: string;
+	name: string;
+	desc: string;
+}
+
+/** Mirrors the server's `Srd2024SpeciesGrants`, of which a note states only the lineage trait. */
+export interface SpeciesGrants {
+	lineageTrait?: string;
+}
+
 /** Mirrors the server's `Srd2024Species`. */
 export interface Species {
 	key: string;
@@ -38,8 +52,8 @@ export interface Species {
 	speed: number | null;
 	speedDetail: string | null;
 	subspeciesOf: string | null;
-	grants: Record<string, never>;
-	lineages: never[];
+	grants: SpeciesGrants;
+	lineages: SpeciesLineage[];
 	traits: SpeciesTrait[];
 }
 
@@ -82,14 +96,14 @@ function sectionBody(markdown: string, title: string): string {
 }
 
 /**
- * The `###` traits, in the order the note lists them.
+ * The `###` traits, in the order the note lists them, numbered from 1.
  *
- * Taken from the whole note rather than from inside `## Traits`, because that is
+ * The caller takes them from the whole note rather than from inside `## Traits`, because that is
  * the only level-3 heading the CLI emits - `## Description` has none - and
  * scoping to the parent would mean re-parsing its body.
  */
-function readTraits(markdown: string): SpeciesTrait[] {
-	return sectionsAtLevel(markdown, 3).map((section, index) => ({
+function readTraits(sections: Section[]): SpeciesTrait[] {
+	return sections.map((section, index) => ({
 		key: slug(section.title),
 		name: section.title,
 		desc: stripMarkdownFromString(section.body),
@@ -101,6 +115,48 @@ function readTraits(markdown: string): SpeciesTrait[] {
 	}));
 }
 
+const LINEAGE_TRAIT = /\blineage\b/i;
+
+/** A section's text before its first sub-heading. */
+function leadText(body: string): string {
+	const lines = body.split(/\r?\n/);
+	const end = lines.findIndex((line) => HEADING.test(line));
+	return (end < 0 ? lines : lines.slice(0, end)).join('\n').trim();
+}
+
+/**
+ * Splits a lineage trait's options out of the traits.
+ *
+ * The options are the trait's own `####` sub-sections, or else the run of `###`
+ * traits straight after it whose whole names its text gives ("a Mulgore Tauren,
+ * a Highmountain Tauren or a Taunka"); the first trait it does not name ends the
+ * run, so "lineage" never matches an `Age` trait.
+ * A lineage trait that sets no option apart - the 2024 Elf's table - stays a
+ * plain trait, because Tome never reads a choice out of feature text.
+ */
+function splitLineages(sections: Section[]): {
+	traits: Section[];
+	lineages: Section[];
+	lineageTrait: string | null;
+} {
+	const at = sections.findIndex((section) => LINEAGE_TRAIT.test(section.title));
+	const named = sections[at];
+	if (!named) return { traits: sections, lineages: [], lineageTrait: null };
+
+	const nested = sectionsAtLevel(named.body, 4);
+	const names = (section: Section): boolean =>
+		new RegExp(`\\b${section.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(named.body);
+	const after = sections.slice(at + 1);
+	const run = after.findIndex((section) => !names(section));
+	const lineages = nested.length > 0 ? nested : run < 0 ? after : after.slice(0, run);
+	if (lineages.length === 0) return { traits: sections, lineages: [], lineageTrait: null };
+
+	const traits = sections
+		.filter((section) => !lineages.includes(section))
+		.map((section) => (section === named ? { ...section, body: leadText(section.body) } : section));
+	return { traits, lineages, lineageTrait: named.title };
+}
+
 /**
  * Reads a species, or null when the note is not one.
  *
@@ -110,15 +166,18 @@ function readTraits(markdown: string): SpeciesTrait[] {
  *   stay distinct - the CLI's filenames carry the source suffix and the titles do
  *   not.
  *
- * **Grants are deliberately empty.** `Srd2024SpeciesGrants` carries a free skill
- * choice, an origin feat, a hit-point bonus and a lineage trait, and the SRD
- * catalogue gets all four from a hand-authored table because the source prose
- * does not state them structurally. The CLI output does not either: Elf's
+ * **Grants are deliberately empty, bar a lineage trait.** `Srd2024SpeciesGrants`
+ * carries a free skill choice, an origin feat, a hit-point bonus and a lineage
+ * trait, and the SRD catalogue gets all four from a hand-authored table because
+ * the source prose does not state them structurally. The CLI output does not either: Elf's
  * lineages are a markdown table inside a trait's prose, and Human's origin feat
  * is a sentence. An imported species therefore arrives with its traits, size and
  * speed correct and grants nothing automatically. Guessing would be worse - a
  * species that silently hands out the wrong proficiency is harder to notice than
- * one that hands out none.
+ * one that hands out none. The one exception is a lineage trait whose options
+ * the note sets apart under their own headings (`splitLineages`): those go out
+ * as `lineages` and `grants.lineageTrait`, so the builder asks for one instead of
+ * listing them all as features.
  */
 export function parseSpecies(
 	markdown: string,
@@ -126,7 +185,8 @@ export function parseSpecies(
 	fallbackName: string,
 ): Species | null {
 	const fields = labelMap(preamble(markdown));
-	const traits = readTraits(markdown);
+	const split = splitLineages(sectionsAtLevel(markdown, 3));
+	const traits = readTraits(split.traits);
 
 	// A species note always states a size, and a note with neither a size nor a
 	// single trait is not one however it is labelled.
@@ -144,8 +204,12 @@ export function parseSpecies(
 		speed: readSpeed(speedDetail ?? undefined),
 		speedDetail,
 		subspeciesOf: null,
-		grants: {},
-		lineages: [],
+		grants: split.lineageTrait === null ? {} : { lineageTrait: split.lineageTrait },
+		lineages: split.lineages.map((section) => ({
+			key: slug(section.title),
+			name: section.title,
+			desc: stripMarkdownFromString(section.body),
+		})),
 		traits,
 	};
 }

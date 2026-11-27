@@ -163,3 +163,140 @@ describe('parseSpecies', () => {
 		expect(traitsOnly?.traits).toHaveLength(1);
 	});
 });
+
+/**
+ * A lineage trait whose options the note lists as their own headings. The
+ * builder asks for the choice only when `lineages` is filled, and writes one
+ * `Tauren Lineage: Taunka` row from `grants.lineageTrait`, so an option left in
+ * `traits` reads on the sheet as a feature the character already has.
+ */
+describe('parseSpecies lineage options', () => {
+	/** Options as later `###` traits that the lineage trait names. */
+	const tauren = `# Tauren
+*Source: World of Warcraft p. 12*
+
+- **Size**: Medium
+- **Speed**: 30 ft.
+
+## Traits
+
+### Hooves
+
+You have hooves.
+
+### Tauren Lineage
+
+You are a Mulgore Tauren, a Highmountain Tauren or a Taunka. Choose one.
+
+### Mulgore Tauren
+
+You know the [Druidcraft](spells/druidcraft.md) cantrip.
+
+### Highmountain Tauren
+
+You can climb.
+
+### Taunka
+
+You resist cold.
+
+### Languages
+
+You speak Common and Taur-ahe.
+
+## Description
+
+Gentle giants of the plains.`;
+
+	const parsed = parseSpecies(tauren, 'tauren-wow', 'Tauren');
+
+	it('sends each named option as a lineage, with its text flattened', () => {
+		expect(parsed?.lineages).toEqual([
+			{ key: 'mulgore-tauren', name: 'Mulgore Tauren', desc: 'You know the Druidcraft cantrip.' },
+			{ key: 'highmountain-tauren', name: 'Highmountain Tauren', desc: 'You can climb.' },
+			{ key: 'taunka', name: 'Taunka', desc: 'You resist cold.' },
+		]);
+	});
+
+	it('names the lineage trait in the grants', () => {
+		expect(parsed?.grants).toEqual({ lineageTrait: 'Tauren Lineage' });
+	});
+
+	it('keeps the options out of the traits, which stay in order', () => {
+		expect(parsed?.traits.map((trait) => [trait.name, trait.order])).toEqual([
+			['Hooves', 1],
+			['Tauren Lineage', 2],
+			['Languages', 3],
+		]);
+	});
+
+	/** Options nested a level down, the way the converter writes a trait's own entries. */
+	it('reads options nested under the lineage trait', () => {
+		const troll = parseSpecies(
+			`# Troll
+
+- **Size**: Medium
+
+## Traits
+
+### Troll Lineage
+
+Choose one of the following.
+
+#### Darkspear Troll
+
+You throw spears.
+
+#### Zandalari Troll
+
+You regenerate.
+
+### Tusks
+
+You gore.`,
+			'troll-wow',
+			'Troll',
+		);
+
+		expect(troll?.grants).toEqual({ lineageTrait: 'Troll Lineage' });
+		expect(troll?.lineages.map((lineage) => [lineage.key, lineage.desc])).toEqual([
+			['darkspear-troll', 'You throw spears.'],
+			['zandalari-troll', 'You regenerate.'],
+		]);
+		expect(troll?.traits.map((trait) => trait.name)).toEqual(['Troll Lineage', 'Tusks']);
+		expect(troll?.traits[0]?.desc).toBe('Choose one of the following.');
+	});
+
+	/**
+	 * The 2024 Elf's lineages are a table inside the trait's prose. With no option
+	 * the note sets apart, nothing is guessed out of the text.
+	 */
+	it('leaves a lineage trait with no separate options as it is today', () => {
+		const elf = parseSpecies(
+			'# Elf\n\n- **Size**: Medium\n\n## Traits\n\n### Elven Lineage\n\n| Lineage | Level 1 |\n|---|---|\n| Drow | Darkvision |\n\n### Trance\n\nYou rest.',
+			'elf-xphb',
+			'Elf',
+		);
+
+		expect(elf?.grants).toEqual({});
+		expect(elf?.lineages).toEqual([]);
+		expect(elf?.traits.map((trait) => trait.name)).toEqual(['Elven Lineage', 'Trance']);
+	});
+
+	/**
+	 * "lineage" holds "age", and a lineage often mentions a trait the species
+	 * already has. Only whole names, in the run straight after the lineage trait,
+	 * are options.
+	 */
+	it('takes no option from part of a word or from past an ordinary trait', () => {
+		const elf = parseSpecies(
+			'# Elf\n\n- **Size**: Medium\n\n## Traits\n\n### Elven Lineage\n\nYou are part of a lineage. Your Darkvision grows.\n\n### Age\n\nYou mature.\n\n### Trance\n\nYou rest.\n\n### Darkvision\n\nYou see.',
+			'elf-xphb',
+			'Elf',
+		);
+
+		expect(elf?.grants).toEqual({});
+		expect(elf?.lineages).toEqual([]);
+		expect(elf?.traits.map((trait) => trait.name)).toEqual(['Elven Lineage', 'Age', 'Trance', 'Darkvision']);
+	});
+});
