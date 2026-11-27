@@ -43,7 +43,7 @@ npm run build
 
 - ESLint is preconfigured with `eslint-plugin-obsidianmd` for Obsidian-specific rules.
 - Run `npm run lint` to lint the project.
-- A GitHub Action automatically lints every commit on all branches, except that it skips a push or pull request that changes only files under `docs/`.
+- A GitHub Action builds, tests and lints every pull request and every push to `development` or `main`. Other branches are not checked on push: Spider gates work branches locally. A merge to `main` whose tree equals its merged pull request's passing head skips the build. A push or pull request that changes only files under `docs/` is skipped.
 
 ## File & folder conventions
 
