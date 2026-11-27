@@ -76,3 +76,18 @@ describe('vaultNotes on a note rewritten outside Obsidian', () => {
 		expect(await notes.tags(path)).toEqual([]);
 	});
 });
+
+describe('vaultNotes on a note whose frontmatter is not a map', () => {
+	it.each([
+		['broken YAML', '---\ntitle: Foo: Bar\n---\n# Note #kept\n'],
+		['a bare string', '---\njust words\n---\n# Note #kept\n'],
+		['a list', '---\n- a\n- b\n---\n# Note #kept\n'],
+	])('reads %s as no frontmatter, as Obsidian does, and still finds body tags', async (_, disk) => {
+		const app = staleVault();
+		(app.vault as unknown as { read: () => Promise<string> }).read = async () => disk;
+		const notes = vaultNotes(app);
+
+		expect((await notes.read(path)).frontmatter).toBeNull();
+		expect(await notes.tags(path)).toEqual(['#kept']);
+	});
+});

@@ -14,35 +14,49 @@ import type { Note } from './recognizers/note';
  * only when the user starts one, so the extra disk reads are worth it.
  */
 export function vaultNotes(app: App): NoteSource {
-	const read = async (path: string): Promise<Note> => {
+	const readWithBody = async (path: string): Promise<{ note: Note; body: string }> => {
 		const file = app.vault.getAbstractFileByPath(path);
 		if (!(file instanceof TFile)) throw new Error(`"${path}" no longer exists in the vault.`);
 		const content = await app.vault.read(file);
 		const info = getFrontMatterInfo(content);
-		const frontmatter = info.exists ? (parseYaml(info.frontmatter) as Record<string, unknown> | null) : null;
-		return { path, content, frontmatter };
+		const frontmatter = info.exists ? frontmatterMap(info.frontmatter) : null;
+		return { note: { path, content, frontmatter }, body: content.slice(info.contentStart) };
 	};
 
 	return {
 		paths: () => app.vault.getMarkdownFiles().map((file) => file.path),
 		tags: async (path) => {
-			const note = await read(path);
-			const body = note.content.slice(getFrontMatterInfo(note.content).contentStart);
+			const { note, body } = await readWithBody(path);
 			return [...new Set([...(parseFrontMatterTags(note.frontmatter) ?? []), ...inlineTags(body)])];
 		},
-		read,
+		read: async (path) => (await readWithBody(path)).note,
 	};
+}
+
+/** Parsed frontmatter, or null when it is not a YAML map: what Obsidian's cache gives such a note. */
+function frontmatterMap(yaml: string): Record<string, unknown> | null {
+	try {
+		const parsed: unknown = parseYaml(yaml);
+		return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+			? (parsed as Record<string, unknown>)
+			: null;
+	} catch {
+		return null;
+	}
 }
 
 /**
  * The `#tags` written in a note's body, each with its `#`, as Obsidian would index them.
  *
- * ponytail: a regex over the body with code removed, not Obsidian's own parser; it can
- * differ on rare markup (a tag inside a comment or HTML). Obsidian offers no tag parser
- * for raw text, so adopt one if it ever does.
+ * ponytail: a regex over the body with code and `%%comments%%` removed, not Obsidian's
+ * own parser; it can differ on rare markup (a fence inside a callout or list, indented
+ * code, an HTML comment). Obsidian offers no tag parser for raw text; adopt one if it does.
  */
 function inlineTags(body: string): string[] {
-	const prose = body.replace(/^(```|~~~)[\s\S]*?^\1/gm, '').replace(/`[^`\n]*`/g, '');
+	const prose = body
+		.replace(/^(```|~~~)[\s\S]*?^\1/gm, '')
+		.replace(/`[^`\n]*`/g, '')
+		.replace(/%%[\s\S]*?%%/g, '');
 	return [...prose.matchAll(/(?:^|\s)#([\p{L}\p{N}_/-]+)/gu)]
 		.map((match) => match[1] ?? '')
 		.filter((tag) => /[^\d]/.test(tag))
